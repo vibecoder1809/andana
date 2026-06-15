@@ -1,12 +1,33 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import type { Train, Stop, Alert, Route, Theme } from '@/types'
 import { LINE_COLORS } from '@/lib/constants'
 import { TrainCard } from './TrainCard'
 import { DetailPanel } from './DetailPanel'
 import { StopPanel } from './StopPanel'
+
+const LINE_GROUPS: { key: string; label: string; prefix: RegExp }[] = [
+  { key: 'L', label: 'L — Urbà',   prefix: /^L/ },
+  { key: 'S', label: 'S — Vallès', prefix: /^S/ },
+  { key: 'R', label: 'R — Reg.',   prefix: /^R/ },
+  { key: 'Other', label: 'Altres', prefix: /^(?!L|S|R)/ },
+]
+
+function useRelativeTime(lastUpdate: Date | null): string {
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [])
+  if (!lastUpdate) return '—'
+  const secs = Math.round((Date.now() - lastUpdate.getTime()) / 1000)
+  if (secs < 5) return 'ara mateix'
+  if (secs < 60) return `fa ${secs}s`
+  const mins = Math.floor(secs / 60)
+  return `fa ${mins}m`
+}
 
 const MapView = dynamic(() => import('./MapView'), { ssr: false })
 
@@ -50,10 +71,26 @@ export function MobileLayout({
   onToggleLine, onSelectTrain, onSelectStop,
   onCloseTrain, onCloseStop, onRefresh, onThemeToggle,
 }: MobileLayoutProps) {
-  const [sheetRatio, setSheetRatio]   = useState(SNAP_PEEK)
-  const [activeTab, setActiveTab]     = useState<'trains' | 'stations'>('trains')
+  const [sheetRatio, setSheetRatio]     = useState(SNAP_PEEK)
+  const [activeTab, setActiveTab]       = useState<'trains' | 'stations'>('trains')
   const [stationQuery, setStationQuery] = useState('')
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const dragStart = useRef<{ y: number; ratio: number } | null>(null)
+
+  const relativeTime = useRelativeTime(lastUpdate)
+
+  const toggleGroup = useCallback((key: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }, [])
+
+  const lineGroups = LINE_GROUPS.map(g => ({
+    ...g,
+    members: lines.filter(l => g.prefix.test(l)),
+  })).filter(g => g.members.length > 0)
 
   const filteredTrains = activeLines.has('ALL')
     ? trains
@@ -87,10 +124,6 @@ export function MobileLayout({
     setSheetRatio(snapNearest(sheetRatio))
     dragStart.current = null
   }, [sheetRatio])
-
-  const timeStr = lastUpdate
-    ? lastUpdate.toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit' })
-    : '—'
 
   const sheetHeight = `${Math.round(sheetRatio * 100)}vh`
 
@@ -127,7 +160,7 @@ export function MobileLayout({
             disabled={refreshing}
             style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', color: refreshing ? 'var(--accent)' : 'var(--muted)', padding: '6px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}
           >
-            {refreshing ? '…' : `Act. ${timeStr}`}
+            {refreshing ? '…' : relativeTime}
           </button>
         </div>
       </div>
@@ -156,6 +189,7 @@ export function MobileLayout({
           selectedStop={selectedStop}
           onSelectTrain={t => { onSelectTrain(t); setSheetRatio(SNAP_PEEK) }}
           onSelectStop={s => { onSelectStop(s); setSheetRatio(SNAP_PEEK) }}
+          onCloseStop={onCloseStop}
           theme={theme}
         />
       </div>
@@ -209,27 +243,48 @@ export function MobileLayout({
           ))}
         </div>
 
-        {/* Line filter pills — horizontal scroll */}
-        <div style={{ overflowX: 'auto', display: 'flex', gap: 6, padding: '8px 14px', flexShrink: 0, scrollbarWidth: 'none' }}>
-          <span
-            onClick={() => onToggleLine('ALL')}
-            style={{ flexShrink: 0, padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1.5px solid ${activeLines.has('ALL') ? 'var(--text)' : 'transparent'}`, background: 'var(--bg3)', color: 'var(--text)', opacity: activeLines.has('ALL') ? 1 : 0.5, fontFamily: 'var(--font-space-grotesk), sans-serif' }}
-          >
-            Tots
-          </span>
-          {lines.map(l => {
-            const active = activeLines.has(l)
-            const color = lineColors[l] || LINE_COLORS[l] || '#7a82a0'
-            return (
-              <span
-                key={l}
-                onClick={() => onToggleLine(l)}
-                style={{ flexShrink: 0, padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1.5px solid ${active ? color : 'transparent'}`, background: `${color}20`, color, opacity: active ? 1 : 0.5, fontFamily: 'var(--font-space-grotesk), sans-serif' }}
-              >
-                {l}
-              </span>
-            )
-          })}
+        {/* Line filter — grouped by family */}
+        <div style={{ padding: '6px 14px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
+          {/* "All" pill + group header pills on one scrollable row */}
+          <div style={{ overflowX: 'auto', display: 'flex', gap: 6, paddingBottom: 6, scrollbarWidth: 'none' }}>
+            <span
+              onClick={() => onToggleLine('ALL')}
+              style={{ flexShrink: 0, padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1.5px solid ${activeLines.has('ALL') ? 'var(--text)' : 'transparent'}`, background: 'var(--bg3)', color: 'var(--text)', opacity: activeLines.has('ALL') ? 1 : 0.5, fontFamily: 'var(--font-space-grotesk), sans-serif' }}
+            >
+              Tots
+            </span>
+            {lineGroups.map(g => {
+              const expanded = expandedGroups.has(g.key)
+              const anyActive = !activeLines.has('ALL') && g.members.some(l => activeLines.has(l))
+              return (
+                <span
+                  key={g.key}
+                  onClick={() => toggleGroup(g.key)}
+                  style={{ flexShrink: 0, padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1.5px solid ${anyActive ? 'var(--accent)' : expanded ? 'var(--border2)' : 'transparent'}`, background: anyActive ? 'rgba(99,102,241,0.12)' : 'var(--bg3)', color: anyActive ? 'var(--accent)' : 'var(--muted)', fontFamily: 'var(--font-space-grotesk), sans-serif' }}
+                >
+                  {g.label} {expanded ? '▲' : '▼'}
+                </span>
+              )
+            })}
+          </div>
+          {/* Expanded group lines */}
+          {lineGroups.filter(g => expandedGroups.has(g.key)).map(g => (
+            <div key={g.key} style={{ display: 'flex', flexWrap: 'wrap', gap: 5, paddingBottom: 6 }}>
+              {g.members.map(l => {
+                const active = activeLines.has(l)
+                const color = lineColors[l] || LINE_COLORS[l] || '#7a82a0'
+                return (
+                  <span
+                    key={l}
+                    onClick={() => onToggleLine(l)}
+                    style={{ padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1.5px solid ${active ? color : 'transparent'}`, background: `${color}20`, color, opacity: active ? 1 : 0.5, fontFamily: 'var(--font-space-grotesk), sans-serif' }}
+                  >
+                    {l}
+                  </span>
+                )
+              })}
+            </div>
+          ))}
         </div>
 
         {/* Scrollable content */}

@@ -16,12 +16,22 @@ function occStyle(pct: number) {
   return             { bg: 'rgba(34,197,94,0.12)',   color: '#4ade80' }
 }
 
+function etaLabel(etaUnix: number | undefined): string | null {
+  if (etaUnix == null) return null
+  const mins = Math.round((etaUnix * 1000 - Date.now()) / 60000)
+  if (mins <= 0) return 'ara'
+  if (mins === 1) return 'en 1 min'
+  return `en ${mins} min`
+}
+
 export function TrainCard({ train, selected, onClick, lineColors }: TrainCardProps) {
   const colors = lineColors ?? LINE_COLORS
   const color  = colors[train.line] || '#7a82a0'
   const occ    = Math.round(train.occupancyPercent)
   const oStyle = occStyle(occ)
   const delayed = train.delayMinutes > 0
+  const nextStop = train.upcomingStops[0]
+  const eta = etaLabel(train.nextStopEta)
 
   return (
     <div
@@ -62,6 +72,14 @@ export function TrainCard({ train, selected, onClick, lineColors }: TrainCardPro
       {train.currentStop && (
         <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
           Ara a <span style={{ color: 'var(--text)' }}>{train.currentStop}</span>
+        </div>
+      )}
+
+      {/* Next stop + ETA */}
+      {nextStop && (
+        <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>Pròxima parada: <span style={{ color: 'var(--text)' }}>{nextStop}</span></span>
+          {eta && <span style={{ color: color, fontWeight: 600 }}>{eta}</span>}
         </div>
       )}
     </div>

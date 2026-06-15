@@ -1,5 +1,21 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+
+function useRelativeTime(lastUpdate: Date | null): string {
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [])
+  if (!lastUpdate) return '—'
+  const secs = Math.round((Date.now() - lastUpdate.getTime()) / 1000)
+  if (secs < 5) return 'ara mateix'
+  if (secs < 60) return `fa ${secs}s`
+  const mins = Math.floor(secs / 60)
+  return `fa ${mins}m`
+}
+
 interface HeaderProps {
   trainCount: number
   lineCount: number
@@ -10,9 +26,7 @@ interface HeaderProps {
 }
 
 export function Header({ trainCount, lineCount, lastUpdate, refreshing, onThemeToggle, onRefresh }: HeaderProps) {
-  const timeStr = lastUpdate
-    ? lastUpdate.toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    : '—'
+  const relativeTime = useRelativeTime(lastUpdate)
 
   return (
     <header style={{
@@ -47,7 +61,7 @@ export function Header({ trainCount, lineCount, lastUpdate, refreshing, onThemeT
           <b style={{ color: 'var(--text)', fontSize: 13 }}>{lineCount}</b> línies
         </span>
         <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-          Act. <b style={{ color: 'var(--text)', fontSize: 13 }}>{timeStr}</b>
+          Act. <b style={{ color: 'var(--text)', fontSize: 13 }}>{relativeTime}</b>
         </span>
         <button onClick={onThemeToggle} style={{ background: 'none', border: '1px solid var(--border2)', color: 'var(--muted)', padding: '7px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit' }}>
           Tema

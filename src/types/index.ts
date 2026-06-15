@@ -10,6 +10,7 @@ export interface Train {
   wagons?: number[]
   upcomingStops: string[]
   currentStop?: string
+  nextStopEta?: number
 }
 
 export interface StopArrival {

@@ -99,29 +99,49 @@ export async function fetchRoutes(): Promise<Route[]> {
   }))
 }
 
-// Returns a map of posicionament record id -> delay in minutes (from GTFS-RT arrival.delay)
-export async function fetchTripDelays(): Promise<Map<string, number>> {
+export interface TripInfo {
+  delay: number
+  nextStopEta: number | null
+}
+
+// Returns a map of posicionament record id -> delay + next-stop ETA (unix seconds)
+export async function fetchTripInfo(): Promise<Map<string, TripInfo>> {
   const buffer = await fetchPbBuffer('trip-updates-gtfs_realtime')
   const { transit_realtime } = await import('gtfs-realtime-bindings')
   const feed = transit_realtime.FeedMessage.decode(buffer)
 
-  const delays = new Map<string, number>()
+  const now = Date.now() / 1000
+  const result = new Map<string, TripInfo>()
+
   for (const entity of feed.entity) {
     if (!entity.tripUpdate) continue
     const tu = entity.tripUpdate
-    // Take the delay from the first stop_time_update that has one
+    let delay = 0
+    let nextStopEta: number | null = null
+
     for (const stu of tu.stopTimeUpdate ?? []) {
       const delaySec = (stu.arrival?.delay ?? stu.departure?.delay) as number | null | undefined
-      if (delaySec != null && delaySec !== 0) {
-        delays.set(entity.id, Math.round(delaySec / 60))
-        break
+      if (delaySec != null && delaySec !== 0 && delay === 0) {
+        delay = Math.round(delaySec / 60)
       }
+      if (nextStopEta === null) {
+        const t = (stu.arrival?.time ?? stu.departure?.time) as number | null | undefined
+        if (t != null && (t as number) > now) {
+          nextStopEta = t as number
+        }
+      }
+      if (delay !== 0 && nextStopEta !== null) break
     }
-    if (!delays.has(entity.id)) {
-      delays.set(entity.id, 0)
-    }
+
+    result.set(entity.id, { delay, nextStopEta })
   }
-  return delays
+  return result
+}
+
+// Returns a map of posicionament record id -> delay in minutes (from GTFS-RT arrival.delay)
+export async function fetchTripDelays(): Promise<Map<string, number>> {
+  const info = await fetchTripInfo()
+  return new Map([...info.entries()].map(([id, v]) => [id, v.delay]))
 }
 
 // Returns upcoming stop arrivals for a given trip entity ID

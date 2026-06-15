@@ -31,6 +31,7 @@ export function App() {
     date: new Date().toDateString(),
     data: {},
   })
+  const prevDataRef = useRef<string>('')
 
   const lineColors = useMemo<Record<string, string>>(
     () => routes.length > 0
@@ -61,7 +62,11 @@ export function App() {
       const data: Train[] = await res.json()
       setApiError(null)
       setTrains(data)
-      setLastUpdate(new Date())
+      const fingerprint = JSON.stringify(data.map(t => ({ id: t.id, lat: t.lat, lng: t.lng, delay: t.delayMinutes })))
+      if (fingerprint !== prevDataRef.current) {
+        prevDataRef.current = fingerprint
+        setLastUpdate(new Date())
+      }
 
       const today = new Date().toDateString()
       if (tallyRef.current.date !== today) {
@@ -129,7 +134,7 @@ export function App() {
 
   useEffect(() => {
     fetchTrains(true)
-    const interval = setInterval(() => fetchTrains(false), 10_000)
+    const interval = setInterval(() => fetchTrains(false), 20_000)
     return () => clearInterval(interval)
   }, [fetchTrains])
 

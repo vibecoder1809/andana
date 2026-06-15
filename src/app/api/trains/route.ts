@@ -1,5 +1,5 @@
 import { fetchTrains } from '@/lib/geotren'
-import { fetchTripDelays } from '@/lib/gtfs'
+import { fetchTripInfo } from '@/lib/gtfs'
 
 export async function GET() {
   let trains
@@ -11,14 +11,16 @@ export async function GET() {
   }
 
   try {
-    const delays = await fetchTripDelays()
+    const info = await fetchTripInfo()
     for (const train of trains) {
-      const delay = delays.get(train.id)
-      if (delay != null) train.delayMinutes = delay
+      const tripInfo = info.get(train.id)
+      if (tripInfo != null) {
+        train.delayMinutes = tripInfo.delay
+        if (tripInfo.nextStopEta != null) train.nextStopEta = tripInfo.nextStopEta
+      }
     }
   } catch (err) {
-    // GTFS-RT delay enrichment is best-effort; positions are still valid without it
-    console.error('GTFS-RT delay fetch failed:', err)
+    console.error('GTFS-RT enrichment failed:', err)
   }
 
   return Response.json(trains)

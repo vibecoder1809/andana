@@ -21,10 +21,11 @@ interface MapViewProps {
   selectedStop: Stop | null
   onSelectTrain: (train: Train) => void
   onSelectStop: (stop: Stop) => void
+  onCloseStop?: () => void
   theme: Theme
 }
 
-export default function MapView({ trains, stops, routes, lineColors, selectedTrain, selectedStop, onSelectTrain, onSelectStop, theme }: MapViewProps) {
+export default function MapView({ trains, stops, routes, lineColors, selectedTrain, selectedStop, onSelectTrain, onSelectStop, onCloseStop, theme }: MapViewProps) {
   const mapRef = useRef<MapRef>(null)
   const [popupStop, setPopupStop] = useState<Stop | null>(null)
 
@@ -79,6 +80,7 @@ export default function MapView({ trains, stops, routes, lineColors, selectedTra
           if (hit) { setPopupStop(hit); onSelectStop(hit) }
         } else {
           setPopupStop(null)
+          onCloseStop?.()
         }
       }}
     >
