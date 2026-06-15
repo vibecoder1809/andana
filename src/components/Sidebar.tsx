@@ -31,6 +31,8 @@ const LINE_GROUPS: { key: string; label: string; prefix: RegExp }[] = [
 export function Sidebar({ trains, stops, lines, lineColors, activeLines, selectedTrain, selectedStop, dailyPunctuality, onToggleLine, onSelectTrain, onSelectStop }: SidebarProps) {
   const [activeTab, setActiveTab]           = useState<Tab>('trains')
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const [filterOpen, setFilterOpen]         = useState(true)
+  const [punctualityOpen, setPunctualityOpen] = useState(false)
   const [stationQuery, setStationQuery]     = useState('')
   const [showDropdown, setShowDropdown]     = useState(false)
   const dropdownRef                         = useRef<HTMLDivElement>(null)
@@ -139,11 +141,15 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
       {activeTab === 'trains' && (
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {/* Line filters */}
-          <div style={{ padding: 16, borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10 }}>
-              Filtre per Línia
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+            <button
+              onClick={() => setFilterOpen(o => !o)}
+              style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '10px 16px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontFamily: 'inherit' }}
+            >
+              <span style={{ flex: 1, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', textAlign: 'left' }}>Filtre per Línia</span>
+              <span style={{ fontSize: 9, opacity: 0.6 }}>{filterOpen ? '▲' : '▼'}</span>
+            </button>
+            {filterOpen && <div style={{ padding: '0 16px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
               <span
                 onClick={() => onToggleLine('ALL')}
                 style={{ alignSelf: 'flex-start', padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1.5px solid ${activeLines.has('ALL') ? 'var(--text)' : 'transparent'}`, background: 'var(--bg3)', color: 'var(--text)', opacity: activeLines.has('ALL') ? 1 : 0.45, transition: 'all 0.15s', fontFamily: 'var(--font-space-grotesk), sans-serif' }}
@@ -184,28 +190,34 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
                   </div>
                 )
               })}
-            </div>
+            </div>}
           </div>
 
           {/* Punctuality chart */}
-          <div style={{ padding: 16, borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10 }}>
-              Puntualitat Avui (%)
-            </div>
-            <div style={{ background: 'var(--bg3)', padding: 8, borderRadius: 8 }}>
-              {punctuality.length === 0 && (
-                <div style={{ fontSize: 11, color: 'var(--muted)', padding: '4px 0' }}>Acumulant dades…</div>
-              )}
-              {punctuality.map(d => (
-                <div key={d.line} title={`${d.total} observacions avui`} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ width: 20, fontWeight: 600, fontSize: 11, fontFamily: 'var(--font-space-grotesk)' }}>{d.line}</span>
-                  <div style={{ flex: 1, height: 8, background: 'var(--border2)', borderRadius: 4, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${d.pct}%`, background: d.pct > 95 ? 'var(--green)' : d.pct > 75 ? 'var(--yellow)' : 'var(--red)', borderRadius: 4 }} />
+          <div style={{ borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+            <button
+              onClick={() => setPunctualityOpen(o => !o)}
+              style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '10px 16px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontFamily: 'inherit' }}
+            >
+              <span style={{ flex: 1, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', textAlign: 'left' }}>Puntualitat Avui (%)</span>
+              <span style={{ fontSize: 9, opacity: 0.6 }}>{punctualityOpen ? '▲' : '▼'}</span>
+            </button>
+            {punctualityOpen && <div style={{ padding: '0 16px 12px' }}>
+              <div style={{ background: 'var(--bg3)', padding: 8, borderRadius: 8 }}>
+                {punctuality.length === 0 && (
+                  <div style={{ fontSize: 11, color: 'var(--muted)', padding: '4px 0' }}>Acumulant dades…</div>
+                )}
+                {punctuality.map(d => (
+                  <div key={d.line} title={`${d.total} observacions avui`} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span style={{ width: 20, fontWeight: 600, fontSize: 11, fontFamily: 'var(--font-space-grotesk)' }}>{d.line}</span>
+                    <div style={{ flex: 1, height: 8, background: 'var(--border2)', borderRadius: 4, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${d.pct}%`, background: d.pct > 95 ? 'var(--green)' : d.pct > 75 ? 'var(--yellow)' : 'var(--red)', borderRadius: 4 }} />
+                    </div>
+                    <span style={{ color: 'var(--muted)', fontSize: 10 }}>{d.pct}%</span>
                   </div>
-                  <span style={{ color: 'var(--muted)', fontSize: 10 }}>{d.pct}%</span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </div>}
           </div>
 
           {/* Train list */}
