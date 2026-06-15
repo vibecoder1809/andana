@@ -6,7 +6,6 @@ export interface Train {
   destination: string
   origin: string
   delayMinutes: number
-  speedKmh?: number
   occupancyPercent: number
   wagons?: number[]
   upcomingStops: string[]

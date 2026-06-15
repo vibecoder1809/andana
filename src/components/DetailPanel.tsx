@@ -59,10 +59,9 @@ export function DetailPanel({ train, lineColors, onClose }: DetailPanelProps) {
           {/* Metrics grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
             {[
-              { label: 'Destinació final',   value: train.destination, size: 13 },
-              { label: 'Puntualitat',        value: train.delayMinutes > 0 ? `+${train.delayMinutes} min` : 'Puntual', color: train.delayMinutes > 0 ? 'var(--red)' : 'var(--green)', size: 18 },
-              ...(train.speedKmh != null ? [{ label: 'Velocitat', value: `${train.speedKmh} km/h`, size: 18 }] : []),
-              { label: 'Ocupació mitjana',   value: `${Math.round(train.occupancyPercent)}%`, size: 18 },
+              { label: 'Destinació final', value: train.destination, size: 13 },
+              { label: 'Puntualitat',      value: train.delayMinutes > 0 ? `+${train.delayMinutes} min` : 'Puntual', color: train.delayMinutes > 0 ? 'var(--red)' : 'var(--green)', size: 18 },
+              { label: 'Ocupació mitjana', value: `${Math.round(train.occupancyPercent)}%`, size: 18 },
             ].map(m => (
               <div key={m.label} style={{ background: 'var(--bg3)', borderRadius: 10, padding: 10 }}>
                 <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 2 }}>{m.label}</div>

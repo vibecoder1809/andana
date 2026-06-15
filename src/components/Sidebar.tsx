@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import type { Train, Stop } from '@/types'
 import { LINE_COLORS } from '@/lib/constants'
 import { TrainCard } from './TrainCard'
@@ -14,65 +14,93 @@ interface SidebarProps {
   lineColors: Record<string, string>
   activeLines: Set<string>
   selectedTrain: Train | null
+  selectedStop: Stop | null
   dailyPunctuality: Record<string, { onTime: number; total: number }>
   onToggleLine: (line: string) => void
   onSelectTrain: (train: Train) => void
   onSelectStop: (stop: Stop) => void
 }
 
-export function Sidebar({ trains, stops, lines, lineColors, activeLines, selectedTrain, dailyPunctuality, onToggleLine, onSelectTrain, onSelectStop }: SidebarProps) {
-  const [activeTab, setActiveTab] = useState<Tab>('trains')
+const LINE_GROUPS: { key: string; label: string; prefix: RegExp }[] = [
+  { key: 'L',     label: 'L — Barcelona urbà',           prefix: /^L/ },
+  { key: 'S',     label: 'S — Vallès',                   prefix: /^S/ },
+  { key: 'R',     label: 'R — Llobregat-Anoia regional', prefix: /^R/ },
+  { key: 'Other', label: 'Altres',                       prefix: /^(?!L|S|R)/ },
+]
+
+export function Sidebar({ trains, stops, lines, lineColors, activeLines, selectedTrain, selectedStop, dailyPunctuality, onToggleLine, onSelectTrain, onSelectStop }: SidebarProps) {
+  const [activeTab, setActiveTab]           = useState<Tab>('trains')
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
-  const [stationQuery, setStationQuery] = useState('')
-  const [showDropdown, setShowDropdown] = useState(false)
-  const [selectedStop, setSelectedStop] = useState<Stop | null>(null)
+  const [stationQuery, setStationQuery]     = useState('')
+  const [showDropdown, setShowDropdown]     = useState(false)
+  const dropdownRef                         = useRef<HTMLDivElement>(null)
 
-  const filteredStops = stationQuery
-    ? Array.from(
-        new Map(
-          stops
-            .filter(s => s.name.toLowerCase().includes(stationQuery.toLowerCase()))
-            .map(s => [s.name, s]),
-        ).values(),
-      ).slice(0, 10)
-    : []
+  // Sync station query label when parent's selectedStop changes (e.g. map click)
+  useEffect(() => {
+    if (selectedStop) {
+      setStationQuery(selectedStop.name)
+      setActiveTab('stations')
+    }
+  }, [selectedStop?.stopId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function selectStop(stop: Stop) {
-    setSelectedStop(stop)
-    setStationQuery(stop.name)
-    setShowDropdown(false)
-    onSelectStop(stop)
-  }
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
-  const punctuality = lines
-    .map(line => {
-      const tally = dailyPunctuality[line]
-      if (!tally || tally.total === 0) return null
-      return { line, pct: Math.round((tally.onTime / tally.total) * 100), total: tally.total }
-    })
-    .filter((d): d is { line: string; pct: number; total: number } => d !== null)
+  const filteredStops = useMemo(() =>
+    stationQuery
+      ? Array.from(
+          new Map(
+            stops
+              .filter(s => s.name.toLowerCase().includes(stationQuery.toLowerCase()))
+              .map(s => [s.name, s]),
+          ).values(),
+        ).slice(0, 10)
+      : [],
+    [stops, stationQuery],
+  )
 
-  // Trains passing through the selected stop — either currently there or in upcoming stops
-  const passingTrains = selectedStop
-    ? trains.filter(t =>
-        t.currentStop === selectedStop.name ||
-        t.upcomingStops.includes(selectedStop.name)
-      )
-    : []
+  const passingTrains = useMemo(() =>
+    selectedStop
+      ? trains.filter(t =>
+          t.currentStop === selectedStop.name ||
+          t.upcomingStops.includes(selectedStop.name)
+        )
+      : [],
+    [trains, selectedStop],
+  )
 
-  const LINE_GROUPS: { key: string; label: string; prefix: RegExp }[] = [
-    { key: 'L',     label: 'L — Barcelona urbà',           prefix: /^L/ },
-    { key: 'S',     label: 'S — Vallès',                   prefix: /^S/ },
-    { key: 'R',     label: 'R — Llobregat-Anoia regional', prefix: /^R/ },
-    { key: 'Other', label: 'Altres',                       prefix: /^(?!L|S|R)/ },
-  ]
+  const punctuality = useMemo(() =>
+    lines
+      .map(line => {
+        const tally = dailyPunctuality[line]
+        if (!tally || tally.total === 0) return null
+        return { line, pct: Math.round((tally.onTime / tally.total) * 100), total: tally.total }
+      })
+      .filter((d): d is { line: string; pct: number; total: number } => d !== null),
+    [lines, dailyPunctuality],
+  )
 
   const lineGroups = useMemo(() =>
     LINE_GROUPS.map(g => ({
       ...g,
       members: lines.filter(l => g.prefix.test(l)),
     })).filter(g => g.members.length > 0),
-  [lines]) // eslint-disable-line react-hooks/exhaustive-deps
+    [lines],
+  )
+
+  function selectStop(stop: Stop) {
+    setStationQuery(stop.name)
+    setShowDropdown(false)
+    onSelectStop(stop)
+  }
 
   function toggleGroup(key: string) {
     setExpandedGroups(prev => {
@@ -195,7 +223,7 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
       {/* ── Stations tab ── */}
       {activeTab === 'stations' && (
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: 16, borderBottom: '1px solid var(--border)', flexShrink: 0, position: 'relative' }}>
+          <div ref={dropdownRef} style={{ padding: 16, borderBottom: '1px solid var(--border)', flexShrink: 0, position: 'relative' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10 }}>
               Cerca Estació
             </div>

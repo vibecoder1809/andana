@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Geotren
 
-## Getting Started
+Live map of FGC (Ferrocarrils de la Generalitat de Catalunya) trains in real time.
 
-First, run the development server:
+Built with Next.js 15, Leaflet, and public open-data APIs.
+
+## Features
+
+- Real-time train positions pulled from the FGC API every 15 seconds
+- GTFS-RT delay enrichment (punctuality in minutes)
+- Per-wagon occupancy chart (M1 / M2 / MI / RI)
+- Route geometry overlays on the map
+- Air quality (NO₂ / O₃ / PM10 / IQAM) and weather per stop
+- Day-session punctuality chart per line
+- Dark / light theme
+- Mobile-friendly bottom sheet with drag-snap gestures
+
+## Stack
+
+- [Next.js 15](https://nextjs.org) (App Router)
+- [Leaflet](https://leafletjs.com) via `react-leaflet`
+- [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) font
+- Public APIs: [opendata.fgc.cat](https://opendata.fgc.cat), [api.meteo.cat](https://api.meteo.cat), [analisi.osm.cat](https://analisi.osm.cat)
+
+## Running locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Create `.env.local` (already gitignored):
 
-## Learn More
+```env
+# GTFS-RT protobuf feed URL — get it from https://opendata.fgc.cat
+# Leave empty to run without real-time delay data
+FGC_GTFS_RT_URL=
+```
 
-To learn more about Next.js, take a look at the following resources:
+No API keys are required — all data sources are open.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## License
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT
