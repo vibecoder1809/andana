@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react'
 import type { Train, Stop } from '@/types'
-import { LINE_COLORS } from '@/lib/constants'
+import { LINE_COLORS, STATION_CODES } from '@/lib/constants'
 import { TrainCard } from './TrainCard'
 import { TripPlanner } from './TripPlanner'
 
@@ -70,14 +70,24 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
     [stops, stationQuery],
   )
 
+  // Trains report stops by their canonical name (resolved via STATION_CODES),
+  // which differs from the stop's raw API name (e.g. "Barcelona - Plaça
+  // Catalunya" vs "Pl. Catalunya"). Resolve the selected stop the same way the
+  // map popup does so the two panels agree.
+  const selectedStationName = useMemo(() => {
+    if (!selectedStop) return null
+    const code = selectedStop.stopId.replace(/\d+$/, '')
+    return STATION_CODES[code] ?? selectedStop.name
+  }, [selectedStop])
+
   const passingTrains = useMemo(() =>
-    selectedStop
+    selectedStationName
       ? trains.filter(t =>
-          t.currentStop === selectedStop.name ||
-          t.upcomingStops.includes(selectedStop.name)
+          t.currentStop === selectedStationName ||
+          t.upcomingStops.includes(selectedStationName)
         )
       : [],
-    [trains, selectedStop],
+    [trains, selectedStationName],
   )
 
   const punctuality = useMemo(() =>
@@ -275,8 +285,8 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
                 </p>
                 {passingTrains.length > 0 ? passingTrains.map(t => {
                   const color = lineColors[t.line] || LINE_COLORS[t.line] || '#7a82a0'
-                  const isHere = t.currentStop === selectedStop.name
-                  const stopsAway = isHere ? 0 : t.upcomingStops.indexOf(selectedStop.name) + 1
+                  const isHere = t.currentStop === selectedStationName
+                  const stopsAway = isHere ? 0 : t.upcomingStops.indexOf(selectedStationName!) + 1
                   return (
                     <div
                       key={t.id}
