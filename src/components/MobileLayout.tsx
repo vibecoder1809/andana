@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react'
 import dynamic from 'next/dynamic'
 import type { Train, Stop, Alert, Route, Theme } from '@/types'
 import { LINE_COLORS } from '@/lib/constants'
 import { TrainCard } from './TrainCard'
 import { DetailPanel } from './DetailPanel'
 import { StopPanel } from './StopPanel'
+import { TripPlanner } from './TripPlanner'
 
 const LINE_GROUPS: { key: string; label: string; prefix: RegExp }[] = [
   { key: 'L', label: 'L — Urbà',   prefix: /^L/ },
@@ -64,6 +65,79 @@ function snapNearest(ratio: number): number {
   return snaps.reduce((a, b) => Math.abs(b - ratio) < Math.abs(a - ratio) ? b : a)
 }
 
+const ROTATION_MS   = 7_000
+const PREVIEW_COUNT = 5
+const EXPANDED_COUNT = 10
+
+function MobileAlertBanner({ alerts }: { alerts: Alert[] }) {
+  const preview = alerts.slice(0, PREVIEW_COUNT)
+  const [idx, setIdx]           = useState(0)
+  const [expanded, setExpanded] = useState(false)
+  const [fade, setFade]         = useState(true)
+  const timerRef                = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const rotate = useCallback(() => {
+    setFade(false)
+    setTimeout(() => {
+      setIdx(i => (i + 1) % preview.length)
+      setFade(true)
+    }, 250)
+  }, [preview.length])
+
+  useEffect(() => {
+    if (expanded || preview.length <= 1) return
+    timerRef.current = setInterval(rotate, ROTATION_MS)
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  }, [expanded, preview.length, rotate])
+
+  useLayoutEffect(() => { setIdx(0) }, [alerts])
+
+  const visible = preview[idx]
+
+  return (
+    <div
+      onClick={() => setExpanded(e => !e)}
+      style={{
+        position: 'absolute', top: 48, left: 0, right: 0, zIndex: 20,
+        background: 'rgba(234,179,8,0.92)',
+        color: '#000',
+        cursor: 'pointer',
+        userSelect: 'none',
+      }}
+    >
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px',
+        fontSize: 11, fontWeight: 600,
+        opacity: fade ? 1 : 0, transition: 'opacity 0.25s',
+      }}>
+        <span style={{ fontWeight: 700, flexShrink: 0 }}>ALERTA</span>
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{visible?.header}</span>
+        {preview.length > 1 && (
+          <span style={{ fontSize: 10, flexShrink: 0, opacity: 0.7 }}>
+            {idx + 1}/{preview.length} {expanded ? '▲' : '▼'}
+          </span>
+        )}
+      </div>
+      {expanded && (
+        <div style={{ borderTop: '1px solid rgba(0,0,0,0.15)', padding: '4px 14px 8px', maxHeight: 220, overflowY: 'auto' }}>
+          {alerts.slice(0, EXPANDED_COUNT).map((a, i) => (
+            <div key={i} style={{
+              padding: '4px 0',
+              borderBottom: i < Math.min(alerts.length, EXPANDED_COUNT) - 1 ? '1px solid rgba(0,0,0,0.1)' : 'none',
+              fontSize: 11, lineHeight: 1.4,
+            }}>
+              <span style={{ fontWeight: 700 }}>{a.header}</span>
+              {a.description && (
+                <div style={{ opacity: 0.75, marginTop: 2, fontWeight: 400 }}>{a.description}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function MobileLayout({
   trains, stops, routes, alerts, lines, lineColors,
   activeLines, selectedTrain, selectedStop,
@@ -72,7 +146,7 @@ export function MobileLayout({
   onCloseTrain, onCloseStop, onRefresh, onThemeToggle,
 }: MobileLayoutProps) {
   const [sheetRatio, setSheetRatio]     = useState(SNAP_PEEK)
-  const [activeTab, setActiveTab]       = useState<'trains' | 'stations'>('trains')
+  const [activeTab, setActiveTab]       = useState<'trains' | 'stations' | 'plan'>('trains')
   const [stationQuery, setStationQuery] = useState('')
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const dragStart = useRef<{ y: number; ratio: number } | null>(null)
@@ -166,16 +240,19 @@ export function MobileLayout({
       </div>
 
       {/* Alert banner */}
-      {(apiError || alerts.length > 0) && (
+      {apiError && (
         <div style={{
           position: 'absolute', top: 48, left: 0, right: 0, zIndex: 20,
-          background: apiError ? 'rgba(239,68,68,0.9)' : 'rgba(234,179,8,0.9)',
+          background: 'rgba(239,68,68,0.9)',
           color: '#fff', fontSize: 11, fontWeight: 600, padding: '5px 14px',
           display: 'flex', alignItems: 'center', gap: 6,
         }}>
-          <span style={{ fontWeight: 700 }}>{apiError ? 'ERROR' : 'ALERTA'}</span>
-          {apiError ?? alerts[0]?.header}
+          <span style={{ fontWeight: 700 }}>ERROR</span>
+          {apiError}
         </div>
+      )}
+      {!apiError && alerts.length > 0 && (
+        <MobileAlertBanner alerts={alerts} />
       )}
 
       {/* Full-screen map */}
@@ -226,7 +303,7 @@ export function MobileLayout({
 
         {/* Tabs */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          {(['trains', 'stations'] as const).map(tab => (
+          {(['trains', 'stations', 'plan'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => { setActiveTab(tab); if (sheetRatio < SNAP_HALF) setSheetRatio(SNAP_HALF); if (tab === 'trains') setStationQuery('') }}
@@ -238,13 +315,13 @@ export function MobileLayout({
                 textTransform: 'uppercase', letterSpacing: '0.5px', fontFamily: 'inherit',
               }}
             >
-              {tab === 'trains' ? `Trens (${filteredTrains.length})` : 'Estacions'}
+              {tab === 'trains' ? `Trens (${filteredTrains.length})` : tab === 'stations' ? 'Estacions' : 'Anar a…'}
             </button>
           ))}
         </div>
 
-        {/* Line filter — grouped by family */}
-        <div style={{ padding: '6px 14px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
+        {/* Line filter — grouped by family (hidden on the planner tab) */}
+        {activeTab !== 'plan' && <div style={{ padding: '6px 14px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
           {/* "All" pill + group header pills on one scrollable row */}
           <div style={{ overflowX: 'auto', display: 'flex', gap: 6, paddingBottom: 6, scrollbarWidth: 'none' }}>
             <span
@@ -285,11 +362,13 @@ export function MobileLayout({
               })}
             </div>
           ))}
-        </div>
+        </div>}
 
         {/* Scrollable content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 10px 24px' }}>
-          {activeTab === 'trains' ? (
+        <div style={{ flex: 1, overflowY: activeTab === 'plan' ? 'hidden' : 'auto', display: activeTab === 'plan' ? 'flex' : 'block', flexDirection: 'column', padding: activeTab === 'plan' ? 0 : '0 10px 24px' }}>
+          {activeTab === 'plan' ? (
+            <TripPlanner lineColors={lineColors} />
+          ) : activeTab === 'trains' ? (
             filteredTrains.length === 0
               ? <p style={{ textAlign: 'center', padding: 30, color: 'var(--muted)', fontSize: 12 }}>Cap tren actiu.</p>
               : filteredTrains.map(t => (

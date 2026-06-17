@@ -63,3 +63,5 @@ export interface StopDetail {
 }
 
 export type Theme = 'dark' | 'light'
+
+export type { PlannerStation, JourneyLeg, Journey } from '@/lib/planner'

@@ -4,8 +4,9 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import type { Train, Stop } from '@/types'
 import { LINE_COLORS } from '@/lib/constants'
 import { TrainCard } from './TrainCard'
+import { TripPlanner } from './TripPlanner'
 
-type Tab = 'trains' | 'stations'
+type Tab = 'trains' | 'stations' | 'plan'
 
 interface SidebarProps {
   trains: Train[]
@@ -130,9 +131,9 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
     <aside style={{ background: 'var(--bg2)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Tab buttons */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'rgba(0,0,0,0.05)' }}>
-        {(['trains', 'stations'] as Tab[]).map(tab => (
+        {(['trains', 'stations', 'plan'] as Tab[]).map(tab => (
           <button key={tab} style={tabStyle(tab)} onClick={() => setActiveTab(tab)}>
-            {tab === 'trains' ? 'Trens' : 'Estacions'}
+            {tab === 'trains' ? 'Trens' : tab === 'stations' ? 'Estacions' : 'Anar a…'}
           </button>
         ))}
       </div>
@@ -311,6 +312,9 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
           </div>
         </div>
       )}
+
+      {/* ── Plan tab ── */}
+      {activeTab === 'plan' && <TripPlanner lineColors={lineColors} />}
     </aside>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react'
 import dynamic from 'next/dynamic'
 import type { Train, Stop, Alert, Route, Theme } from '@/types'
 import { LINE_COLORS } from '@/lib/constants'
@@ -12,6 +12,81 @@ import { MobileLayout } from './MobileLayout'
 import { useInterpolatedTrains } from '@/lib/interpolate'
 
 const MapView = dynamic(() => import('./MapView'), { ssr: false })
+
+const ROTATION_MS = 7_000
+const PREVIEW_COUNT = 5
+const EXPANDED_COUNT = 10
+
+function AlertBanner({ alerts }: { alerts: Alert[] }) {
+  const preview = alerts.slice(0, PREVIEW_COUNT)
+  const [idx, setIdx]           = useState(0)
+  const [expanded, setExpanded] = useState(false)
+  const [fade, setFade]         = useState(true)
+  const timerRef                = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const rotate = useCallback(() => {
+    setFade(false)
+    setTimeout(() => {
+      setIdx(i => (i + 1) % preview.length)
+      setFade(true)
+    }, 250)
+  }, [preview.length])
+
+  useEffect(() => {
+    if (expanded || preview.length <= 1) return
+    timerRef.current = setInterval(rotate, ROTATION_MS)
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  }, [expanded, preview.length, rotate])
+
+  // reset index when alerts change
+  useLayoutEffect(() => { setIdx(0) }, [alerts])
+
+  const visible = preview[idx]
+
+  return (
+    <div
+      onClick={() => setExpanded(e => !e)}
+      style={{
+        gridColumn: '1 / -1',
+        background: 'rgba(234,179,8,0.1)',
+        borderBottom: '1px solid rgba(234,179,8,0.2)',
+        color: 'var(--yellow)',
+        fontSize: 12,
+        fontWeight: 500,
+        cursor: 'pointer',
+        userSelect: 'none',
+      }}
+    >
+      {/* rotating single-line preview */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8, padding: '6px 20px',
+        opacity: fade ? 1 : 0, transition: 'opacity 0.25s',
+      }}>
+        <span style={{ background: 'var(--yellow)', color: '#000', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700, flexShrink: 0 }}>ALERTA</span>
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{visible?.header}</span>
+        {preview.length > 1 && (
+          <span style={{ color: 'var(--muted)', fontSize: 10, flexShrink: 0 }}>
+            {idx + 1}/{preview.length} {expanded ? '▲' : '▼'}
+          </span>
+        )}
+      </div>
+
+      {/* expanded list */}
+      {expanded && (
+        <div style={{ borderTop: '1px solid rgba(234,179,8,0.15)', padding: '4px 20px 8px' }}>
+          {alerts.slice(0, EXPANDED_COUNT).map((a, i) => (
+            <div key={i} style={{ padding: '4px 0', borderBottom: i < Math.min(alerts.length, EXPANDED_COUNT) - 1 ? '1px solid rgba(234,179,8,0.1)' : 'none', fontSize: 11, lineHeight: 1.4 }}>
+              <span style={{ fontWeight: 700 }}>{a.header}</span>
+              {a.description && (
+                <div style={{ color: 'var(--muted)', marginTop: 2, fontWeight: 400 }}>{a.description}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function App() {
   const [trains, setTrains]               = useState<Train[]>([])
@@ -212,11 +287,7 @@ export function App() {
       )}
 
       {!apiError && alerts.length > 0 && (
-        <div style={{ gridColumn: '1 / -1', background: 'rgba(234,179,8,0.1)', borderBottom: '1px solid rgba(234,179,8,0.2)', color: 'var(--yellow)', padding: '6px 20px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8, fontWeight: 500 }}>
-          <span style={{ background: 'var(--yellow)', color: '#000', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700, flexShrink: 0 }}>ALERTA</span>
-          {alerts[0].header}
-          {alerts.length > 1 && <span style={{ color: 'var(--muted)', fontSize: 10, marginLeft: 4 }}>+{alerts.length - 1} més</span>}
-        </div>
+        <AlertBanner alerts={alerts} />
       )}
 
       <Sidebar
