@@ -137,6 +137,11 @@ export function TripPlanner({ lineColors }: TripPlannerProps) {
   const [journeys, setJourneys] = useState<Journey[] | null>(null)
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState<string | null>(null)
+  // Departure time. `null` means "leave now" (server uses current time).
+  const [depTime, setDepTime]   = useState<string | null>(null)
+  // Step-free itinerary text for the current origin→dest pair (null = none).
+  const [stepFree, setStepFree] = useState<string | null>(null)
+  const [showStepFree, setShowStepFree] = useState(false)
 
   useEffect(() => {
     fetch('/api/plan-stations')
@@ -150,7 +155,9 @@ export function TripPlanner({ lineColors }: TripPlannerProps) {
     if (origin.code === dest.code) { setError(t('sameOriginDest')); return }
     setLoading(true); setError(null); setJourneys(null)
     try {
-      const res = await fetch(`/api/plan?from=${encodeURIComponent(origin.code)}&to=${encodeURIComponent(dest.code)}`)
+      let qs = `from=${encodeURIComponent(origin.code)}&to=${encodeURIComponent(dest.code)}`
+      if (depTime) qs += `&after=${encodeURIComponent(depTime)}`
+      const res = await fetch(`/api/plan?${qs}`)
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? t('genericError')); return }
       setJourneys(data.journeys ?? [])
@@ -159,12 +166,25 @@ export function TripPlanner({ lineColors }: TripPlannerProps) {
     } finally {
       setLoading(false)
     }
-  }, [origin, dest, t])
+  }, [origin, dest, depTime, t])
 
-  // Auto-search when both ends are picked.
+  // Auto-search when both ends are picked (re-runs when departure time changes).
   useEffect(() => {
     if (origin && dest && origin.code !== dest.code) search()
   }, [origin, dest, search])
+
+  // Look up the step-free itinerary whenever the origin→dest pair changes.
+  useEffect(() => {
+    setStepFree(null)
+    setShowStepFree(false)
+    if (!origin || !dest || origin.code === dest.code) return
+    const ctrl = new AbortController()
+    fetch(`/api/accessibility?from=${encodeURIComponent(origin.name)}&to=${encodeURIComponent(dest.name)}`, { signal: ctrl.signal })
+      .then(r => r.json())
+      .then((d: { itinerary?: { steps: string } | null }) => setStepFree(d.itinerary?.steps ?? null))
+      .catch(() => {})
+    return () => ctrl.abort()
+  }, [origin, dest])
 
   const swap = () => { setOrigin(dest); setDest(origin) }
 
@@ -182,6 +202,37 @@ export function TripPlanner({ lineColors }: TripPlannerProps) {
           </button>
         </div>
         <StationInput label={t('destination')} value={dest} onChange={setDest} stations={stations} placeholder={t('toWhere')} />
+
+        {depTime === null ? (
+          <button
+            onClick={() => {
+              const now = new Date()
+              setDepTime(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`)
+            }}
+            style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, padding: 0 }}
+          >
+            {t('leaveNow')} · {t('changeTime')}
+          </button>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+              {t('leaveAt')}
+            </span>
+            <input
+              type="time"
+              value={depTime}
+              onChange={e => setDepTime(e.target.value || null)}
+              style={{ background: 'var(--bg3)', border: '1px solid var(--border2)', borderRadius: 8, color: 'var(--text)', fontFamily: 'inherit', fontSize: 13, padding: '7px 9px', outline: 'none' }}
+            />
+            <button
+              onClick={() => setDepTime(null)}
+              title={t('leaveNow')}
+              style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, padding: 0 }}
+            >
+              {t('leaveNow')}
+            </button>
+          </div>
+        )}
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
@@ -191,6 +242,23 @@ export function TripPlanner({ lineColors }: TripPlannerProps) {
           <p style={{ color: 'var(--muted)', textAlign: 'center', padding: 20, fontSize: 13 }}>
             {t('noDirectRoute')}
           </p>
+        )}
+        {!loading && !error && stepFree && (
+          <div style={{ border: '1px solid var(--border)', background: 'rgba(0,0,0,0.06)', borderRadius: 10, padding: 12, marginBottom: 8 }}>
+            <button
+              onClick={() => setShowStepFree(v => !v)}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', color: 'var(--text)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, padding: 0, textAlign: 'left' }}
+            >
+              <span aria-hidden style={{ fontSize: 15 }}>♿</span>
+              <span style={{ flex: 1 }}>{t('stepFreeRoute')}</span>
+              <span style={{ color: 'var(--muted)', fontSize: 12 }}>{showStepFree ? '▲' : '▼'}</span>
+            </button>
+            {showStepFree && (
+              <p style={{ marginTop: 10, marginBottom: 0, fontSize: 12, lineHeight: 1.55, color: 'var(--muted)', whiteSpace: 'pre-line' }}>
+                {stepFree}
+              </p>
+            )}
+          </div>
         )}
         {!loading && !error && journeys && journeys.map((j, i) => (
           <JourneyCard key={i} journey={j} lineColors={lineColors} best={i === 0} />
