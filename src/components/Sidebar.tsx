@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect, useRef } from 'react'
-import type { Train, Stop } from '@/types'
+import type { Train, Stop, Journey } from '@/types'
 import { LINE_COLORS, STATION_CODES } from '@/lib/constants'
 import { TrainCard } from './TrainCard'
 import { TripPlanner } from './TripPlanner'
@@ -20,6 +20,8 @@ interface SidebarProps {
   onToggleLine: (line: string) => void
   onSelectTrain: (train: Train) => void
   onSelectStop: (stop: Stop) => void
+  selectedJourney: Journey | null
+  onSelectJourney: (journey: Journey | null) => void
 }
 
 const LINE_GROUPS: { key: string; labelKey: TransKey; prefix: RegExp }[] = [
@@ -29,7 +31,7 @@ const LINE_GROUPS: { key: string; labelKey: TransKey; prefix: RegExp }[] = [
   { key: 'Other', labelKey: 'groupOther',    prefix: /^(?!L|S|R)/ },
 ]
 
-export function Sidebar({ trains, stops, lines, lineColors, activeLines, selectedTrain, selectedStop, onToggleLine, onSelectTrain, onSelectStop }: SidebarProps) {
+export function Sidebar({ trains, stops, lines, lineColors, activeLines, selectedTrain, selectedStop, onToggleLine, onSelectTrain, onSelectStop, selectedJourney, onSelectJourney }: SidebarProps) {
   const { t } = useI18n()
   const [activeTab, setActiveTab]           = useState<Tab>('trains')
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
@@ -286,7 +288,13 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
       )}
 
       {/* ── Plan tab ── */}
-      {activeTab === 'plan' && <TripPlanner lineColors={lineColors} />}
+      {activeTab === 'plan' && (
+        <TripPlanner
+          lineColors={lineColors}
+          selectedJourney={selectedJourney}
+          onSelectJourney={onSelectJourney}
+        />
+      )}
     </aside>
   )
 }

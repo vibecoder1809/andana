@@ -112,6 +112,7 @@ const DICT = {
   genericError:    { ca: 'Error',      es: 'Error',       en: 'Error' },
   noDirectRoute:   { ca: "No s'ha trobat cap ruta directa per avui amb aquestes estacions.", es: 'No se ha encontrado ninguna ruta directa para hoy con estas estaciones.', en: 'No direct route found for today with these stations.' },
   pickOriginDest:  { ca: "Tria origen i destinació per veure els pròxims trens i l'hora d'arribada.", es: 'Elige origen y destino para ver los próximos trenes y la hora de llegada.', en: 'Pick origin and destination to see upcoming trains and arrival time.' },
+  showOnMap:       { ca: 'Mostra el recorregut al mapa', es: 'Mostrar el recorrido en el mapa', en: 'Show route on map' },
   leaveNow:        { ca: 'Sortir ara',  es: 'Salir ahora',  en: 'Leave now' },
   leaveAt:         { ca: 'Sortir a les', es: 'Salir a las', en: 'Leave at' },
   changeTime:      { ca: 'Canviar hora', es: 'Cambiar hora', en: 'Change time' },

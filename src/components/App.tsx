@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react'
 import dynamic from 'next/dynamic'
-import type { Train, Stop, Alert, Route, Theme } from '@/types'
+import type { Train, Stop, Alert, Route, Theme, Journey } from '@/types'
 import { LINE_COLORS } from '@/lib/constants'
+import { buildJourneyPath } from '@/lib/journeyPath'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
 import { DetailPanel } from './DetailPanel'
@@ -112,6 +113,8 @@ function AppInner() {
   const [lastUpdate, setLastUpdate]       = useState<Date | null>(null)
   const [apiError, setApiError]           = useState<string | null>(null)
   const [isMobile, setIsMobile]           = useState(false)
+  // Journey whose path is drawn on the map (from the Plan tab). Null = none.
+  const [selectedJourney, setSelectedJourney] = useState<Journey | null>(null)
 
   const prevDataRef = useRef<string>('')
 
@@ -128,6 +131,15 @@ function AppInner() {
   )
 
   const interpolatedTrains = useInterpolatedTrains(trains, routes, stops)
+
+  // Drawable path for the selected journey, recomputed when the journey or the
+  // underlying route/stop data changes.
+  const journeyPath = useMemo(
+    () => selectedJourney && stops.length > 0
+      ? buildJourneyPath(selectedJourney, routes, stops, lineColors)
+      : null,
+    [selectedJourney, routes, stops, lineColors],
+  )
 
   const filteredTrains = useMemo(
     () => activeLines.has('ALL') ? interpolatedTrains : interpolatedTrains.filter(t => activeLines.has(t.line)),
@@ -295,6 +307,8 @@ function AppInner() {
         onToggleLine={toggleLine}
         onSelectTrain={handleSelectTrain}
         onSelectStop={handleSelectStop}
+        selectedJourney={selectedJourney}
+        onSelectJourney={setSelectedJourney}
       />
 
       <div style={{ position: 'relative', overflow: 'hidden' }}>
@@ -307,6 +321,7 @@ function AppInner() {
           selectedStop={selectedStop}
           onSelectTrain={handleSelectTrain}
           onSelectStop={handleSelectStop}
+          journeyPath={journeyPath}
           theme={theme}
         />
         <DetailPanel train={selectedTrain} lineColors={lineColors} onClose={handleCloseTrain} />

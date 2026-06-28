@@ -1,104 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Train, Route, Stop } from '@/types'
-
-// --- Geometry helpers (all coords are [lng, lat]) ---
-
-const DEG2RAD = Math.PI / 180
-const EARTH_R  = 6_371_000 // metres
-
-function haversine(a: [number, number], b: [number, number]): number {
-  const dLat = (b[1] - a[1]) * DEG2RAD
-  const dLng = (b[0] - a[0]) * DEG2RAD
-  const sinLat = Math.sin(dLat / 2)
-  const sinLng = Math.sin(dLng / 2)
-  const h = sinLat * sinLat + Math.cos(a[1] * DEG2RAD) * Math.cos(b[1] * DEG2RAD) * sinLng * sinLng
-  return 2 * EARTH_R * Math.asin(Math.sqrt(h))
-}
-
-interface Polyline {
-  pts:      [number, number][]   // [lng, lat]
-  cumDist:  number[]             // cumulative metres from pts[0], length === pts.length
-  totalLen: number
-}
-
-function buildPolyline(coords: number[][][]): Polyline | null {
-  // Flatten MultiLineString segments into one continuous path.
-  // Adjacent segments that don't share an endpoint get a straight join.
-  if (!coords.length) return null
-  const pts: [number, number][] = []
-
-  for (const seg of coords) {
-    if (!seg.length) continue
-    const start = seg[0] as [number, number]
-    // If pts is non-empty and the last point matches this segment's start, skip duplicate
-    if (pts.length > 0) {
-      const last = pts[pts.length - 1]
-      if (Math.abs(last[0] - start[0]) > 1e-7 || Math.abs(last[1] - start[1]) > 1e-7) {
-        pts.push(start)
-      }
-    } else {
-      pts.push(start)
-    }
-    for (let i = 1; i < seg.length; i++) {
-      pts.push(seg[i] as [number, number])
-    }
-  }
-
-  if (pts.length < 2) return null
-
-  const cumDist: number[] = [0]
-  for (let i = 1; i < pts.length; i++) {
-    cumDist.push(cumDist[i - 1] + haversine(pts[i - 1], pts[i]))
-  }
-
-  return { pts, cumDist, totalLen: cumDist[cumDist.length - 1] }
-}
-
-function positionAtDistance(pl: Polyline, dist: number): [number, number] {
-  const clamped = Math.max(0, Math.min(dist, pl.totalLen))
-  // Binary search for the segment containing `clamped`
-  let lo = 0, hi = pl.cumDist.length - 2
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1
-    if (pl.cumDist[mid + 1] < clamped) lo = mid + 1
-    else hi = mid
-  }
-  const segLen = pl.cumDist[lo + 1] - pl.cumDist[lo]
-  const t = segLen > 0 ? (clamped - pl.cumDist[lo]) / segLen : 0
-  const a = pl.pts[lo], b = pl.pts[lo + 1]
-  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
-}
-
-// Project a point onto the polyline, return distance along it (metres)
-function projectOntoPolyline(pt: [number, number], pl: Polyline): number {
-  let bestDist = Infinity
-  let bestAlong = 0
-
-  for (let i = 0; i < pl.pts.length - 1; i++) {
-    const a = pl.pts[i], b = pl.pts[i + 1]
-    const dx = b[0] - a[0], dy = b[1] - a[1]
-    const lenSq = dx * dx + dy * dy
-    let t = 0
-    if (lenSq > 0) {
-      t = Math.max(0, Math.min(1, ((pt[0] - a[0]) * dx + (pt[1] - a[1]) * dy) / lenSq))
-    }
-    const cx = a[0] + t * dx, cy = a[1] + t * dy
-    const d2 = (pt[0] - cx) ** 2 + (pt[1] - cy) ** 2
-    if (d2 < bestDist) {
-      bestDist = d2
-      bestAlong = pl.cumDist[i] + t * haversine(a, b)
-    }
-  }
-
-  return bestAlong
-}
+import {
+  type Polyline,
+  haversine,
+  buildPolyline,
+  positionAtDistance,
+  projectOntoPolyline,
+} from './geometry'
 
 // --- Per-train interpolation state ---
 
 interface TrainState {
   id:         string
   polyline:   Polyline
-  distAlong:  number    // current position along polyline (metres)
+  distAlong:  number    // current animated position along polyline (metres)
+  // The real (API) position along the polyline we're easing toward. The tick
+  // loop nudges distAlong toward this so corrections glide instead of snapping.
+  targetDist: number
   // If dwelling at a station, until when (performance.now() ms)
   dwellUntil: number
   // Direction: +1 or -1 along the polyline
@@ -119,8 +37,14 @@ const SPEED_MS = 19 // ~68 km/h — closer to FGC peak running speed
 const DWELL_MS = 20_000 // 20 s station dwell
 // How close (m) the animated train must get to a stop to trigger a dwell
 const STOP_TRIGGER_M = 60
-// If the real API position is >500 m from where we think the train is, hard-snap it
-const SNAP_THRESHOLD_M = 500
+// Only teleport when the real position is absurdly far from our animation —
+// e.g. the train re-appeared on a different part of the line. Below this we
+// glide toward the real position instead of snapping (see CORRECTION_PER_S).
+const SNAP_THRESHOLD_M = 2000
+// When the animation drifts from the real API position, close the gap smoothly
+// by adding this fraction of the remaining error per second on top of normal
+// motion, instead of jumping. 0.5 ≈ halve the error each second.
+const CORRECTION_PER_S = 0.5
 
 // Match a stop name to its coordinate on the polyline
 function findStopDist(stopName: string, stops: Stop[], pl: Polyline): number | null {
@@ -235,6 +159,7 @@ export function useInterpolatedTrains(
           id: train.id,
           polyline: pl,
           distAlong: realDist,
+          targetDist: realDist,
           dwellUntil: train.currentStop ? now + DWELL_MS : 0,
           direction: dir,
           lat: train.lat,
@@ -247,7 +172,10 @@ export function useInterpolatedTrains(
         // Update polyline if route data changed
         existing.polyline = pl
 
-        // Hard-snap if too far off, otherwise keep interpolated position
+        // Steer toward the fresh real position. For ordinary drift we just set
+        // the target and let the tick loop glide there; only an absurd jump
+        // (train reappeared elsewhere) gets a hard teleport.
+        existing.targetDist = realDist
         const drift = haversine(realPt, [existing.lng, existing.lat])
         if (drift > SNAP_THRESHOLD_M) {
           existing.distAlong = realDist
@@ -293,7 +221,15 @@ export function useInterpolatedTrains(
       for (const state of stateMap.current.values()) {
         if (now < state.dwellUntil) continue   // dwelling at station
         const move = state.speed * dt * state.direction
-        const next = state.distAlong + move
+        // Smoothly close any gap to the real position on top of normal motion.
+        // Only correct toward a target that's *ahead* of us in our travel
+        // direction: if our dead-reckoning has run past the last known position
+        // and no fresh data has arrived, keep coasting rather than yanking the
+        // train backward to a stale point (which looked like a snap-back).
+        const error = state.targetDist - state.distAlong
+        const targetIsAhead = error * state.direction > 0
+        const correction = targetIsAhead ? error * Math.min(1, CORRECTION_PER_S * dt) : 0
+        const next = state.distAlong + move + correction
 
         // Clamp to polyline ends
         const clamped = Math.max(0, Math.min(next, state.polyline.totalLen))

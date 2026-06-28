@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import type { Train, Stop, Alert, Route, Theme } from '@/types'
+import type { Train, Stop, Alert, Route, Theme, Journey } from '@/types'
 import { LINE_COLORS } from '@/lib/constants'
+import { buildJourneyPath } from '@/lib/journeyPath'
 import { TrainCard } from './TrainCard'
 import { DetailPanel } from './DetailPanel'
 import { StopPanel } from './StopPanel'
@@ -152,6 +153,14 @@ export function MobileLayout({
   const { t } = useI18n()
   const [sheetRatio, setSheetRatio]     = useState(SNAP_PEEK)
   const [activeTab, setActiveTab]       = useState<'trains' | 'stations' | 'plan'>('trains')
+  const [selectedJourney, setSelectedJourney] = useState<Journey | null>(null)
+
+  const journeyPath = useMemo(
+    () => selectedJourney && stops.length > 0
+      ? buildJourneyPath(selectedJourney, routes, stops, lineColors)
+      : null,
+    [selectedJourney, routes, stops, lineColors],
+  )
   const [stationQuery, setStationQuery] = useState('')
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const dragStart = useRef<{ y: number; ratio: number } | null>(null)
@@ -273,6 +282,7 @@ export function MobileLayout({
           onSelectTrain={t => { onSelectTrain(t); setSheetRatio(SNAP_PEEK) }}
           onSelectStop={s => { onSelectStop(s); setSheetRatio(SNAP_PEEK) }}
           onCloseStop={onCloseStop}
+          journeyPath={journeyPath}
           theme={theme}
         />
       </div>
@@ -373,7 +383,11 @@ export function MobileLayout({
         {/* Scrollable content */}
         <div style={{ flex: 1, overflowY: activeTab === 'plan' ? 'hidden' : 'auto', display: activeTab === 'plan' ? 'flex' : 'block', flexDirection: 'column', padding: activeTab === 'plan' ? 0 : '0 10px 24px' }}>
           {activeTab === 'plan' ? (
-            <TripPlanner lineColors={lineColors} />
+            <TripPlanner
+              lineColors={lineColors}
+              selectedJourney={selectedJourney}
+              onSelectJourney={j => { setSelectedJourney(j); if (j) setSheetRatio(SNAP_HALF) }}
+            />
           ) : activeTab === 'trains' ? (
             filteredTrains.length === 0
               ? <p style={{ textAlign: 'center', padding: 30, color: 'var(--muted)', fontSize: 12 }}>{t('noActiveTrains')}</p>

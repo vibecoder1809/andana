@@ -7,6 +7,8 @@ import { useI18n } from '@/lib/i18n'
 
 interface TripPlannerProps {
   lineColors: Record<string, string>
+  selectedJourney: Journey | null
+  onSelectJourney: (journey: Journey | null) => void
 }
 
 function fmtTime(sec: number): string {
@@ -130,14 +132,18 @@ function LinePill({ line, lineColors }: { line: string; lineColors: Record<strin
   )
 }
 
-function JourneyCard({ journey, lineColors, best, live }: { journey: Journey; lineColors: Record<string, string>; best: boolean; live: boolean }) {
+function JourneyCard({ journey, lineColors, best, live, active, onClick }: { journey: Journey; lineColors: Record<string, string>; best: boolean; live: boolean; active: boolean; onClick: () => void }) {
   const { t } = useI18n()
   const delayed = journey.liveDelayMin && journey.liveDelayMin > 0
   // The live countdown only makes sense for today's plan; for a future date the
   // scheduled departure time is shown without a ticking timer.
   const countdown = useDepartureCountdown(journey.depTime, journey.liveDelayMin, live)
   return (
-    <div style={{ border: `1px solid ${best ? 'var(--accent)' : 'var(--border)'}`, background: best ? 'rgba(0,0,0,0.12)' : 'rgba(0,0,0,0.06)', borderRadius: 10, padding: 12, marginBottom: 8 }}>
+    <div
+      onClick={onClick}
+      title={t('showOnMap')}
+      style={{ border: `1px solid ${active ? 'var(--accent)' : best ? 'var(--border2)' : 'var(--border)'}`, outline: active ? '1px solid var(--accent)' : 'none', background: active ? 'rgba(0,0,0,0.18)' : best ? 'rgba(0,0,0,0.12)' : 'rgba(0,0,0,0.06)', borderRadius: 10, padding: 12, marginBottom: 8, cursor: 'pointer' }}
+    >
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <span style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-space-grotesk), sans-serif' }}>
@@ -195,7 +201,7 @@ function JourneyCard({ journey, lineColors, best, live }: { journey: Journey; li
   )
 }
 
-export function TripPlanner({ lineColors }: TripPlannerProps) {
+export function TripPlanner({ lineColors, selectedJourney, onSelectJourney }: TripPlannerProps) {
   const { t } = useI18n()
   const [stations, setStations] = useState<PlannerStation[]>([])
   const [origin, setOrigin]     = useState<PlannerStation | null>(null)
@@ -229,13 +235,16 @@ export function TripPlanner({ lineColors }: TripPlannerProps) {
       const res = await fetch(`/api/plan?${qs}`)
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? t('genericError')); return }
-      setJourneys(data.journeys ?? [])
+      const found: Journey[] = data.journeys ?? []
+      setJourneys(found)
+      // Auto-draw the best journey's path; clicking another card switches it.
+      onSelectJourney(found[0] ?? null)
     } catch {
       setError(t('cannotConnect'))
     } finally {
       setLoading(false)
     }
-  }, [origin, dest, depTime, depDate, t])
+  }, [origin, dest, depTime, depDate, onSelectJourney, t])
 
   // Auto-search when both ends are picked (re-runs when time or date changes).
   useEffect(() => {
@@ -246,6 +255,8 @@ export function TripPlanner({ lineColors }: TripPlannerProps) {
   useEffect(() => {
     setStepFree(null)
     setShowStepFree(false)
+    // Drop any path drawn for the previous pair until fresh results arrive.
+    onSelectJourney(null)
     if (!origin || !dest || origin.code === dest.code) return
     const ctrl = new AbortController()
     fetch(`/api/accessibility?from=${encodeURIComponent(origin.name)}&to=${encodeURIComponent(dest.name)}`, { signal: ctrl.signal })
@@ -253,7 +264,11 @@ export function TripPlanner({ lineColors }: TripPlannerProps) {
       .then((d: { itinerary?: { steps: string } | null }) => setStepFree(d.itinerary?.steps ?? null))
       .catch(() => {})
     return () => ctrl.abort()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [origin, dest])
+
+  // Clear the drawn path when the planner unmounts (e.g. switching tabs away).
+  useEffect(() => () => onSelectJourney(null), [onSelectJourney])
 
   const swap = () => { setOrigin(dest); setDest(origin) }
 
@@ -356,7 +371,15 @@ export function TripPlanner({ lineColors }: TripPlannerProps) {
           </div>
         )}
         {!loading && !error && journeys && journeys.map((j, i) => (
-          <JourneyCard key={i} journey={j} lineColors={lineColors} best={i === 0} live={depDate === null} />
+          <JourneyCard
+            key={i}
+            journey={j}
+            lineColors={lineColors}
+            best={i === 0}
+            live={depDate === null}
+            active={j === selectedJourney}
+            onClick={() => onSelectJourney(j)}
+          />
         ))}
         {!loading && !error && !journeys && (
           <p style={{ color: 'var(--muted)', textAlign: 'center', padding: 20, fontSize: 13 }}>
