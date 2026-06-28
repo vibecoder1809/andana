@@ -1,7 +1,5 @@
 import { STATION_CODES } from './constants'
-
-const BASE = 'https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets'
-const TIMETABLE_EXPORT = `${BASE}/viajes-de-hoy/exports/json?limit=-1`
+import { fgcExport } from './fgc'
 
 // Minimum time (seconds) needed to change between two trips at a station.
 const TRANSFER_SECONDS = 120
@@ -97,9 +95,7 @@ function todayLocalISO(): string {
 }
 
 async function buildTimetable(): Promise<TimetableData> {
-  const res = await fetch(TIMETABLE_EXPORT, { next: { revalidate: 3600 } })
-  if (!res.ok) throw new Error(`viajes-de-hoy export ${res.status}`)
-  const rows: RawTimetableRow[] = await res.json()
+  const rows = await fgcExport<RawTimetableRow>('viajes-de-hoy', 3600)
 
   // Group rows into trips by (line, headsign, shape_id), then reconstruct
   // individual runs by chaining stop_sequence continuity over time.

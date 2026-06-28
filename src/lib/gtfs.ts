@@ -1,6 +1,5 @@
 import type { Stop, Alert, Route, StopArrival, StopDetail } from '@/types'
-
-const BASE = 'https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets'
+import { fgcRecords, fgcAllRecords, fgcFeed } from './fgc'
 
 type RawStop = {
   stop_id: string
@@ -9,23 +8,8 @@ type RawStop = {
   wheelchair_boarding: number
 }
 
-async function fetchStopsPage(offset: number): Promise<{ total: number; results: RawStop[] }> {
-  const res = await fetch(
-    `${BASE}/gtfs_stops/records?limit=100&offset=${offset}`,
-    { next: { revalidate: 86400 } },
-  )
-  if (!res.ok) throw new Error(`gtfs_stops API ${res.status}`)
-  const data: { total_count: number; results: RawStop[] } = await res.json()
-  return { total: data.total_count, results: data.results }
-}
-
 export async function fetchStops(): Promise<Stop[]> {
-  const first = await fetchStopsPage(0)
-  const remaining = Math.ceil((first.total - first.results.length) / 100)
-  const pages = await Promise.all(
-    Array.from({ length: remaining }, (_, i) => fetchStopsPage((i + 1) * 100)),
-  )
-  const all = [first, ...pages].flatMap(p => p.results)
+  const all = await fgcAllRecords<RawStop>('gtfs_stops', undefined, 86400)
 
   return all.map(r => ({
     stopId: r.stop_id,
@@ -34,17 +18,6 @@ export async function fetchStops(): Promise<Stop[]> {
     lng: r.stop_coordinates.lon,
     wheelchairBoarding: r.wheelchair_boarding === 1,
   }))
-}
-
-async function fetchPbBuffer(dataset: string): Promise<Uint8Array> {
-  const recRes = await fetch(`${BASE}/${dataset}/records?limit=1`, { cache: 'no-store' })
-  if (!recRes.ok) throw new Error(`${dataset} records API ${recRes.status}`)
-  const rec: { results: [{ file: { url: string } }] } = await recRes.json()
-  const pbUrl = rec.results[0].file.url
-
-  const pbRes = await fetch(pbUrl, { cache: 'no-store' })
-  if (!pbRes.ok) throw new Error(`${dataset} .pb fetch ${pbRes.status}`)
-  return new Uint8Array(await pbRes.arrayBuffer())
 }
 
 function pickText(
@@ -60,31 +33,26 @@ function pickText(
 }
 
 export async function fetchRoutes(): Promise<Route[]> {
-  const [routesRes, shapesRes] = await Promise.all([
-    fetch(`${BASE}/lineas-red-fgc/records?limit=100`, { next: { revalidate: 86400 } }),
-    fetch(`${BASE}/gtfs_routes/records?limit=50`, { next: { revalidate: 86400 } }),
-  ])
-  if (!routesRes.ok) throw new Error(`lineas-red-fgc API ${routesRes.status}`)
+  type RawRoute = {
+    route_id: string
+    route_short_name: string
+    route_long_name: string
+    route_color: string
+  }
+  type RawShape = {
+    route_id: string
+    route_short_name: string
+    shape: { type: 'Feature'; geometry: { type: 'MultiLineString'; coordinates: number[][][] } } | null
+  }
 
-  const routesData: {
-    results: Array<{
-      route_id: string
-      route_short_name: string
-      route_long_name: string
-      route_color: string
-    }>
-  } = await routesRes.json()
+  const [routesData, shapesData] = await Promise.all([
+    fgcRecords<RawRoute>('lineas-red-fgc', { limit: 100 }, 86400),
+    fgcRecords<RawShape>('gtfs_routes', { limit: 50 }, 86400).catch(() => null),
+  ])
 
   // Build shape map from gtfs_routes (has geometry); lineas-red-fgc does not
   const shapeMap = new Map<string, { type: 'MultiLineString'; coordinates: number[][][] }>()
-  if (shapesRes.ok) {
-    const shapesData: {
-      results: Array<{
-        route_id: string
-        route_short_name: string
-        shape: { type: 'Feature'; geometry: { type: 'MultiLineString'; coordinates: number[][][] } } | null
-      }>
-    } = await shapesRes.json()
+  if (shapesData) {
     for (const r of shapesData.results) {
       if (r.shape) shapeMap.set(r.route_short_name, r.shape.geometry)
     }
@@ -104,11 +72,11 @@ export interface TripInfo {
   nextStopEta: number | null
 }
 
-// Returns a map of posicionament record id -> delay + next-stop ETA (unix seconds)
+// Returns a map of posicionament record id -> delay + next-stop ETA (unix seconds).
+// The posicionament record `id` equals the GTFS `trip.tripId` (NOT the feed
+// entity.id, which is prefixed `S|<date>|<tripId>`), so we key by tripId.
 export async function fetchTripInfo(): Promise<Map<string, TripInfo>> {
-  const buffer = await fetchPbBuffer('trip-updates-gtfs_realtime')
-  const { transit_realtime } = await import('gtfs-realtime-bindings')
-  const feed = transit_realtime.FeedMessage.decode(buffer)
+  const feed = await fgcFeed('trip-updates-gtfs_realtime')
 
   const now = Date.now() / 1000
   const result = new Map<string, TripInfo>()
@@ -116,6 +84,8 @@ export async function fetchTripInfo(): Promise<Map<string, TripInfo>> {
   for (const entity of feed.entity) {
     if (!entity.tripUpdate) continue
     const tu = entity.tripUpdate
+    const tripId = tu.trip?.tripId
+    if (!tripId) continue
     let delay = 0
     let nextStopEta: number | null = null
 
@@ -133,7 +103,7 @@ export async function fetchTripInfo(): Promise<Map<string, TripInfo>> {
       if (delay !== 0 && nextStopEta !== null) break
     }
 
-    result.set(entity.id, { delay, nextStopEta })
+    result.set(tripId, { delay, nextStopEta })
   }
   return result
 }
@@ -144,16 +114,48 @@ export async function fetchTripDelays(): Promise<Map<string, number>> {
   return new Map([...info.entries()].map(([id, v]) => [id, v.delay]))
 }
 
-// Returns upcoming stop arrivals for a given trip entity ID
+export interface VehiclePosition {
+  vehicleId: string
+  tripId: string
+  lat: number
+  lng: number
+  stopId: string | null
+  /** GTFS occupancy_status enum (0–8), or null if unreported. */
+  occupancyStatus: number | null
+  timestamp: number | null
+}
+
+// Official GTFS-Realtime vehicle positions. Keyed by tripId, which joins
+// cleanly to trip-updates (delays) — useful as an authoritative cross-check
+// for the `posicionament-dels-trens` feed.
+export async function fetchVehiclePositions(): Promise<VehiclePosition[]> {
+  const feed = await fgcFeed('vehicle-positions-gtfs_realtime')
+  const out: VehiclePosition[] = []
+  for (const e of feed.entity) {
+    const v = e.vehicle
+    if (!v?.position || !v.trip?.tripId) continue
+    out.push({
+      vehicleId: v.vehicle?.id ?? e.id,
+      tripId: v.trip.tripId,
+      lat: v.position.latitude,
+      lng: v.position.longitude,
+      stopId: v.stopId ?? null,
+      occupancyStatus: v.occupancyStatus ?? null,
+      timestamp: v.timestamp != null ? Number(v.timestamp) : null,
+    })
+  }
+  return out
+}
+
+// Returns upcoming stop arrivals for a given trip. `tripId` is the posicionament
+// record id, which matches the GTFS-RT trip.tripId (not the feed entity.id).
 export async function fetchStopArrivals(
-  entityId: string,
+  tripId: string,
   stopNameMap: Map<string, string>,
 ): Promise<StopArrival[]> {
-  const buffer = await fetchPbBuffer('trip-updates-gtfs_realtime')
-  const { transit_realtime } = await import('gtfs-realtime-bindings')
-  const feed = transit_realtime.FeedMessage.decode(buffer)
+  const feed = await fgcFeed('trip-updates-gtfs_realtime')
 
-  const entity = feed.entity.find(e => e.id === entityId)
+  const entity = feed.entity.find(e => e.tripUpdate?.trip?.tripId === tripId)
   if (!entity?.tripUpdate) return []
 
   const now = Date.now() / 1000
@@ -175,9 +177,7 @@ export async function fetchStopArrivals(
 }
 
 export async function fetchAlerts(): Promise<Alert[]> {
-  const buffer = await fetchPbBuffer('alerts-gtfs_realtime')
-  const { transit_realtime } = await import('gtfs-realtime-bindings')
-  const feed = transit_realtime.FeedMessage.decode(buffer)
+  const feed = await fgcFeed('alerts-gtfs_realtime')
 
   return feed.entity
     .filter(e => e.alert)
@@ -197,21 +197,14 @@ export async function fetchAlerts(): Promise<Alert[]> {
 
 // Air quality keyed by base stop code (no digit suffix), e.g. "PC", "SR"
 export async function fetchAirQuality(): Promise<Map<string, StopDetail['air']>> {
-  const res = await fetch(`${BASE}/calidad-del-aire-por-paradas0/records?limit=100`, {
-    next: { revalidate: 1800 },
-  })
-  if (!res.ok) throw new Error(`Air quality API ${res.status}`)
-
-  const data: {
-    results: Array<{
-      id: string
-      iqam: string | null
-      data_no2: number | null
-      data_o3: number | null
-      data_pm10: string | null
-      nom_estaci: string | null
-    }>
-  } = await res.json()
+  const data = await fgcRecords<{
+    id: string
+    iqam: string | null
+    data_no2: number | null
+    data_o3: number | null
+    data_pm10: string | null
+    nom_estaci: string | null
+  }>('calidad-del-aire-por-paradas0', { limit: 100 }, 1800)
 
   const map = new Map<string, StopDetail['air']>()
   for (const r of data.results) {
@@ -228,19 +221,11 @@ export async function fetchAirQuality(): Promise<Map<string, StopDetail['air']>>
 
 // Current time-range weather keyed by base stop code
 export async function fetchWeather(): Promise<Map<string, StopDetail['weather']>> {
-  const res = await fetch(
-    `${BASE}/prediccion-meteorologica-del-dia-por-paradas/records?limit=200`,
-    { next: { revalidate: 3600 } },
-  )
-  if (!res.ok) throw new Error(`Weather API ${res.status}`)
-
-  const data: {
-    results: Array<{
-      stop_id: string
-      estat_del_cel: string
-      rang_horari: string
-    }>
-  } = await res.json()
+  const data = await fgcRecords<{
+    stop_id: string
+    estat_del_cel: string
+    rang_horari: string
+  }>('prediccion-meteorologica-del-dia-por-paradas', { limit: 200 }, 3600)
 
   // Prefer the current time range; pick by closest to now
   const hour = new Date().getHours()

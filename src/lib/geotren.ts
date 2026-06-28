@@ -1,8 +1,6 @@
 import type { Train } from '@/types'
 import { STATION_CODES } from './constants'
-
-const API_URL =
-  'https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets/posicionament-dels-trens/records?limit=100'
+import { fgcRecords } from './fgc'
 
 interface GeoTrenRecord {
   id: string
@@ -46,10 +44,7 @@ function parseUpcomingStops(raw: string | null): string[] {
 }
 
 export async function fetchTrains(): Promise<Train[]> {
-  const res = await fetch(API_URL, { cache: 'no-store' })
-  if (!res.ok) throw new Error(`Geotren API ${res.status}`)
-
-  const data: { results: GeoTrenRecord[] } = await res.json()
+  const data = await fgcRecords<GeoTrenRecord>('posicionament-dels-trens', { limit: 100 }, 0)
 
   return data.results
     .filter(r => r.geo_point_2d !== null)
