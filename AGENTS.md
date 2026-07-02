@@ -47,23 +47,25 @@ src/
     layout.tsx            fonts, metadata
     api/                  route handlers (server) — each wraps a lib fetcher
       trains/   plan/   plan-stations/   stops/   routes/
-      alerts/   accessibility/   stop-info/
+      alerts/   accessibility/   stop-info/   departures/
   components/             all 'use client'
     App.tsx               desktop root: state owner, 10s train poll, layout grid
     MobileLayout.tsx      mobile root (≤767px): own state + bottom-sheet UI
     MapView.tsx           MapLibre map (dynamic import, ssr:false)
     Sidebar.tsx           desktop tabs: Trains / Stations / Plan
-    TripPlanner.tsx       journey search UI (lives in the Plan tab)
+    TripPlanner.tsx       journey search UI (lives in the Plan tab); reads/writes saved routes
+    DeparturesBoard.tsx   next-departures list for a station (used inside StopPanel)
     DetailPanel / StopPanel / TrainCard / Header
   lib/
     fgc.ts                FGC portal client (see above)
     geotren.ts            fetchTrains() — parses posicionament feed → Train[]
     gtfs.ts               GTFS + GTFS-RT fetchers (stops, routes, delays, ETA, occupancy, alerts, weather, air)
-    planner.ts            Connection Scan Algorithm trip planner over the GTFS timetable
+    planner.ts            Connection Scan Algorithm trip planner over the GTFS timetable; also getDepartures()
     accessibility.ts      step-free itinerary lookup (name-normalised matching)
     geometry.ts           shared polyline math (haversine, build/project/clip)
     interpolate.ts        useInterpolatedTrains — smooth train animation between polls
     journeyPath.ts        buildJourneyPath — a Journey → colored per-leg map path
+    savedRoutes.ts        useSavedRoutes — localStorage-backed favorite/recent planner routes
     i18n.tsx              I18nProvider + useI18n; DICT holds all strings
     constants.ts          STATION_CODES (code→name), LINE_COLORS fallbacks
   types/index.ts          shared types; re-exports planner's Journey/JourneyLeg/PlannerStation
@@ -93,6 +95,12 @@ Connection Scan Algorithm over the GTFS timetable (parsed from `gtfs_zip`). A pe
 
 ### Journey path drawing ([journeyPath.ts](src/lib/journeyPath.ts) + MapView)
 `buildJourneyPath(journey, routes, stops, lineColors)` turns a `Journey` into one **clipped, line-colored polyline per leg**: each leg takes its line's route geometry and `clipPolyline`s it to the segment between the leg's boarding and alighting stations (so transfers show as the drawn path changing color), falling back to a straight chord if geometry is missing. `MapView` draws it (casing + colored line + endpoint/transfer markers) and `fitBounds` to frame the whole trip. State for the selected journey lives in the root (`App`/`MobileLayout`) and is threaded down through `Sidebar`/`TripPlanner`.
+
+### Station departures board ([DeparturesBoard.tsx](src/components/DeparturesBoard.tsx))
+`/api/departures?station=<parentCode>` calls `getDepartures()` (in `planner.ts`, reusing the same parsed GTFS timetable as the trip planner) for the next scheduled departures, enriched server-side with each line's current median live delay from `fetchLineDelays()`. The client re-fetches every 60s and ticks a per-second countdown locally between fetches; effective time = scheduled `depTime` + live delay.
+
+### Saved / recent planner routes ([savedRoutes.ts](src/lib/savedRoutes.ts))
+`useSavedRoutes()` persists favorite and recent origin→destination pairs to `localStorage` (`geotren-fav-routes` / `geotren-recent-routes`), hydrated post-mount to avoid an SSR mismatch (same pattern as the i18n provider). Because the hook owns its own state, `TripPlanner` gets favorites/recents "for free" on both roots — this is the one case where a feature **doesn't** need separate wiring in `App.tsx`/`MobileLayout.tsx`.
 
 ### i18n ([i18n.tsx](src/lib/i18n.tsx))
 All user-facing strings go in the `DICT` object as `{ ca, es, en }` (Catalan is canonical); values can be functions for interpolation/pluralisation. Use `const { t } = useI18n()` and `t('key', ...args)`. **Add a key for any new visible string in all three languages — never hardcode UI text.**
