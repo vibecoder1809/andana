@@ -25,9 +25,12 @@ interface MapViewProps {
   onCloseStop?: () => void
   journeyPath?: JourneyPath | null
   theme: Theme
+  // fitBounds padding for framing a journey; mobile passes a bottom-heavy
+  // object so the path clears the bottom sheet.
+  fitPadding?: number | { top: number; bottom: number; left: number; right: number }
 }
 
-export default function MapView({ trains, stops, routes, lineColors, selectedTrain, selectedStop, onSelectTrain, onSelectStop, onCloseStop, journeyPath, theme }: MapViewProps) {
+export default function MapView({ trains, stops, routes, lineColors, selectedTrain, selectedStop, onSelectTrain, onSelectStop, onCloseStop, journeyPath, theme, fitPadding }: MapViewProps) {
   const mapRef = useRef<MapRef>(null)
   const [popupStop, setPopupStop] = useState<Stop | null>(null)
 
@@ -57,8 +60,9 @@ export default function MapView({ trains, stops, routes, lineColors, selectedTra
     }
     mapRef.current.fitBounds(
       [[minLng, minLat], [maxLng, maxLat]],
-      { padding: 80, maxZoom: 15, duration: 1000 },
+      { padding: fitPadding ?? 80, maxZoom: 15, duration: 1000 },
     )
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [journeyPath])
 
   const routesGeoJson = {

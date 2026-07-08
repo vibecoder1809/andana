@@ -238,7 +238,7 @@ function AppInner() {
     return (
       <div data-theme={theme}>
         <MobileLayout
-          trains={trains}
+          trains={interpolatedTrains}
           stops={stops}
           routes={routes}
           alerts={alerts}

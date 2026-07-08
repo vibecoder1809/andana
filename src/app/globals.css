@@ -34,12 +34,20 @@
 /* ── Base ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+html { -webkit-tap-highlight-color: transparent; }
+
 body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-inter), Inter, sans-serif;
   overflow: hidden;
   transition: background 0.3s, color 0.3s;
+}
+
+/* Mobile: form controls need ≥16px text or iOS Safari auto-zooms the page on
+   focus (and stays zoomed). !important because components style inline. */
+@media (max-width: 767px) {
+  input, select, textarea { font-size: 16px !important; }
 }
 
 /* Native time/date pickers (clock & calendar glyphs, popover) follow the app theme. */

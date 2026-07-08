@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter, Space_Grotesk } from 'next/font/google'
 import './globals.css'
 
@@ -9,6 +9,17 @@ export const metadata: Metadata = {
   title: 'Geotren',
   description: 'Seguiment en temps real de la xarxa FGC',
   icons: { icon: '/logo.svg' },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  // Extend under notches/home bar; the mobile layout pads with safe-area env().
+  viewportFit: 'cover',
+  themeColor: '#0a0e1a',
+  // Android: shrink the layout viewport when the keyboard opens, so the
+  // bottom-sheet inputs stay visible instead of hiding behind the keyboard.
+  interactiveWidget: 'resizes-content',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

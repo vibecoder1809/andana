@@ -128,7 +128,7 @@ const ROTATION_MS   = 7_000
 const PREVIEW_COUNT = 5
 const EXPANDED_COUNT = 10
 
-function MobileAlertBanner({ alerts, top }: { alerts: Alert[]; top: number }) {
+function MobileAlertBanner({ alerts, top }: { alerts: Alert[]; top: string }) {
   const { t } = useI18n()
   const preview = alerts.slice(0, PREVIEW_COUNT)
   const [idx, setIdx]           = useState(0)
@@ -150,9 +150,13 @@ function MobileAlertBanner({ alerts, top }: { alerts: Alert[]; top: number }) {
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   }, [expanded, preview.length, rotate])
 
-  useLayoutEffect(() => { setIdx(0) }, [alerts])
+  // Restart the rotation only when the alert *content* changes — the array
+  // identity changes on every poll, which used to reset to the first alert.
+  const fingerprint = preview.map(a => a.header).join('|')
+  useLayoutEffect(() => { setIdx(0) }, [fingerprint])
 
-  const visible = preview[idx]
+  // Clamp in case the alert list shrank under the current index.
+  const visible = preview[idx % preview.length]
 
   return (
     <div
@@ -210,18 +214,26 @@ function DetailSheet({ open, onClose, maxHeight, children }: {
 }) {
   // Live drag offset (px) while the user pulls the sheet down.
   const [drag, setDrag] = useState(0)
+  // Whether the last pointer interaction actually dragged — a spring-back drag
+  // must not fire the handle's tap-to-close (the click lands after mouseup).
+  const moved = useRef(false)
 
   const handleMove = useCallback((deltaY: number) => {
     setDrag(Math.max(0, deltaY)) // only allow pulling downward
   }, [])
 
   const handleEnd = useCallback((deltaY: number, velocity: number) => {
+    moved.current = Math.abs(deltaY) > 6
     // Dismiss on a decent pull or a downward flick; otherwise spring back.
     if (deltaY > 110 || velocity > 650) onClose()
     setDrag(0)
   }, [onClose])
 
   const beginDrag = useVerticalDrag(handleMove, handleEnd)
+  const startDrag = useCallback((clientY: number) => {
+    moved.current = false
+    beginDrag(clientY)
+  }, [beginDrag])
 
   // Reset any residual drag offset when reopened.
   useEffect(() => { if (open) setDrag(0) }, [open])
@@ -252,16 +264,20 @@ function DetailSheet({ open, onClose, maxHeight, children }: {
         willChange: 'transform',
         overscrollBehavior: 'contain',
       }}>
-        {/* Grabbable handle row — drag down to dismiss, tap to close */}
+        {/* Grabbable handle row — drag down to dismiss, tap to close. Sticky so
+            it stays reachable when the sheet content is scrolled. */}
         <div
-          style={{ padding: '12px 0 6px', cursor: 'grab', touchAction: 'none', userSelect: 'none' }}
-          onMouseDown={e => beginDrag(e.clientY)}
-          onTouchStart={e => beginDrag(e.touches[0].clientY)}
-          onClick={onClose}
+          style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--bg2)', borderRadius: '20px 20px 0 0', padding: '12px 0 6px', cursor: 'grab', touchAction: 'none', userSelect: 'none' }}
+          onMouseDown={e => startDrag(e.clientY)}
+          onTouchStart={e => startDrag(e.touches[0].clientY)}
+          onClick={() => { if (!moved.current) onClose() }}
         >
           <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--border2)', margin: '0 auto' }} />
         </div>
-        {children}
+        {/* Keep content clear of the home-indicator area on notched phones. */}
+        <div style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+          {children}
+        </div>
       </div>
     </>
   )
@@ -275,7 +291,11 @@ export function MobileLayout({
   onCloseTrain, onCloseStop, onRefresh, onThemeToggle,
 }: MobileLayoutProps) {
   const { t } = useI18n()
+  const rootRef = useRef<HTMLDivElement>(null)
   const [sheetRatio, setSheetRatio]     = useState(SNAP_PEEK)
+  // Transition is disabled while dragging so the sheet tracks the finger
+  // instead of easing toward it.
+  const [sheetDragging, setSheetDragging] = useState(false)
   const [activeTab, setActiveTab]       = useState<'trains' | 'stations' | 'plan'>('trains')
   const [selectedJourney, setSelectedJourney] = useState<Journey | null>(null)
 
@@ -320,15 +340,23 @@ export function MobileLayout({
     : []
 
   // ── Sheet drag (handle + tab row are both grab targets) ──
+  // Ratios are relative to the app container, not `vh` — mobile browser chrome
+  // (URL bar) makes `vh` overflow the visible viewport.
+  const viewH = () => rootRef.current?.clientHeight || window.innerHeight
+  // Whether the last pointer interaction was a real drag (vs a tap).
+  const sheetMoved = useRef(false)
+
   const onSheetMove = useCallback((deltaY: number) => {
-    const vh = window.innerHeight
+    const vh = viewH()
     // Dragging up (negative deltaY) raises the sheet.
     const next = Math.max(SNAP_PEEK - 0.03, Math.min(SNAP_FULL + 0.03, dragBase.current - deltaY / vh))
     setSheetRatio(next)
   }, [])
 
   const onSheetEnd = useCallback((deltaY: number, velocityPxPerS: number) => {
-    const vh = window.innerHeight
+    const vh = viewH()
+    sheetMoved.current = Math.abs(deltaY) > 6
+    setSheetDragging(false)
     const ratioVel = -velocityPxPerS / vh // up = positive (expanding)
     const landed = dragBase.current - deltaY / vh
     setSheetRatio(resolveSnap(landed, ratioVel))
@@ -337,14 +365,35 @@ export function MobileLayout({
   const beginSheetDrag = useVerticalDrag(onSheetMove, onSheetEnd)
   const startSheetDrag = useCallback((clientY: number) => {
     dragBase.current = sheetRatio
+    sheetMoved.current = false
+    setSheetDragging(true)
     beginSheetDrag(clientY)
   }, [sheetRatio, beginSheetDrag])
+
+  // Tapping the handle toggles peek ↔ half (a real drag suppresses the click).
+  const toggleSheet = useCallback(() => {
+    if (sheetMoved.current) return
+    setSheetRatio(r => (r < SNAP_HALF ? SNAP_HALF : SNAP_PEEK))
+  }, [])
 
   const expandSheet = useCallback(() => {
     setSheetRatio(r => (r < SNAP_HALF ? SNAP_HALF : r))
   }, [])
 
-  const sheetHeight = `${(sheetRatio * 100).toFixed(2)}vh`
+  // Typing needs the keyboard *and* the results visible: raise the sheet to
+  // full whenever any input inside it gains focus.
+  const onSheetFocus = useCallback((e: React.FocusEvent) => {
+    if ((e.target as HTMLElement).tagName === 'INPUT') setSheetRatio(SNAP_FULL)
+  }, [])
+
+  // Frame journey fits above the sheet, which sits at half snap after a
+  // journey is selected (uniform padding would hide the path behind it).
+  const fitPadding = useMemo(() => ({
+    top: 90, left: 40, right: 40,
+    bottom: Math.round((typeof window === 'undefined' ? 800 : window.innerHeight) * (SNAP_HALF + 0.06)),
+  }), [])
+
+  const sheetHeight = `${(sheetRatio * 100).toFixed(2)}%`
 
   const TABS = [
     { key: 'trains'   as const, label: `${t('tabTrains')}` },
@@ -353,13 +402,13 @@ export function MobileLayout({
   ]
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
+    <div ref={rootRef} style={{ position: 'fixed', inset: 0, background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
 
       {/* ── Floating top bar ── */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20,
         display: 'flex', alignItems: 'center', gap: 8,
-        padding: '12px 12px 18px',
+        padding: 'calc(env(safe-area-inset-top, 0px) + 12px) 12px 18px',
         background: 'linear-gradient(to bottom, var(--bg) 45%, transparent)',
         pointerEvents: 'none',
       }}>
@@ -398,7 +447,7 @@ export function MobileLayout({
       {/* ── Alert / error banner ── */}
       {apiError && (
         <div style={{
-          position: 'absolute', top: 58, left: 10, right: 10, zIndex: 20,
+          position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 58px)', left: 10, right: 10, zIndex: 20,
           background: 'rgba(239,68,68,0.95)', borderRadius: 12,
           color: '#fff', fontSize: 11.5, fontWeight: 600, padding: '8px 14px',
           display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 6px 20px rgba(0,0,0,0.25)',
@@ -408,7 +457,7 @@ export function MobileLayout({
         </div>
       )}
       {!apiError && alerts.length > 0 && (
-        <MobileAlertBanner alerts={alerts} top={58} />
+        <MobileAlertBanner alerts={alerts} top="calc(env(safe-area-inset-top, 0px) + 58px)" />
       )}
 
       {/* ── Full-screen map ── */}
@@ -425,11 +474,13 @@ export function MobileLayout({
           onCloseStop={onCloseStop}
           journeyPath={journeyPath}
           theme={theme}
+          fitPadding={fitPadding}
         />
       </div>
 
       {/* ── Bottom sheet ── */}
       <div
+        onFocusCapture={onSheetFocus}
         style={{
           position: 'absolute',
           left: 0, right: 0, bottom: 0,
@@ -442,17 +493,20 @@ export function MobileLayout({
           display: 'flex',
           flexDirection: 'column',
           zIndex: 10,
-          transition: 'height 0.32s cubic-bezier(0.32,1.2,0.5,1)',
+          transition: sheetDragging ? 'none' : 'height 0.32s cubic-bezier(0.32,1.2,0.5,1)',
           willChange: 'height',
         }}
       >
         {/* Grab zone: handle + segmented tabs both initiate a drag */}
         <div
-          style={{ flexShrink: 0, touchAction: 'none', cursor: 'grab', paddingTop: 8 }}
+          style={{ flexShrink: 0, touchAction: 'none', cursor: 'grab' }}
           onMouseDown={e => startSheetDrag(e.clientY)}
           onTouchStart={e => startSheetDrag(e.touches[0].clientY)}
         >
-          <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--border2)', margin: '0 auto 8px' }} />
+          {/* Handle strip — also a tap target that toggles peek ↔ half */}
+          <div onClick={toggleSheet} style={{ padding: '10px 0 8px' }}>
+            <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--border2)', margin: '0 auto' }} />
+          </div>
 
           {/* Segmented tab control */}
           <div style={{ display: 'flex', gap: 4, margin: '0 12px 8px', padding: 3, background: 'var(--bg3)', borderRadius: 12 }}>
@@ -531,8 +585,8 @@ export function MobileLayout({
           </div>
         )}
 
-        {/* Scrollable content */}
-        <div style={{ flex: 1, overflowY: activeTab === 'plan' ? 'hidden' : 'auto', display: activeTab === 'plan' ? 'flex' : 'block', flexDirection: 'column', padding: activeTab === 'plan' ? 0 : '8px 12px 28px', overscrollBehavior: 'contain' }}>
+        {/* Scrollable content (bottom padding keeps it clear of the home indicator) */}
+        <div style={{ flex: 1, overflowY: activeTab === 'plan' ? 'hidden' : 'auto', display: activeTab === 'plan' ? 'flex' : 'block', flexDirection: 'column', padding: activeTab === 'plan' ? '0 0 env(safe-area-inset-bottom, 0px)' : '8px 12px calc(28px + env(safe-area-inset-bottom, 0px))', overscrollBehavior: 'contain' }}>
           {activeTab === 'plan' ? (
             <TripPlanner
               lineColors={lineColors}
@@ -582,12 +636,12 @@ export function MobileLayout({
       </div>
 
       {/* ── Train detail ── */}
-      <DetailSheet open={selectedTrain !== null} onClose={onCloseTrain} maxHeight="86vh">
+      <DetailSheet open={selectedTrain !== null} onClose={onCloseTrain} maxHeight="86%">
         <DetailPanel train={selectedTrain} lineColors={lineColors} onClose={onCloseTrain} mobile />
       </DetailSheet>
 
       {/* ── Stop detail ── */}
-      <DetailSheet open={selectedStop !== null && selectedTrain === null} onClose={onCloseStop} maxHeight="80vh">
+      <DetailSheet open={selectedStop !== null && selectedTrain === null} onClose={onCloseStop} maxHeight="80%">
         <StopPanel stop={selectedStop} onClose={onCloseStop} lineColors={lineColors} mobile />
       </DetailSheet>
     </div>
