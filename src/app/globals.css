@@ -42,6 +42,11 @@ body {
   transition: background 0.3s, color 0.3s;
 }
 
+/* Native time/date pickers (clock & calendar glyphs, popover) follow the app theme. */
+input[type="time"], input[type="date"] { color-scheme: dark; }
+[data-theme="light"] input[type="time"],
+[data-theme="light"] input[type="date"] { color-scheme: light; }
+
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }

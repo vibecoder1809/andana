@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback, type CSSProperties } from 'react'
 import type { PlannerStation, Journey } from '@/types'
 import { LINE_COLORS } from '@/lib/constants'
 import { useI18n } from '@/lib/i18n'
@@ -61,6 +61,20 @@ function isoDay(offset: number): string {
   return `${y}-${mo}-${day}`
 }
 
+// Shared form-field styling (station inputs and the time/date pickers).
+const fieldLabelStyle: CSSProperties = { fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 5 }
+const fieldInputStyle: CSSProperties = { width: '100%', padding: '9px 11px', background: 'var(--bg3)', border: '1px solid var(--border2)', borderRadius: 8, color: 'var(--text)', fontFamily: 'inherit', fontSize: 13, outline: 'none' }
+
+// One half of the "leave now / leave later" segmented toggle.
+const segmentStyle = (on: boolean): CSSProperties => ({
+  flex: 1, padding: '7px 0', borderRadius: 6, cursor: 'pointer',
+  fontFamily: 'inherit', fontSize: 12, fontWeight: 600,
+  background: on ? 'var(--bg2)' : 'transparent',
+  color: on ? 'var(--accent)' : 'var(--muted)',
+  border: `1px solid ${on ? 'var(--border2)' : 'transparent'}`,
+  transition: 'color 0.15s, background 0.15s',
+})
+
 // A station autocomplete input.
 function StationInput({
   label, value, onChange, stations, placeholder,
@@ -93,7 +107,7 @@ function StationInput({
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 5 }}>
+      <div style={fieldLabelStyle}>
         {label}
       </div>
       <input
@@ -103,7 +117,7 @@ function StationInput({
         onFocus={() => setOpen(true)}
         onKeyDown={e => { if (e.key === 'Enter' && matches.length > 0) { onChange(matches[0]); setOpen(false) } }}
         placeholder={placeholder}
-        style={{ width: '100%', padding: '9px 11px', background: 'var(--bg3)', border: '1px solid var(--border2)', borderRadius: 8, color: 'var(--text)', fontFamily: 'inherit', fontSize: 13, outline: 'none' }}
+        style={fieldInputStyle}
       />
       {open && matches.length > 0 && (
         <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 8, marginTop: 4, maxHeight: 200, overflowY: 'auto', zIndex: 40, boxShadow: '0 10px 25px rgba(0,0,0,0.25)' }}>
@@ -347,62 +361,49 @@ export function TripPlanner({ lineColors, selectedJourney, onSelectJourney }: Tr
         </div>
         <StationInput label={t('destination')} value={dest} onChange={setDest} stations={stations} placeholder={t('toWhere')} />
 
-        {depTime === null ? (
-          <button
-            onClick={() => {
-              const now = new Date()
-              setDepTime(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`)
-            }}
-            style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, padding: 0 }}
-          >
-            <span>{t('leaveNow')} · {t('changeTime')}</span>
-            <span aria-hidden style={{ fontSize: 10, lineHeight: 1 }}>▾</span>
-          </button>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', minWidth: 52 }}>
-                {t('leaveAt')}
-              </span>
-              <input
-                type="time"
-                value={depTime}
-                onChange={e => setDepTime(e.target.value || null)}
-                style={{ background: 'var(--bg3)', border: '1px solid var(--border2)', borderRadius: 8, color: 'var(--text)', fontFamily: 'inherit', fontSize: 13, padding: '7px 9px', outline: 'none' }}
-              />
-              <button
-                onClick={() => { setDepTime(null); setDepDate(null) }}
-                title={t('leaveNow')}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, padding: 0 }}
-              >
-                <span>{t('leaveNow')}</span>
-                <span aria-hidden style={{ fontSize: 10, lineHeight: 1 }}>▴</span>
-              </button>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', minWidth: 52 }}>
-                {t('onDay')}
-              </span>
-              <input
-                type="date"
-                value={depDate ?? isoDay(0)}
-                min={isoDay(0)}
-                max={isoDay(MAX_DAYS_AHEAD)}
-                onChange={e => setDepDate(e.target.value && e.target.value !== isoDay(0) ? e.target.value : null)}
-                style={{ background: 'var(--bg3)', border: '1px solid var(--border2)', borderRadius: 8, color: 'var(--text)', fontFamily: 'inherit', fontSize: 13, padding: '7px 9px', outline: 'none' }}
-              />
-              {depDate && (
-                <button
-                  onClick={() => setDepDate(null)}
-                  title={t('today')}
-                  style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, padding: 0 }}
-                >
-                  {t('today')}
-                </button>
-              )}
-            </div>
+        {/* Departure: now/later segmented toggle; time & date pickers only when scheduled.
+            depTime === null keeps meaning "leave now" (server uses current time). */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 3, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 9, padding: 3 }}>
+            <button onClick={() => { setDepTime(null); setDepDate(null) }} style={segmentStyle(depTime === null)}>
+              {t('leaveNow')}
+            </button>
+            <button
+              onClick={() => {
+                if (depTime !== null) return
+                const now = new Date()
+                setDepTime(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`)
+              }}
+              style={segmentStyle(depTime !== null)}
+            >
+              {t('leaveLater')}
+            </button>
           </div>
-        )}
+          {depTime !== null && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <label style={{ flex: 1 }}>
+                <div style={fieldLabelStyle}>{t('timeLabel')}</div>
+                <input
+                  type="time"
+                  value={depTime}
+                  onChange={e => setDepTime(e.target.value || null)}
+                  style={fieldInputStyle}
+                />
+              </label>
+              <label style={{ flex: 1 }}>
+                <div style={fieldLabelStyle}>{t('dateLabel')}</div>
+                <input
+                  type="date"
+                  value={depDate ?? isoDay(0)}
+                  min={isoDay(0)}
+                  max={isoDay(MAX_DAYS_AHEAD)}
+                  onChange={e => setDepDate(e.target.value && e.target.value !== isoDay(0) ? e.target.value : null)}
+                  style={fieldInputStyle}
+                />
+              </label>
+            </div>
+          )}
+        </div>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
