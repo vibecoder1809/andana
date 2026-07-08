@@ -205,72 +205,104 @@ function MobileAlertBanner({ alerts, top }: { alerts: Alert[]; top: string }) {
   )
 }
 
-// ── Swipe-down-to-dismiss detail sheet (train / stop) ────────────────────
-function DetailSheet({ open, onClose, maxHeight, children }: {
+// ── Detail sheet (train / stop) ──────────────────────────────────────────
+// Opens at a peek height so the map stays visible and interactive behind it;
+// dragging the handle up expands it toward `full`, and only that expansion
+// dims the map. Drag down to fall back to the peek or dismiss.
+function DetailSheet({ open, onClose, peek = 0.28, full = 0.86, children }: {
   open: boolean
   onClose: () => void
-  maxHeight: string
+  peek?: number   // opening snap, as a fraction of the container height
+  full?: number   // expanded snap
   children: React.ReactNode
 }) {
-  // Live drag offset (px) while the user pulls the sheet down.
-  const [drag, setDrag] = useState(0)
+  const [ratio, setRatio]       = useState(peek)
+  const [dragging, setDragging] = useState(false)
+  const sheetRef                = useRef<HTMLDivElement>(null)
+  // The sheet height the current drag started from (so deltas are absolute).
+  const dragBase                = useRef(peek)
   // Whether the last pointer interaction actually dragged — a spring-back drag
-  // must not fire the handle's tap-to-close (the click lands after mouseup).
+  // must not fire the handle's tap-to-toggle (the click lands after mouseup).
   const moved = useRef(false)
 
-  const handleMove = useCallback((deltaY: number) => {
-    setDrag(Math.max(0, deltaY)) // only allow pulling downward
-  }, [])
+  const viewH = () => sheetRef.current?.parentElement?.clientHeight || window.innerHeight
 
-  const handleEnd = useCallback((deltaY: number, velocity: number) => {
+  const handleMove = useCallback((deltaY: number) => {
+    // Dragging up (negative deltaY) raises the sheet.
+    setRatio(Math.max(0.05, Math.min(full + 0.03, dragBase.current - deltaY / viewH())))
+  }, [full])
+
+  const handleEnd = useCallback((deltaY: number, velocityPxPerS: number) => {
     moved.current = Math.abs(deltaY) > 6
-    // Dismiss on a decent pull or a downward flick; otherwise spring back.
-    if (deltaY > 110 || velocity > 650) onClose()
-    setDrag(0)
-  }, [onClose])
+    setDragging(false)
+    const vh = viewH()
+    const velRatio = -velocityPxPerS / vh // up = positive (expanding)
+    const landed = dragBase.current - deltaY / vh
+    const FLICK = 0.6
+    if (velRatio > FLICK) setRatio(full)
+    // A downward flick falls back one level: full → peek, peek → dismissed.
+    else if (velRatio < -FLICK) {
+      if (dragBase.current > (peek + full) / 2) setRatio(peek)
+      else onClose()
+    }
+    else if (landed < peek * 0.6) onClose() // pulled well below the peek
+    else setRatio(landed < (peek + full) / 2 ? peek : full)
+  }, [onClose, peek, full])
 
   const beginDrag = useVerticalDrag(handleMove, handleEnd)
   const startDrag = useCallback((clientY: number) => {
+    dragBase.current = ratio
     moved.current = false
+    setDragging(true)
     beginDrag(clientY)
-  }, [beginDrag])
+  }, [ratio, beginDrag])
 
-  // Reset any residual drag offset when reopened.
-  useEffect(() => { if (open) setDrag(0) }, [open])
+  // (Re)open at the peek height.
+  useEffect(() => { if (open) setRatio(peek) }, [open, peek])
+
+  // Tap the handle to toggle peek ↔ full (a real drag suppresses the click).
+  const toggle = useCallback(() => {
+    if (moved.current) return
+    setRatio(r => (r < (peek + full) / 2 ? full : peek))
+  }, [peek, full])
+
+  // Expansion beyond the peek (0..1) — drives the map-dimming scrim.
+  const expand = Math.max(0, Math.min(1, (ratio - peek) / (full - peek)))
 
   return (
     <>
-      {/* Scrim */}
+      {/* Scrim — transparent and click-through at the peek so the map stays
+          usable; darkens with expansion. Tap it to dismiss when expanded. */}
       <div
         onClick={onClose}
         style={{
           position: 'absolute', inset: 0, zIndex: 25,
           background: 'rgba(0,0,0,0.5)',
-          opacity: open ? 1 : 0,
-          pointerEvents: open ? 'auto' : 'none',
-          transition: 'opacity 0.3s',
+          opacity: open ? expand : 0,
+          pointerEvents: open && expand > 0.4 ? 'auto' : 'none',
+          transition: dragging ? 'none' : 'opacity 0.3s',
         }}
       />
       {/* Sheet */}
-      <div style={{
+      <div ref={sheetRef} style={{
         position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 30,
-        maxHeight, overflowY: 'auto',
+        height: `${(ratio * 100).toFixed(2)}%`, overflowY: 'auto',
         background: 'var(--bg2)',
         borderRadius: '20px 20px 0 0',
         boxShadow: '0 -8px 40px rgba(0,0,0,0.55)',
-        transform: open ? `translateY(${drag}px)` : 'translateY(100%)',
-        transition: drag > 0 ? 'none' : 'transform 0.36s cubic-bezier(0.32,1.4,0.5,1)',
+        transform: open ? 'translateY(0)' : 'translateY(100%)',
+        transition: dragging ? 'none' : 'transform 0.36s cubic-bezier(0.32,1.4,0.5,1), height 0.3s cubic-bezier(0.32,1.2,0.5,1)',
         pointerEvents: open ? 'auto' : 'none',
-        willChange: 'transform',
+        willChange: 'transform, height',
         overscrollBehavior: 'contain',
       }}>
-        {/* Grabbable handle row — drag down to dismiss, tap to close. Sticky so
-            it stays reachable when the sheet content is scrolled. */}
+        {/* Grabbable handle row — drag to resize, tap to toggle. Sticky so it
+            stays reachable when the sheet content is scrolled. */}
         <div
           style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--bg2)', borderRadius: '20px 20px 0 0', padding: '12px 0 6px', cursor: 'grab', touchAction: 'none', userSelect: 'none' }}
           onMouseDown={e => startDrag(e.clientY)}
           onTouchStart={e => startDrag(e.touches[0].clientY)}
-          onClick={() => { if (!moved.current) onClose() }}
+          onClick={toggle}
         >
           <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--border2)', margin: '0 auto' }} />
         </div>
@@ -445,20 +477,26 @@ export function MobileLayout({
       </div>
 
       {/* ── Alert / error banner ── */}
-      {apiError && (
-        <div style={{
-          position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 58px)', left: 10, right: 10, zIndex: 20,
-          background: 'rgba(239,68,68,0.95)', borderRadius: 12,
-          color: '#fff', fontSize: 11.5, fontWeight: 600, padding: '8px 14px',
-          display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 6px 20px rgba(0,0,0,0.25)',
-        }}>
-          <span style={{ fontWeight: 800, fontSize: 10 }}>ERROR</span>
-          {apiError}
-        </div>
-      )}
-      {!apiError && alerts.length > 0 && (
-        <MobileAlertBanner alerts={alerts} top="calc(env(safe-area-inset-top, 0px) + 58px)" />
-      )}
+      {/* Fades out when the sheet is raised near-full: the floating banner
+          would otherwise sit exactly over the sheet's grab handle and swallow
+          its touches, locking the sheet up. The map it annotates is covered
+          by the sheet at that point anyway. */}
+      <div style={{ position: 'relative', zIndex: 20, opacity: sheetRatio > 0.75 ? 0 : 1, pointerEvents: sheetRatio > 0.75 ? 'none' : 'auto', transition: 'opacity 0.25s' }}>
+        {apiError && (
+          <div style={{
+            position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 58px)', left: 10, right: 10,
+            background: 'rgba(239,68,68,0.95)', borderRadius: 12,
+            color: '#fff', fontSize: 11.5, fontWeight: 600, padding: '8px 14px',
+            display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 6px 20px rgba(0,0,0,0.25)',
+          }}>
+            <span style={{ fontWeight: 800, fontSize: 10 }}>ERROR</span>
+            {apiError}
+          </div>
+        )}
+        {!apiError && alerts.length > 0 && (
+          <MobileAlertBanner alerts={alerts} top="calc(env(safe-area-inset-top, 0px) + 58px)" />
+        )}
+      </div>
 
       {/* ── Full-screen map ── */}
       <div style={{ flex: 1, position: 'relative' }}>
@@ -636,13 +674,13 @@ export function MobileLayout({
       </div>
 
       {/* ── Train detail ── */}
-      <DetailSheet open={selectedTrain !== null} onClose={onCloseTrain} maxHeight="86%">
+      <DetailSheet open={selectedTrain !== null} onClose={onCloseTrain} full={0.86}>
         <DetailPanel train={selectedTrain} lineColors={lineColors} onClose={onCloseTrain} mobile />
       </DetailSheet>
 
       {/* ── Stop detail ── */}
-      <DetailSheet open={selectedStop !== null && selectedTrain === null} onClose={onCloseStop} maxHeight="80%">
-        <StopPanel stop={selectedStop} onClose={onCloseStop} lineColors={lineColors} mobile />
+      <DetailSheet open={selectedStop !== null && selectedTrain === null} onClose={onCloseStop} full={0.8}>
+        <StopPanel stop={selectedStop} onClose={onCloseStop} lineColors={lineColors} mobile trains={filteredTrains} onSelectTrain={onSelectTrain} />
       </DetailSheet>
     </div>
   )

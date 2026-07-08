@@ -1,12 +1,12 @@
 'use client'
 
-import { useRef, useEffect, useState } from 'react'
-import { Map, Marker, NavigationControl, Source, Layer, Popup } from 'react-map-gl/maplibre'
+import { useRef, useEffect } from 'react'
+import { Map, Marker, NavigationControl, Source, Layer } from 'react-map-gl/maplibre'
 import type { MapRef } from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import type { Train, Stop, Route, Theme } from '@/types'
 import type { JourneyPath } from '@/lib/journeyPath'
-import { LINE_COLORS, STATION_CODES } from '@/lib/constants'
+import { LINE_COLORS } from '@/lib/constants'
 
 const MAP_STYLES: Record<Theme, string> = {
   dark:  'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
@@ -32,7 +32,6 @@ interface MapViewProps {
 
 export default function MapView({ trains, stops, routes, lineColors, selectedTrain, selectedStop, onSelectTrain, onSelectStop, onCloseStop, journeyPath, theme, fitPadding }: MapViewProps) {
   const mapRef = useRef<MapRef>(null)
-  const [popupStop, setPopupStop] = useState<Stop | null>(null)
 
   useEffect(() => {
     if (!selectedTrain || !mapRef.current) return
@@ -42,7 +41,6 @@ export default function MapView({ trains, stops, routes, lineColors, selectedTra
   useEffect(() => {
     if (!selectedStop || !mapRef.current) return
     mapRef.current.flyTo({ center: [selectedStop.lng, selectedStop.lat], zoom: 15, duration: 1000 })
-    setPopupStop(selectedStop)
   }, [selectedStop])
 
   // When a journey path is drawn, frame it: fit both endpoints (and the whole
@@ -115,9 +113,8 @@ export default function MapView({ trains, stops, routes, lineColors, selectedTra
         const f = e.features?.[0]
         if (f?.layer?.id === 'stops-circles') {
           const hit = stops.find(s => s.stopId === (f.properties as { stopId: string }).stopId)
-          if (hit) { setPopupStop(hit); onSelectStop(hit) }
+          if (hit) onSelectStop(hit)
         } else {
-          setPopupStop(null)
           onCloseStop?.()
         }
       }}
@@ -247,63 +244,6 @@ export default function MapView({ trains, stops, routes, lineColors, selectedTra
           minzoom={10}
         />
       </Source>
-
-      {/* Stop popup */}
-      {popupStop && (() => {
-        const code = popupStop.stopId.replace(/\d+$/, '')
-        const stationName = STATION_CODES[code] ?? popupStop.name
-
-        const passing = trains
-          .map(t => {
-            if (t.currentStop === stationName) return { train: t, status: 'here' as const, dist: 0 }
-            const idx = t.upcomingStops.indexOf(stationName)
-            if (idx !== -1) return { train: t, status: 'upcoming' as const, dist: idx + 1 }
-            return null
-          })
-          .filter((x): x is NonNullable<typeof x> => x !== null)
-          .sort((a, b) => a.dist - b.dist)
-          .slice(0, 4)
-
-        return (
-          <Popup
-            longitude={popupStop.lng}
-            latitude={popupStop.lat}
-            anchor="bottom"
-            closeButton
-            closeOnClick={false}
-            onClose={() => setPopupStop(null)}
-            maxWidth="260px"
-          >
-            <div style={{ minWidth: 210 }}>
-              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 1 }}>{code}</div>
-              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>{popupStop.name}</div>
-
-              <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 6 }}>
-                Trens passant per aquí
-              </div>
-
-              {passing.length > 0 ? passing.map(({ train: t, status, dist }) => (
-                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5, padding: '5px 8px', background: 'var(--bg3)', borderRadius: 7, border: '1px solid var(--border)' }}>
-                  <span style={{ fontWeight: 700, fontSize: 11, color: lineColors[t.line] || LINE_COLORS[t.line] || '#7a82a0', minWidth: 22 }}>{t.line}</span>
-                  <span style={{ fontSize: 11, color: 'var(--text)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>→ {t.destination}</span>
-                  {t.delayMinutes > 0 && <span style={{ fontSize: 10, color: 'var(--red)', fontWeight: 600 }}>+{t.delayMinutes}m</span>}
-                  {status === 'here'
-                    ? <span style={{ fontSize: 10, color: 'var(--green)', fontWeight: 700 }}>Ara aquí</span>
-                    : <span style={{ fontSize: 10, color: 'var(--muted)' }}>{dist}p</span>}
-                </div>
-              )) : (
-                <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                  Cap tren proper ara.
-                </div>
-              )}
-
-              {popupStop.wheelchairBoarding && (
-                <div style={{ fontSize: 10, color: 'var(--accent)', marginTop: 8 }}>♿ Accessible</div>
-              )}
-            </div>
-          </Popup>
-        )
-      })()}
 
       {/* Train markers — rendered last so they float above lines and stops */}
       {trains.map(train => {

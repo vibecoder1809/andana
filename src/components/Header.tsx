@@ -37,7 +37,10 @@ export function LanguagePicker({ compact = false }: { compact?: boolean }) {
     <div ref={ref} style={{ position: 'relative' }}>
       <button
         onClick={() => setOpen(o => !o)}
-        style={{ background: 'none', border: '1px solid var(--border2)', color: 'var(--muted)', padding: compact ? '6px 10px' : '7px 12px', borderRadius: 8, cursor: 'pointer', fontSize: compact ? 11 : 12, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}
+        // Compact (mobile top bar) matches the theme/refresh pills in MobileLayout.
+        style={compact
+          ? { background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--muted)', height: 38, padding: '0 12px', borderRadius: 12, cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 10px rgba(0,0,0,0.2)' }
+          : { background: 'none', border: '1px solid var(--border2)', color: 'var(--muted)', padding: '7px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}
       >
         {compact ? current.label : `${t('language')}: ${current.label}`}
         <span style={{ fontSize: 8, opacity: 0.6 }}>▾</span>

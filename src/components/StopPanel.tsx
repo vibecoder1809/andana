@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import type { Stop, StopDetail } from '@/types'
+import { useEffect, useState, useMemo } from 'react'
+import type { Stop, StopDetail, Train } from '@/types'
+import { LINE_COLORS, STATION_CODES } from '@/lib/constants'
 import { useI18n, type TransKey } from '@/lib/i18n'
 import { DeparturesBoard } from './DeparturesBoard'
 
@@ -10,6 +11,11 @@ interface StopPanelProps {
   onClose: () => void
   lineColors?: Record<string, string>
   mobile?: boolean
+  // Live trains for a "passing through here" section. Mobile passes these
+  // (its only extended station view); desktop omits them — the sidebar's
+  // Stations tab already shows the same list.
+  trains?: Train[]
+  onSelectTrain?: (train: Train) => void
 }
 
 const SKY_ICONS: Record<string, string> = {
@@ -41,18 +47,36 @@ function Metric({ label, value, unit }: { label: string; value: number | null; u
   )
 }
 
-function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColors }: {
+function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColors, trains, onSelectTrain }: {
   stop: Stop
   detail: StopDetail | null
   loading: boolean
   onClose: () => void
   showCloseButton: boolean
   lineColors: Record<string, string>
+  trains?: Train[]
+  onSelectTrain?: (train: Train) => void
 }) {
   const { t } = useI18n()
   const air     = detail?.air ?? null
   const weather = detail?.weather ?? null
   const iqam    = air?.iqam ? IQAM_CONFIG[air.iqam] : null
+
+  // Live trains at / heading toward this station, nearest first. Train feeds
+  // reference stations by display name, so resolve the parent-station name
+  // from the stop code.
+  const stationName = STATION_CODES[stop.stopId.replace(/\d+$/, '')] ?? stop.name
+  const passing = useMemo(() =>
+    (trains ?? [])
+      .map(tr => {
+        if (tr.currentStop === stationName) return { train: tr, here: true, dist: 0 }
+        const idx = tr.upcomingStops.indexOf(stationName)
+        return idx !== -1 ? { train: tr, here: false, dist: idx + 1 } : null
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null)
+      .sort((a, b) => a.dist - b.dist)
+      .slice(0, 6),
+    [trains, stationName])
 
   return (
     <>
@@ -75,6 +99,34 @@ function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColo
         <span>{stop.stopId}</span>
         {stop.wheelchairBoarding && <span style={{ color: 'var(--accent)' }}>♿ {t('accessible')}</span>}
       </div>
+
+      {/* Trains passing now/soon — tap to jump to the train's detail */}
+      {trains && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8 }}>
+            {t('passingNowSoon')}
+          </div>
+          {passing.length > 0 ? passing.map(({ train, here, dist }) => {
+            const color = lineColors[train.line] || LINE_COLORS[train.line] || '#7a82a0'
+            return (
+              <div
+                key={train.id}
+                onClick={onSelectTrain ? () => onSelectTrain(train) : undefined}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: 'var(--bg3)', borderRadius: 8, marginBottom: 5, cursor: onSelectTrain ? 'pointer' : 'default' }}
+              >
+                <span style={{ fontWeight: 700, fontSize: 12, color, minWidth: 24, fontFamily: 'var(--font-space-grotesk)' }}>{train.line}</span>
+                <span style={{ fontSize: 12, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>→ {train.destination}</span>
+                {train.delayMinutes > 0 && <span style={{ fontSize: 10, color: 'var(--red)', fontWeight: 600 }}>+{train.delayMinutes}m</span>}
+                {here
+                  ? <span style={{ background: color, color: '#fff', fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4 }}>{t('hereNow')}</span>
+                  : <span style={{ color: 'var(--muted)', fontSize: 10 }}>{t('stopsAway', dist)}</span>}
+              </div>
+            )
+          }) : (
+            <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('noTrainHere')}</div>
+          )}
+        </div>
+      )}
 
       {/* Live next-departures board (timetable + current line delays). The parent
           station code is the stop id without its trailing platform digits. */}
@@ -127,7 +179,7 @@ function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColo
   )
 }
 
-export function StopPanel({ stop, onClose, lineColors = {}, mobile = false }: StopPanelProps) {
+export function StopPanel({ stop, onClose, lineColors = {}, mobile = false, trains, onSelectTrain }: StopPanelProps) {
   const [detail, setDetail] = useState<StopDetail | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -146,7 +198,7 @@ export function StopPanel({ stop, onClose, lineColors = {}, mobile = false }: St
   if (mobile) {
     return (
       <div style={{ padding: '0 20px 20px' }}>
-        {stop && <StopContent stop={stop} detail={detail} loading={loading} onClose={onClose} showCloseButton={false} lineColors={lineColors} />}
+        {stop && <StopContent stop={stop} detail={detail} loading={loading} onClose={onClose} showCloseButton={false} lineColors={lineColors} trains={trains} onSelectTrain={onSelectTrain} />}
       </div>
     )
   }
@@ -171,7 +223,7 @@ export function StopPanel({ stop, onClose, lineColors = {}, mobile = false }: St
       boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
       pointerEvents: open ? 'auto' : 'none',
     }}>
-      {stop && <StopContent stop={stop} detail={detail} loading={loading} onClose={onClose} showCloseButton lineColors={lineColors} />}
+      {stop && <StopContent stop={stop} detail={detail} loading={loading} onClose={onClose} showCloseButton lineColors={lineColors} trains={trains} onSelectTrain={onSelectTrain} />}
     </div>
   )
 }

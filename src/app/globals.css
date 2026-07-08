@@ -68,26 +68,3 @@ input[type="time"], input[type="date"] { color-scheme: dark; }
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
-
-/* ── MapLibre popup — themed ── */
-.maplibregl-popup-content {
-  background: var(--bg2) !important;
-  color: var(--text) !important;
-  border: 1px solid var(--border2) !important;
-  border-radius: 12px !important;
-  padding: 12px 14px !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35) !important;
-  font-family: inherit !important;
-}
-.maplibregl-popup-close-button {
-  color: var(--muted) !important;
-  font-size: 16px !important;
-  padding: 4px 8px !important;
-}
-.maplibregl-popup-close-button:hover { color: var(--text) !important; }
-
-/* tip arrow color — adapts to anchor direction */
-.maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: var(--bg2) !important; }
-.maplibregl-popup-anchor-top    .maplibregl-popup-tip { border-bottom-color: var(--bg2) !important; }
-.maplibregl-popup-anchor-left   .maplibregl-popup-tip { border-right-color: var(--bg2) !important; }
-.maplibregl-popup-anchor-right  .maplibregl-popup-tip { border-left-color: var(--bg2) !important; }
