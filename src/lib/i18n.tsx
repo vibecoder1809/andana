@@ -72,6 +72,7 @@ const DICT = {
   onTime:          { ca: 'Puntual',    es: 'Puntual',     en: 'On time' },
   avgOccupancy:    { ca: 'Ocupació mitjana', es: 'Ocupación media', en: 'Avg. occupancy' },
   occupancyPerCar: { ca: 'Ocupació per cotxe', es: 'Ocupación por coche', en: 'Occupancy per car' },
+  carsShort:       { ca: 'Cotxes', es: 'Coches', en: 'Cars' },
   upcomingStops:   { ca: 'Pròximes parades', es: 'Próximas paradas', en: 'Upcoming stops' },
   origin2:         { ca: 'origen',     es: 'origen',      en: 'origin' },
   terminal:        { ca: 'terminal',   es: 'terminal',    en: 'terminal' },

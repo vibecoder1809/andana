@@ -1,7 +1,7 @@
 'use client'
 
 import type { Train } from '@/types'
-import { LINE_COLORS } from '@/lib/constants'
+import { LINE_COLORS, WAGON_LABELS } from '@/lib/constants'
 import { useI18n } from '@/lib/i18n'
 
 function occColor(pct: number) {
@@ -62,13 +62,19 @@ export function DetailPanel({ train, lineColors, onClose, mobile = false }: Deta
           </div>
 
 
-          {/* Per-wagon occupancy — real data from ocupacio_m1/m2/mi/ri fields */}
+          {/* Per-wagon occupancy — real data, in physical composition order
+              (M1·Mi·Ri·M2). Cab noses at both ends make the row read as a
+              train: outlined nose = head (M1), filled tail = rear (M2). */}
           {train.wagons && train.wagons.some(w => w > 0) && (
             <>
               <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{t('occupancyPerCar')}</div>
-              <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+              <div style={{ display: 'flex', gap: 4, marginBottom: 14, alignItems: 'flex-start' }}>
+                {/* Head — angled cab nose in front of car M1 */}
+                <svg width="14" height="48" viewBox="0 0 14 48" preserveAspectRatio="none" style={{ flexShrink: 0 }} aria-hidden>
+                  <path d="M13 1 V47 H1 V26 L9 1 Z" fill="var(--bg3)" stroke="var(--muted)" strokeWidth="1.5" strokeLinejoin="round" />
+                </svg>
                 {train.wagons.map((v, i) => {
-                  const label = String(i + 1)
+                  const label = WAGON_LABELS[i] ?? String(i + 1)
                   const pct = Math.round(v)
                   const c = occColor(v)
                   return (
@@ -78,11 +84,15 @@ export function DetailPanel({ train, lineColors, onClose, mobile = false }: Deta
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                         <span style={{ fontSize: 11, fontWeight: 700, color: c }}>{pct}%</span>
-                        <span style={{ fontSize: 8, color: 'var(--muted)' }}>Car {label}</span>
+                        <span style={{ fontSize: 8, color: 'var(--muted)' }}>{label}</span>
                       </div>
                     </div>
                   )
                 })}
+                {/* Rear — mirrored, filled, behind car M2 */}
+                <svg width="14" height="48" viewBox="0 0 14 48" preserveAspectRatio="none" style={{ flexShrink: 0 }} aria-hidden>
+                  <path d="M1 1 V47 H13 V26 L5 1 Z" fill="var(--border2)" stroke="var(--border2)" strokeWidth="1.5" strokeLinejoin="round" />
+                </svg>
               </div>
             </>
           )}
