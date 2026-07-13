@@ -5,6 +5,7 @@ import type { Train, Stop, Journey } from '@/types'
 import { LINE_COLORS, STATION_CODES } from '@/lib/constants'
 import { TrainCard } from './TrainCard'
 import { TripPlanner } from './TripPlanner'
+import { isPlannerLink } from '@/lib/urlState'
 import { useI18n, type TransKey } from '@/lib/i18n'
 
 type Tab = 'trains' | 'stations' | 'plan'
@@ -39,6 +40,12 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
   const [stationQuery, setStationQuery]     = useState('')
   const [showDropdown, setShowDropdown]     = useState(false)
   const dropdownRef                         = useRef<HTMLDivElement>(null)
+
+  // Open the Plan tab on load when arriving via a shared planner link. Done in
+  // an effect (not the initial state) to avoid an SSR/hydration mismatch.
+  useEffect(() => {
+    if (isPlannerLink()) setActiveTab('plan')
+  }, [])
 
   // Sync station query label when parent's selectedStop changes (e.g. map click)
   useEffect(() => {

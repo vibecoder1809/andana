@@ -5,6 +5,7 @@ import type { PlannerStation, Journey, Stop } from '@/types'
 import { LINE_COLORS } from '@/lib/constants'
 import { nearestByLatLng } from '@/lib/geometry'
 import { useGeolocation } from '@/lib/geolocation'
+import { readParam, updateParams } from '@/lib/urlState'
 import { useI18n } from '@/lib/i18n'
 import { useSavedRoutes, type SavedRoute } from '@/lib/savedRoutes'
 
@@ -313,6 +314,39 @@ export function TripPlanner({ lineColors, selectedJourney, onSelectJourney, stop
       .then((s: PlannerStation[]) => Array.isArray(s) && setStations(s))
       .catch(() => {})
   }, [])
+
+  // ── Deep-link restore & sync (from / to / at / date) ──
+  // Restore a shared/bookmarked planner link. Time and date apply immediately;
+  // origin/dest wait for the station list, then trigger the auto-search.
+  const restoredRef = useRef(false)
+  useEffect(() => {
+    if (restoredRef.current) return
+    const at = readParam('at')
+    const date = readParam('date')
+    if (at && /^\d{1,2}:\d{2}$/.test(at)) setDepTime(at)
+    if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) setDepDate(date)
+    const from = readParam('from')
+    const to = readParam('to')
+    if (from && to) {
+      if (stations.length === 0) return // wait for stations; effect re-runs
+      const o = stations.find(s => s.code === from)
+      const d = stations.find(s => s.code === to)
+      if (o) setOrigin(o)
+      if (d) setDest(d)
+    }
+    restoredRef.current = true
+  }, [stations])
+
+  // Mirror the planner state into the URL once restore has run.
+  useEffect(() => {
+    if (!restoredRef.current) return
+    updateParams({
+      from: origin?.code ?? null,
+      to: dest?.code ?? null,
+      at: depTime,
+      date: depDate,
+    })
+  }, [origin, dest, depTime, depDate])
 
   // The current origin→dest pair as a SavedRoute (null until both are picked).
   const currentRoute = useMemo<SavedRoute | null>(

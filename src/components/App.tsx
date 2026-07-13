@@ -13,6 +13,7 @@ import { NearMeButton } from './NearMeButton'
 import { MobileLayout } from './MobileLayout'
 import { useInterpolatedTrains } from '@/lib/interpolate'
 import { I18nProvider, useI18n } from '@/lib/i18n'
+import { readParam, updateParams } from '@/lib/urlState'
 
 const MapView = dynamic(() => import('./MapView'), { ssr: false })
 
@@ -232,6 +233,38 @@ function AppInner() {
     }, 300_000)
     return () => clearInterval(alertInterval)
   }, [])
+
+  // ── Deep-link restore & sync (train / stop) ──
+  // Restore a shared selection once the matching dataset has loaded; a planner
+  // link (from&to) is handled by TripPlanner, so we skip train/stop then.
+  const restoredRef = useRef(false)
+  useEffect(() => {
+    if (restoredRef.current) return
+    if (readParam('from') && readParam('to')) { restoredRef.current = true; return }
+    const trainId = readParam('train')
+    const stopId = readParam('stop')
+    if (!trainId && !stopId) { restoredRef.current = true; return }
+    if (trainId) {
+      if (trains.length === 0) return // wait for the trains feed
+      const tr = trains.find(t => t.id === trainId)
+      if (tr) handleSelectTrain(tr)
+      restoredRef.current = true
+      return
+    }
+    if (stopId) {
+      if (stops.length === 0) return // wait for stops
+      const s = stops.find(x => x.stopId === stopId)
+      if (s) handleSelectStop(s)
+      restoredRef.current = true
+    }
+  }, [trains, stops, handleSelectTrain, handleSelectStop])
+
+  // Mirror the current selection into the URL (only after restore, so we don't
+  // wipe a shared link before it's applied).
+  useEffect(() => {
+    if (!restoredRef.current) return
+    updateParams({ train: selectedTrain?.id ?? null, stop: selectedStop?.stopId ?? null })
+  }, [selectedTrain, selectedStop])
 
   const lineCount = useMemo(() => new Set(trains.map(t => t.line)).size, [trains])
 

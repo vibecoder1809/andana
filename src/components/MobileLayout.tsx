@@ -11,6 +11,7 @@ import { StopPanel } from './StopPanel'
 import { TripPlanner } from './TripPlanner'
 import { NearMeButton } from './NearMeButton'
 import { LanguagePicker } from './Header'
+import { isPlannerLink } from '@/lib/urlState'
 import { useI18n, type TransKey } from '@/lib/i18n'
 
 const LINE_GROUPS: { key: string; labelKey: TransKey; prefix: RegExp }[] = [
@@ -344,6 +345,13 @@ export function MobileLayout({
   const dragBase = useRef(SNAP_PEEK)
 
   const relativeTime = useRelativeTime(lastUpdate)
+
+  // Arriving via a shared planner link: open the Plan tab and raise the sheet
+  // so the restored journey is visible. Effect (not initial state) avoids an
+  // SSR/hydration mismatch.
+  useEffect(() => {
+    if (isPlannerLink()) { setActiveTab('plan'); setSheetRatio(SNAP_HALF) }
+  }, [])
 
   const toggleGroup = useCallback((key: string) => {
     setExpandedGroups(prev => {
