@@ -66,14 +66,20 @@ export function DetailPanel({ train, lineColors, onClose, mobile = false }: Deta
           {train.wagons && train.wagons.some(w => w > 0) && (
             <>
               <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{t('occupancyPerCar')}</div>
-              <div style={{ display: 'flex', gap: 4, height: 48, alignItems: 'flex-end', marginBottom: 14 }}>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
                 {train.wagons.map((v, i) => {
                   const label = String(i + 1)
-                  const pct = Math.max(6, Math.min(98, Math.round(v)))
+                  const pct = Math.round(v)
                   const c = occColor(v)
                   return (
-                    <div key={i} style={{ flex: 1, height: `${pct}%`, borderRadius: 4, background: `${c}25`, border: `1px solid ${c}`, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 3 }}>
-                      <span style={{ fontSize: 8, fontWeight: 600, color: c }}>{label}</span>
+                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                      <div style={{ height: 48, borderRadius: 4, background: `${c}25`, border: `1px solid ${c}`, width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 3 }}>
+                        <div style={{ height: `${Math.max(6, Math.min(98, pct))}%`, borderRadius: 3, background: c, width: '70%' }} />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: c }}>{pct}%</span>
+                        <span style={{ fontSize: 8, color: 'var(--muted)' }}>Car {label}</span>
+                      </div>
                     </div>
                   )
                 })}

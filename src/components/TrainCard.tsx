@@ -83,6 +83,22 @@ export function TrainCard({ train, selected, onClick, lineColors }: TrainCardPro
           {eta && <span style={{ color: color, fontWeight: 600 }}>{eta}</span>}
         </div>
       )}
+
+      {/* Wagon occupancy percentages */}
+      {train.wagons && train.wagons.some(w => w > 0) && (
+        <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 6, display: 'flex', gap: 3, alignItems: 'center' }}>
+          <span style={{ fontWeight: 600, fontSize: 9 }}>Cars:</span>
+          {train.wagons.map((v, i) => {
+            const pct = Math.round(v)
+            const wColor = pct > 70 ? '#f87171' : pct > 40 ? '#fbbf24' : '#4ade80'
+            return (
+              <span key={i} style={{ fontSize: 9, fontWeight: 600, color: wColor, padding: '1px 5px', borderRadius: 4, background: wColor + '15' }}>
+                {pct}%
+              </span>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
