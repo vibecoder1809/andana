@@ -339,6 +339,14 @@ export function MobileLayout({
       : null,
     [selectedJourney, routes, stops, lineColors],
   )
+
+  // Stable identity (setters are stable) so TripPlanner's memoised search() and
+  // its effects don't see a new callback every render — an inline arrow here
+  // was the root of the "Anar a…" freeze.
+  const handleSelectJourney = useCallback((j: Journey | null) => {
+    setSelectedJourney(j)
+    if (j) setSheetRatio(SNAP_HALF)
+  }, [])
   const [stationQuery, setStationQuery] = useState('')
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   // The sheet height the current drag started from (so deltas are absolute).
@@ -640,7 +648,7 @@ export function MobileLayout({
             <TripPlanner
               lineColors={lineColors}
               selectedJourney={selectedJourney}
-              onSelectJourney={j => { setSelectedJourney(j); if (j) setSheetRatio(SNAP_HALF) }}
+              onSelectJourney={handleSelectJourney}
               stops={stops}
             />
           ) : activeTab === 'trains' ? (

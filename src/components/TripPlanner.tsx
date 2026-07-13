@@ -403,10 +403,15 @@ export function TripPlanner({ lineColors, selectedJourney, onSelectJourney, stop
     }
   }, [origin, dest, depTime, depDate, preferStepFree, onSelectJourney, recordRecent, t])
 
-  // Auto-search when both ends are picked (re-runs when time or date changes).
+  // Auto-search when both ends are picked (re-runs when time/date/step-free
+  // change). Depend on the search *inputs*, not the search() identity: a parent
+  // passing an inline onSelectJourney (mobile does) makes search() a new
+  // function every render, which would otherwise spin this effect into an
+  // infinite setState loop and freeze the "Anar a…" tab.
   useEffect(() => {
     if (origin && dest && origin.code !== dest.code) search()
-  }, [origin, dest, search])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [origin, dest, depTime, depDate, preferStepFree])
 
   // Look up the step-free itinerary whenever the origin→dest pair changes.
   useEffect(() => {
