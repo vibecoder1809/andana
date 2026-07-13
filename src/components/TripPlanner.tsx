@@ -242,6 +242,14 @@ function JourneyCard({ journey, lineColors, best, live, active, onClick }: { jou
           ⚠ {t('delayLive', journey.legs[0].line, journey.liveDelayMin!)}
         </div>
       )}
+
+      {/* Step-free was requested but this journey still changes at a station
+          without step-free access. `stepFree` is only present when requested. */}
+      {journey.stepFree === false && (
+        <div style={{ marginTop: 8, fontSize: 11, color: 'var(--yellow)', fontWeight: 600 }}>
+          {t('notFullyStepFree')}
+        </div>
+      )}
     </div>
   )
 }
@@ -261,6 +269,19 @@ export function TripPlanner({ lineColors, selectedJourney, onSelectJourney }: Tr
   // Step-free itinerary text for the current origin→dest pair (null = none).
   const [stepFree, setStepFree] = useState<string | null>(null)
   const [showStepFree, setShowStepFree] = useState(false)
+  // When on, the planner biases toward step-free (wheelchair-accessible)
+  // interchanges. Persisted so a wheelchair user doesn't re-toggle every visit.
+  const [preferStepFree, setPreferStepFree] = useState(false)
+  useEffect(() => {
+    setPreferStepFree(localStorage.getItem('andana-prefer-stepfree') === '1')
+  }, [])
+  const togglePreferStepFree = useCallback(() => {
+    setPreferStepFree(v => {
+      const next = !v
+      try { localStorage.setItem('andana-prefer-stepfree', next ? '1' : '0') } catch {}
+      return next
+    })
+  }, [])
   const { favorites, recents, isFavorite, toggleFavorite, recordRecent, clearRecents } = useSavedRoutes()
 
   useEffect(() => {
@@ -292,6 +313,7 @@ export function TripPlanner({ lineColors, selectedJourney, onSelectJourney }: Tr
       let qs = `from=${encodeURIComponent(origin.code)}&to=${encodeURIComponent(dest.code)}`
       if (depTime) qs += `&after=${encodeURIComponent(depTime)}`
       if (depDate) qs += `&date=${encodeURIComponent(depDate)}`
+      if (preferStepFree) qs += `&stepFree=1`
       const res = await fetch(`/api/plan?${qs}`)
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? t('genericError')); return }
@@ -308,7 +330,7 @@ export function TripPlanner({ lineColors, selectedJourney, onSelectJourney }: Tr
     } finally {
       setLoading(false)
     }
-  }, [origin, dest, depTime, depDate, onSelectJourney, recordRecent, t])
+  }, [origin, dest, depTime, depDate, preferStepFree, onSelectJourney, recordRecent, t])
 
   // Auto-search when both ends are picked (re-runs when time or date changes).
   useEffect(() => {
@@ -403,6 +425,31 @@ export function TripPlanner({ lineColors, selectedJourney, onSelectJourney }: Tr
               </label>
             </div>
           )}
+
+          {/* Step-free preference: biases the plan toward wheelchair-accessible
+              interchanges. A row-wide button acting as a switch. */}
+          <button
+            onClick={togglePreferStepFree}
+            role="switch"
+            aria-checked={preferStepFree}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+              background: preferStepFree ? 'rgba(59,130,246,0.1)' : 'var(--bg3)',
+              border: `1px solid ${preferStepFree ? 'var(--accent)' : 'var(--border2)'}`,
+              borderRadius: 8, padding: '9px 11px', cursor: 'pointer',
+              color: 'var(--text)', fontFamily: 'inherit', textAlign: 'left',
+            }}
+          >
+            <span aria-hidden style={{ fontSize: 16, flexShrink: 0, color: preferStepFree ? 'var(--accent)' : 'var(--muted)' }}>♿</span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'block', fontSize: 12, fontWeight: 600 }}>{t('preferStepFree')}</span>
+              <span style={{ display: 'block', fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>{t('stepFreeNote')}</span>
+            </span>
+            {/* Track + knob */}
+            <span style={{ flexShrink: 0, width: 34, height: 20, borderRadius: 10, background: preferStepFree ? 'var(--accent)' : 'var(--border2)', position: 'relative', transition: 'background 0.15s' }}>
+              <span style={{ position: 'absolute', top: 2, left: preferStepFree ? 16 : 2, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left 0.15s' }} />
+            </span>
+          </button>
         </div>
       </div>
 

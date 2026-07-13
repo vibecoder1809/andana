@@ -42,6 +42,7 @@ export async function GET(req: Request) {
   const to = url.searchParams.get('to')
   const after = parseAfter(url.searchParams.get('after'))
   const date = parseDate(url.searchParams.get('date'))
+  const stepFree = url.searchParams.get('stepFree') === '1'
 
   if (!from || !to) {
     return Response.json({ error: 'Missing from/to' }, { status: 400 })
@@ -54,7 +55,7 @@ export async function GET(req: Request) {
     // Live delays only make sense for today's plan; skip the enrichment (and
     // its network cost) when planning a future date.
     const lineDelays = date ? undefined : await fetchLineDelays()
-    const journeys = await planJourneys(from, to, after, 4, lineDelays, date ?? undefined)
+    const journeys = await planJourneys(from, to, after, 4, lineDelays, date ?? undefined, stepFree)
     return Response.json({ journeys })
   } catch (err) {
     console.error('Plan failed:', err)

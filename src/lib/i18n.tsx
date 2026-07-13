@@ -126,6 +126,9 @@ const DICT = {
   stepFreeRoute:   { ca: 'Itinerari accessible', es: 'Itinerario accesible', en: 'Step-free route' },
   showStepFree:    { ca: 'Veure itinerari sense escales', es: 'Ver itinerario sin escalones', en: 'Show step-free route' },
   hideStepFree:    { ca: 'Amagar itinerari', es: 'Ocultar itinerario', en: 'Hide route' },
+  preferStepFree:  { ca: 'Prioritza transbords accessibles', es: 'Priorizar transbordos accesibles', en: 'Prefer step-free transfers' },
+  stepFreeNote:    { ca: 'Transbords en estacions amb accés sense escales quan és possible.', es: 'Transbordos en estaciones con acceso sin escalones cuando es posible.', en: 'Changes at step-free stations where possible.' },
+  notFullyStepFree: { ca: '⚠ El millor trajecte encara té un transbord no accessible.', es: '⚠ El mejor trayecto aún tiene un transbordo no accesible.', en: '⚠ Best route still has a non-step-free transfer.' },
 
   // ── Saved & recent routes ──
   savedRoutes:     { ca: 'Trajectes desats', es: 'Trayectos guardados', en: 'Saved routes' },

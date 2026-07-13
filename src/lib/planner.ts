@@ -1,5 +1,6 @@
 import { STATION_CODES } from './constants'
 import { fgcExport, fgcGtfsFile, fgcAllRecords } from './fgc'
+import { fetchStops } from './gtfs'
 
 // Minimum time (seconds) needed to change between two trips at a station.
 const TRANSFER_SECONDS = 120
@@ -334,6 +335,32 @@ async function getTimetable(date?: string): Promise<TimetableData> {
   return build
 }
 
+// ---- accessible (step-free) stations ------------------------------------
+
+// Parent-station codes with step-free boarding (gtfs_stops wheelchair_boarding
+// == 1). Independent of service date, so built once and cached. Used to bias
+// the planner toward accessible interchanges when a step-free route is asked
+// for. Keyed by parent code to match the planner's station keying.
+let accessibleCache: Set<string> | null = null
+let accessibleInflight: Promise<Set<string>> | null = null
+
+async function getAccessibleStations(): Promise<Set<string>> {
+  if (accessibleCache) return accessibleCache
+  if (accessibleInflight) return accessibleInflight
+  accessibleInflight = fetchStops()
+    .then(stops => {
+      const set = new Set<string>()
+      for (const s of stops) {
+        if (s.wheelchairBoarding) set.add(s.stopId.replace(/\d+$/, ''))
+      }
+      accessibleCache = set
+      accessibleInflight = null
+      return set
+    })
+    .catch(err => { accessibleInflight = null; throw err })
+  return accessibleInflight
+}
+
 // ---- public: station list ----------------------------------------------
 
 export interface PlannerStation {
@@ -402,6 +429,10 @@ export interface Journey {
   transfers: number
   /** Live delay (minutes) currently reported for the first leg's line, if any. */
   liveDelayMin?: number
+  /** Set only when a step-free route was requested: true iff every interchange
+      station on this journey has step-free access. False means it's the best
+      available but still routes through an inaccessible change. */
+  stepFree?: boolean
 }
 
 // Penalty (seconds) added per boarding so the search prefers staying on one
@@ -411,10 +442,18 @@ export interface Journey {
 // earliest-arrival scan produces absurd "hop every other stop" itineraries.
 const TRANSFER_PENALTY = 1200
 
+// Extra ranking cost (seconds-equivalent) charged for changing trains at a
+// station that isn't step-free, when a step-free route was requested. Large
+// enough to reroute through an accessible interchange when a reasonable one
+// exists, but finite so a route is still returned when every interchange on
+// the corridor is inaccessible (better a plan with a warning than none).
+const INACCESSIBLE_INTERCHANGE_PENALTY = 3600
+
 interface Label {
   arr: number               // best known real arrival time at this stop
-  cost: number              // arr + TRANSFER_PENALTY * transfers (ranking key)
+  cost: number              // arr + TRANSFER_PENALTY*transfers + stepFree extra
   transfers: number         // number of boardings used to reach this stop
+  extra: number             // accumulated inaccessible-interchange penalty
   conn: Connection | null   // last connection ridden to reach it (null = origin)
   boardStop: string | null  // stop where the trip behind `conn` was boarded
 }
@@ -512,17 +551,22 @@ export async function planJourney(
   afterSeconds: number,
   lineDelays?: Map<string, number>,
   date?: string,
+  stepFree = false,
 ): Promise<Journey | null> {
   const data = await getTimetable(date)
   if (originCode === destCode) return null
   if (!data.stationNames.has(originCode) || !data.stationNames.has(destCode)) return null
 
+  // Only load the accessible-station set when a step-free route is requested.
+  const accessible = stepFree ? await getAccessibleStations() : null
+
   const labels = new Map<string, Label>()
-  labels.set(originCode, { arr: afterSeconds, cost: afterSeconds, transfers: 0, conn: null, boardStop: null })
+  labels.set(originCode, { arr: afterSeconds, cost: afterSeconds, transfers: 0, extra: 0, conn: null, boardStop: null })
 
   // Per-trip carried state: the cheapest way found to be riding this trip —
-  // the boarding label's transfer count plus the stop where we boarded.
-  const tripState = new Map<number, { transfers: number; boardStop: string }>()
+  // the boarding label's transfer count, the stop where we boarded, and the
+  // step-free penalty accumulated on the way to that boarding.
+  const tripState = new Map<number, { transfers: number; boardStop: string; extra: number }>()
 
   const labelAt = (s: string) => labels.get(s)
   const costAt = (s: string) => labels.get(s)?.cost ?? Infinity
@@ -543,8 +587,15 @@ export async function planJourney(
       const needBuffer = c.fromParent === originCode ? 0 : TRANSFER_SECONDS
       if (fromLabel.arr + needBuffer <= c.depTime) {
         const boardTransfers = fromLabel.transfers + 1
-        if (!riding || boardTransfers < riding.transfers) {
-          riding = { transfers: boardTransfers, boardStop: c.fromParent }
+        // Charge the step-free penalty when this boarding is a genuine
+        // interchange (not the origin) at a station without step-free access.
+        const interchangePenalty =
+          accessible && c.fromParent !== originCode && !accessible.has(c.fromParent)
+            ? INACCESSIBLE_INTERCHANGE_PENALTY : 0
+        const boardExtra = fromLabel.extra + interchangePenalty
+        if (!riding || boardTransfers < riding.transfers ||
+            (boardTransfers === riding.transfers && boardExtra < riding.extra)) {
+          riding = { transfers: boardTransfers, boardStop: c.fromParent, extra: boardExtra }
           tripState.set(c.tripId, riding)
         }
       }
@@ -553,9 +604,9 @@ export async function planJourney(
     if (!riding) continue // not on this trip yet
 
     const arr = c.arrTime
-    const cost = arr + TRANSFER_PENALTY * riding.transfers
+    const cost = arr + TRANSFER_PENALTY * riding.transfers + riding.extra
     if (cost < costAt(c.toParent)) {
-      labels.set(c.toParent, { arr, cost, transfers: riding.transfers, conn: c, boardStop: riding.boardStop })
+      labels.set(c.toParent, { arr, cost, transfers: riding.transfers, extra: riding.extra, conn: c, boardStop: riding.boardStop })
       if (c.toParent === destCode) {
         if (cost < bestDestCost) bestDestCost = cost
         if (arr < bestDestArr) bestDestArr = arr
@@ -570,6 +621,11 @@ export async function planJourney(
   const depTime = legs[0].depTime
   const arrTime = legs[legs.length - 1].arrTime
   const liveDelayMin = lineDelays?.get(legs[0].line)
+  // When step-free was requested, report whether every interchange (each leg
+  // after the first boards at its `fromCode`) is actually step-free.
+  const stepFreeOk = accessible
+    ? legs.slice(1).every(l => accessible.has(l.fromCode))
+    : undefined
   return {
     legs,
     depTime,
@@ -577,6 +633,7 @@ export async function planJourney(
     durationMin: Math.round((arrTime - depTime) / 60),
     transfers: legs.length - 1,
     ...(liveDelayMin ? { liveDelayMin } : {}),
+    ...(stepFreeOk !== undefined ? { stepFree: stepFreeOk } : {}),
   }
 }
 
@@ -591,11 +648,12 @@ export async function planJourneys(
   count = 4,
   lineDelays?: Map<string, number>,
   date?: string,
+  stepFree = false,
 ): Promise<Journey[]> {
   const journeys: Journey[] = []
   let after = afterSeconds
   for (let i = 0; i < count; i++) {
-    const j = await planJourney(originCode, destCode, after, lineDelays, date)
+    const j = await planJourney(originCode, destCode, after, lineDelays, date, stepFree)
     if (!j) break
     journeys.push(j)
     // Next search starts one second after this option's first departure.
