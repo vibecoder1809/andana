@@ -529,6 +529,8 @@ export function MobileLayout({
           onSelectTrain={t => { onSelectTrain(t); setSheetRatio(SNAP_PEEK) }}
           onSelectStop={s => { onSelectStop(s); setSheetRatio(SNAP_PEEK) }}
           onCloseStop={onCloseStop}
+          // Tap (not drag) on empty map deselects whatever's focused.
+          onBackgroundClick={() => { onCloseTrain(); onCloseStop() }}
           journeyPath={journeyPath}
           theme={theme}
           fitPadding={fitPadding}

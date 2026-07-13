@@ -23,6 +23,9 @@ interface MapViewProps {
   onSelectTrain: (train: Train) => void
   onSelectStop: (stop: Stop) => void
   onCloseStop?: () => void
+  // Clicking (not dragging) empty map. Mobile wires this to deselect whatever
+  // is focused — train or station. Falls back to onCloseStop when omitted.
+  onBackgroundClick?: () => void
   journeyPath?: JourneyPath | null
   theme: Theme
   // fitBounds padding for framing a journey; mobile passes a bottom-heavy
@@ -30,13 +33,27 @@ interface MapViewProps {
   fitPadding?: number | { top: number; bottom: number; left: number; right: number }
 }
 
-export default function MapView({ trains, stops, routes, lineColors, selectedTrain, selectedStop, onSelectTrain, onSelectStop, onCloseStop, journeyPath, theme, fitPadding }: MapViewProps) {
+export default function MapView({ trains, stops, routes, lineColors, selectedTrain, selectedStop, onSelectTrain, onSelectStop, onCloseStop, onBackgroundClick, journeyPath, theme, fitPadding }: MapViewProps) {
   const mapRef = useRef<MapRef>(null)
 
+  // Fly in when a train is first selected (uses the position at click time).
   useEffect(() => {
     if (!selectedTrain || !mapRef.current) return
     mapRef.current.flyTo({ center: [selectedTrain.lng, selectedTrain.lat], zoom: 14, duration: 1000 })
   }, [selectedTrain])
+
+  // Follow the selected train as it moves. `trains` is the interpolated array
+  // (updates ~10fps), so track the live position of the selected id and keep
+  // the camera centred on it. We skip while the map isMoving() — that covers
+  // both the fly-in above and an active user pan/zoom — and setCenter is an
+  // instantaneous jump, so following doesn't fight either.
+  const liveSelected = selectedTrain ? trains.find(t => t.id === selectedTrain.id) : undefined
+  useEffect(() => {
+    if (!liveSelected || !mapRef.current) return
+    const map = mapRef.current.getMap()
+    if (map.isMoving()) return
+    map.setCenter([liveSelected.lng, liveSelected.lat])
+  }, [liveSelected?.lng, liveSelected?.lat])
 
   useEffect(() => {
     if (!selectedStop || !mapRef.current) return
@@ -115,7 +132,10 @@ export default function MapView({ trains, stops, routes, lineColors, selectedTra
           const hit = stops.find(s => s.stopId === (f.properties as { stopId: string }).stopId)
           if (hit) onSelectStop(hit)
         } else {
-          onCloseStop?.()
+          // Genuine click on empty map (maplibre only fires onClick for a tap,
+          // not a drag/pan) → deselect. onBackgroundClick clears train+station;
+          // falls back to onCloseStop where not wired.
+          (onBackgroundClick ?? onCloseStop)?.()
         }
       }}
     >
