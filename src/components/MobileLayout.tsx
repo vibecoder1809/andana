@@ -438,7 +438,7 @@ export function MobileLayout({
 
       {/* ── Floating top bar ── */}
       <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20,
+        position: 'absolute', top: 0, left: 0, right: 0, zIndex: 35,
         display: 'flex', alignItems: 'center', gap: 8,
         padding: 'calc(env(safe-area-inset-top, 0px) + 12px) 12px 18px',
         background: 'linear-gradient(to bottom, var(--bg) 45%, transparent)',
