@@ -1,0 +1,29 @@
+name: Capture FGC delays
+
+# Snapshots current per-line delays into Supabase to build reliability history.
+# Runs host-independently on GitHub's runners — no app deploy required.
+on:
+  schedule:
+    # Every 10 minutes. Cron is UTC; GitHub may delay scheduled runs under load.
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {} # manual trigger, for the first run / debugging
+
+# Don't stack runs if one is slow.
+concurrency:
+  group: capture-delays
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --omit=dev
+      - run: node scripts/capture-delays.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
