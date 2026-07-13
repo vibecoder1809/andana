@@ -62,6 +62,13 @@ export async function fetchTrains(): Promise<Train[]> {
       const occupancyPercent =
         valid.length > 0 ? valid.reduce((a, b) => a + b, 0) / valid.length : 0
 
+      // The onboard system often copies one aggregate figure into every car
+      // field (e.g. 32/32/32/32) instead of real per-car counts — a
+      // "breakdown" that's just the average repeated. Suppress those (the
+      // mean still shows) and pass through only distinct, real telemetry.
+      // Nulls stay positional so a 3-car unit renders 3 correctly-named cars.
+      const perCarReal = valid.length >= 2 && new Set(valid).size > 1
+
       return {
         id:               r.id,
         line:             r.lin,
@@ -71,7 +78,7 @@ export async function fetchTrains(): Promise<Train[]> {
         origin:           resolveStop(r.origen),
         delayMinutes:     0,
         occupancyPercent,
-        wagons:           valid.length > 0 ? wagons.map(w => w ?? 0) : undefined,
+        wagons:           perCarReal ? wagons : undefined,
         upcomingStops:    parseUpcomingStops(r.properes_parades),
         currentStop:      r.estacionat_a ? resolveStop(r.estacionat_a) : undefined,
       }

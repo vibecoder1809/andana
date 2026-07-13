@@ -62,10 +62,11 @@ export function DetailPanel({ train, lineColors, onClose, mobile = false }: Deta
           </div>
 
 
-          {/* Per-wagon occupancy — real data, in physical composition order
-              (M1·M2·Mi·Ri). Cab noses at both ends make the row read as a
+          {/* Per-wagon occupancy — only rendered for real telemetry (fetchTrains
+              suppresses aggregate-copied breakdowns), in physical composition
+              order (M1·M2·Mi·Ri). Cab noses at both ends make the row read as a
               train: outlined nose = head (M1), filled tail = rear. */}
-          {train.wagons && train.wagons.some(w => w > 0) && (
+          {train.wagons && train.wagons.some(w => w != null && w > 0) && (
             <>
               <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{t('occupancyPerCar')}</div>
               <div style={{ display: 'flex', gap: 4, marginBottom: 14, alignItems: 'flex-start' }}>
@@ -74,6 +75,7 @@ export function DetailPanel({ train, lineColors, onClose, mobile = false }: Deta
                   <path d="M13 1 V47 H1 V26 L9 1 Z" fill="var(--bg3)" stroke="var(--muted)" strokeWidth="1.5" strokeLinejoin="round" />
                 </svg>
                 {train.wagons.map((v, i) => {
+                  if (v == null) return null // car not reported (3-car unit)
                   const label = WAGON_LABELS[i] ?? String(i + 1)
                   const pct = Math.round(v)
                   const c = occColor(v)

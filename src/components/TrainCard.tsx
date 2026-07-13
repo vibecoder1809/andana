@@ -86,13 +86,14 @@ export function TrainCard({ train, selected, onClick, lineColors }: TrainCardPro
 
       {/* Wagon occupancy percentages, in physical order — tiny cab noses mark
           the head (outlined) and rear (filled) of the unit. */}
-      {train.wagons && train.wagons.some(w => w > 0) && (
+      {train.wagons && train.wagons.some(w => w != null && w > 0) && (
         <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 6, display: 'flex', gap: 3, alignItems: 'center' }}>
           <span style={{ fontWeight: 600, fontSize: 9 }}>{t('carsShort')}:</span>
           <svg width="7" height="15" viewBox="0 0 7 15" preserveAspectRatio="none" style={{ flexShrink: 0 }} aria-hidden>
             <path d="M6 1 V14 H1 V8 L4.5 1 Z" fill="none" stroke="var(--muted)" strokeWidth="1" strokeLinejoin="round" />
           </svg>
           {train.wagons.map((v, i) => {
+            if (v == null) return null // car not reported (3-car unit)
             const pct = Math.round(v)
             const wColor = pct > 70 ? '#f87171' : pct > 40 ? '#fbbf24' : '#4ade80'
             return (

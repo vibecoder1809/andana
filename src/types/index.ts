@@ -7,7 +7,10 @@ export interface Train {
   origin: string
   delayMinutes: number
   occupancyPercent: number
-  wagons?: number[]
+  /** Per-car occupancy in composition order; null = car not reported (3-car
+      units). Only present when the feed sent real per-car telemetry, not an
+      aggregate copied into every field. */
+  wagons?: (number | null)[]
   upcomingStops: string[]
   currentStop?: string
   nextStopEta?: number
