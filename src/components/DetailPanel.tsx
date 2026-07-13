@@ -63,8 +63,8 @@ export function DetailPanel({ train, lineColors, onClose, mobile = false }: Deta
 
 
           {/* Per-wagon occupancy — real data, in physical composition order
-              (M1·Mi·Ri·M2). Cab noses at both ends make the row read as a
-              train: outlined nose = head (M1), filled tail = rear (M2). */}
+              (M1·M2·Mi·Ri). Cab noses at both ends make the row read as a
+              train: outlined nose = head (M1), filled tail = rear. */}
           {train.wagons && train.wagons.some(w => w > 0) && (
             <>
               <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{t('occupancyPerCar')}</div>

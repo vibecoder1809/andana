@@ -143,6 +143,7 @@ export const LINE_COLORS: Record<string, string> = {
   L1:  '#000000',
 }
 
-// Car codes of an FGC 4-car EMU in physical composition order, matching the
-// order fetchTrains() emits Train.wagons. M1/M2 are the cab cars at the ends.
-export const WAGON_LABELS = ['M1', 'Mi', 'Ri', 'M2']
+// Car codes of an FGC 4-car unit in physical composition order — M1 (cab
+// motor), M2 (its inseparable pair), then the intermediates — matching the
+// order fetchTrains() emits Train.wagons.
+export const WAGON_LABELS = ['M1', 'M2', 'Mi', 'Ri']

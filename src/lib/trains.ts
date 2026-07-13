@@ -49,14 +49,14 @@ export async function fetchTrains(): Promise<Train[]> {
   return data.results
     .filter(r => r.geo_point_2d !== null)
     .map(r => {
-      // Physical composition order of FGC 4-car EMUs: cab car M1, intermediates
-      // Mi/Ri, cab car M2 — so a rendered train silhouette matches reality.
+      // Feed-field order is the physical composition order of FGC units:
+      // M1 (cab motor) + M2 (its inseparable pair), then the intermediates.
       // (Keep in sync with WAGON_LABELS in constants.ts.)
       const wagons = [
         parsePct(r.ocupacio_m1_percent),
+        parsePct(r.ocupacio_m2_percent),
         parsePct(r.ocupacio_mi_percent),
         parsePct(r.ocupacio_ri_percent),
-        parsePct(r.ocupacio_m2_percent),
       ]
       const valid = wagons.filter((v): v is number => v !== null)
       const occupancyPercent =
