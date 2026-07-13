@@ -6,8 +6,8 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-space-grotesk' })
 
 export const metadata: Metadata = {
-  title: 'Geotren',
-  description: 'Seguiment en temps real de la xarxa FGC',
+  title: 'Andana — trens FGC en directe',
+  description: 'Mapa en directe dels trens FGC amb planificador de viatges, properes sortides i ocupació per cotxe',
   icons: { icon: '/logo.svg' },
 }
 

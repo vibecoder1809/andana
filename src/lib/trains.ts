@@ -2,7 +2,7 @@ import type { Train } from '@/types'
 import { STATION_CODES } from './constants'
 import { fgcRecords } from './fgc'
 
-interface GeoTrenRecord {
+interface TrainPositionRecord {
   id: string
   lin: string
   geo_point_2d: { lon: number; lat: number } | null
@@ -44,7 +44,7 @@ function parseUpcomingStops(raw: string | null): string[] {
 }
 
 export async function fetchTrains(): Promise<Train[]> {
-  const data = await fgcRecords<GeoTrenRecord>('posicionament-dels-trens', { limit: 100 }, 0)
+  const data = await fgcRecords<TrainPositionRecord>('posicionament-dels-trens', { limit: 100 }, 0)
 
   return data.results
     .filter(r => r.geo_point_2d !== null)

@@ -12,8 +12,8 @@ export interface SavedRoute {
   toName: string
 }
 
-const FAV_KEY    = 'geotren-fav-routes'
-const RECENT_KEY = 'geotren-recent-routes'
+const FAV_KEY    = 'andana-fav-routes'
+const RECENT_KEY = 'andana-recent-routes'
 const MAX_RECENT = 6
 
 // Two routes are "the same" iff both endpoints match. Direction matters — A→B
@@ -25,7 +25,9 @@ export function sameRoute(a: SavedRoute, b: SavedRoute): boolean {
 function read(key: string): SavedRoute[] {
   if (typeof window === 'undefined') return []
   try {
+    // Fall back to the pre-rename 'geotren-*' key so existing users keep their data.
     const raw = window.localStorage.getItem(key)
+      ?? window.localStorage.getItem(key.replace('andana-', 'geotren-'))
     if (!raw) return []
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []

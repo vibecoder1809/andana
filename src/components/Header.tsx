@@ -92,7 +92,7 @@ export function Header({ trainCount, lineCount, lastUpdate, refreshing, onThemeT
       {/* Logo */}
       <div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
         <img src="/logo.svg" alt="" style={{ width: 28, height: 28, borderRadius: 6 }} />
-        Geotren
+        Andana
       </div>
 
       {/* Live badge */}

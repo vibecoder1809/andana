@@ -1,4 +1,4 @@
-import { fetchTrains } from '@/lib/geotren'
+import { fetchTrains } from '@/lib/trains'
 import { fetchTripInfo, fetchVehiclePositions } from '@/lib/gtfs'
 
 // GTFS occupancy_status (0–8) → rough percentage, for trains whose
@@ -17,7 +17,7 @@ export async function GET() {
   try {
     trains = await fetchTrains()
   } catch (err) {
-    console.error('Geotren API failed:', err)
+    console.error('Train positions API failed:', err)
     return Response.json({ error: 'Train position API unavailable' }, { status: 503 })
   }
 

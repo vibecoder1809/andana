@@ -451,7 +451,7 @@ export function MobileLayout({
           boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
         }}>
           <img src="/logo.svg" alt="" style={{ width: 22, height: 22, borderRadius: 5 }} />
-          <span style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 15, fontWeight: 700 }}>Geotren</span>
+          <span style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 15, fontWeight: 700 }}>Andana</span>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', display: 'inline-block', marginLeft: 1, animation: 'pulse-dot 1.6s infinite' }} />
         </div>
 

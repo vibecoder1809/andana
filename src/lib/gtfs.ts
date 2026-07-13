@@ -1,6 +1,6 @@
 import type { Stop, Alert, Route, StopArrival, StopDetail } from '@/types'
 import { fgcRecords, fgcAllRecords, fgcFeed } from './fgc'
-import { fetchTrains } from './geotren'
+import { fetchTrains } from './trains'
 
 type RawStop = {
   stop_id: string

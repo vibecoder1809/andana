@@ -4,9 +4,11 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
-# Geotren
+# Andana
 
 Real-time map and trip planner for **FGC** (Ferrocarrils de la Generalitat de Catalunya) trains. A single-page Next.js app that shows live train positions on a MapLibre map, station info, service alerts, and a journey planner — all sourced from FGC's public open-data portal. UI is trilingual (Catalan / Spanish / English), Catalan being the source language.
+
+Formerly named "Geotren" — renamed because that's FGC's own product name for their official live map. Andana is positioned as the companion app the official one isn't: same live positions, plus a trip planner, departures board, and per-car occupancy. Legacy `geotren-*` localStorage keys are still read as a migration fallback.
 
 ## Stack
 
@@ -58,7 +60,7 @@ src/
     DetailPanel / StopPanel / TrainCard / Header
   lib/
     fgc.ts                FGC portal client (see above)
-    geotren.ts            fetchTrains() — parses posicionament feed → Train[]
+    trains.ts             fetchTrains() — parses posicionament feed → Train[]
     gtfs.ts               GTFS + GTFS-RT fetchers (stops, routes, delays, ETA, occupancy, alerts, weather, air)
     planner.ts            Connection Scan Algorithm trip planner over the GTFS timetable; also getDepartures()
     accessibility.ts      step-free itinerary lookup (name-normalised matching)
@@ -100,7 +102,7 @@ Connection Scan Algorithm over the GTFS timetable (parsed from `gtfs_zip`). A pe
 `/api/departures?station=<parentCode>` calls `getDepartures()` (in `planner.ts`, reusing the same parsed GTFS timetable as the trip planner) for the next scheduled departures, enriched server-side with each line's current median live delay from `fetchLineDelays()`. The client re-fetches every 60s and ticks a per-second countdown locally between fetches; effective time = scheduled `depTime` + live delay.
 
 ### Saved / recent planner routes ([savedRoutes.ts](src/lib/savedRoutes.ts))
-`useSavedRoutes()` persists favorite and recent origin→destination pairs to `localStorage` (`geotren-fav-routes` / `geotren-recent-routes`), hydrated post-mount to avoid an SSR mismatch (same pattern as the i18n provider). Because the hook owns its own state, `TripPlanner` gets favorites/recents "for free" on both roots — this is the one case where a feature **doesn't** need separate wiring in `App.tsx`/`MobileLayout.tsx`.
+`useSavedRoutes()` persists favorite and recent origin→destination pairs to `localStorage` (`andana-fav-routes` / `andana-recent-routes`, with a read fallback to the legacy `geotren-*` keys), hydrated post-mount to avoid an SSR mismatch (same pattern as the i18n provider). Because the hook owns its own state, `TripPlanner` gets favorites/recents "for free" on both roots — this is the one case where a feature **doesn't** need separate wiring in `App.tsx`/`MobileLayout.tsx`.
 
 ### i18n ([i18n.tsx](src/lib/i18n.tsx))
 All user-facing strings go in the `DICT` object as `{ ca, es, en }` (Catalan is canonical); values can be functions for interpolation/pluralisation. Use `const { t } = useI18n()` and `t('key', ...args)`. **Add a key for any new visible string in all three languages — never hardcode UI text.**

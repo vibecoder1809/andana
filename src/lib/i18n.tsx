@@ -10,7 +10,9 @@ export const LANGS: { code: Lang; label: string }[] = [
   { code: 'en', label: 'English' },
 ]
 
-const STORAGE_KEY = 'geotren-lang'
+const STORAGE_KEY = 'andana-lang'
+// Pre-rename key, read as a fallback so existing users keep their choice.
+const LEGACY_STORAGE_KEY = 'geotren-lang'
 
 // Translation dictionary. Keys are language-neutral; Catalan is the source language.
 // Values may be plain strings or functions for interpolation/pluralisation.
@@ -158,7 +160,9 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   // Hydrate from localStorage after mount (avoids SSR mismatch).
   useEffect(() => {
-    const stored = typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null
+    const stored = typeof window !== 'undefined'
+      ? window.localStorage.getItem(STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_STORAGE_KEY)
+      : null
     if (stored === 'ca' || stored === 'es' || stored === 'en') setLangState(stored)
   }, [])
 
