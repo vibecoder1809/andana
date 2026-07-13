@@ -9,6 +9,7 @@ import { Header } from './Header'
 import { Sidebar } from './Sidebar'
 import { DetailPanel } from './DetailPanel'
 import { StopPanel } from './StopPanel'
+import { NearMeButton } from './NearMeButton'
 import { MobileLayout } from './MobileLayout'
 import { useInterpolatedTrains } from '@/lib/interpolate'
 import { I18nProvider, useI18n } from '@/lib/i18n'
@@ -324,6 +325,8 @@ function AppInner() {
           journeyPath={journeyPath}
           theme={theme}
         />
+        {/* Nearest-station shortcut → opens its live departures. */}
+        <NearMeButton stops={stops} onPick={handleSelectStop} style={{ position: 'absolute', left: 16, bottom: 16, zIndex: 3 }} />
         <DetailPanel train={selectedTrain} lineColors={lineColors} onClose={handleCloseTrain} />
         <StopPanel stop={selectedStop} onClose={handleCloseStop} lineColors={lineColors} />
       </div>

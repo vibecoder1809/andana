@@ -293,6 +293,7 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
           lineColors={lineColors}
           selectedJourney={selectedJourney}
           onSelectJourney={onSelectJourney}
+          stops={stops}
         />
       )}
     </aside>

@@ -9,6 +9,7 @@ import { TrainCard } from './TrainCard'
 import { DetailPanel } from './DetailPanel'
 import { StopPanel } from './StopPanel'
 import { TripPlanner } from './TripPlanner'
+import { NearMeButton } from './NearMeButton'
 import { LanguagePicker } from './Header'
 import { useI18n, type TransKey } from '@/lib/i18n'
 
@@ -456,6 +457,8 @@ export function MobileLayout({
         </div>
 
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 7, pointerEvents: 'auto' }}>
+          {/* Nearest station → opens its detail sheet with live departures. */}
+          <NearMeButton stops={stops} onPick={s => { onSelectStop(s); setSheetRatio(SNAP_PEEK) }} compact />
           <LanguagePicker compact />
           <button
             onClick={onThemeToggle}
@@ -630,6 +633,7 @@ export function MobileLayout({
               lineColors={lineColors}
               selectedJourney={selectedJourney}
               onSelectJourney={j => { setSelectedJourney(j); if (j) setSheetRatio(SNAP_HALF) }}
+              stops={stops}
             />
           ) : activeTab === 'trains' ? (
             filteredTrains.length === 0

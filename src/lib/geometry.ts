@@ -13,6 +13,23 @@ export function haversine(a: [number, number], b: [number, number]): number {
   return 2 * EARTH_R * Math.asin(Math.sqrt(h))
 }
 
+// Nearest item to a lat/lng from a list of things carrying lat/lng. Generic so
+// it works for Stops (or anything positional) without coupling geometry to app
+// types. Straight-line (haversine) distance — fine at city scale.
+export function nearestByLatLng<T extends { lat: number; lng: number }>(
+  lat: number,
+  lng: number,
+  items: T[],
+): T | null {
+  let best: T | null = null
+  let bestDist = Infinity
+  for (const it of items) {
+    const d = haversine([lng, lat], [it.lng, it.lat])
+    if (d < bestDist) { bestDist = d; best = it }
+  }
+  return best
+}
+
 export interface Polyline {
   pts: [number, number][]   // [lng, lat]
   cumDist: number[]         // cumulative metres from pts[0], length === pts.length

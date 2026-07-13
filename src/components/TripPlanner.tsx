@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo, useCallback, type CSSProperties } from 'react'
-import type { PlannerStation, Journey } from '@/types'
+import type { PlannerStation, Journey, Stop } from '@/types'
 import { LINE_COLORS } from '@/lib/constants'
+import { nearestByLatLng } from '@/lib/geometry'
+import { useGeolocation } from '@/lib/geolocation'
 import { useI18n } from '@/lib/i18n'
 import { useSavedRoutes, type SavedRoute } from '@/lib/savedRoutes'
 
@@ -10,6 +12,9 @@ interface TripPlannerProps {
   lineColors: Record<string, string>
   selectedJourney: Journey | null
   onSelectJourney: (journey: Journey | null) => void
+  // Stations with coordinates, used to resolve the nearest planner station for
+  // the "use my location" origin shortcut. Optional — the button hides without it.
+  stops?: Stop[]
 }
 
 function fmtTime(sec: number): string {
@@ -75,16 +80,20 @@ const segmentStyle = (on: boolean): CSSProperties => ({
   transition: 'color 0.15s, background 0.15s',
 })
 
-// A station autocomplete input.
+// A station autocomplete input, optionally with a "use my location" button
+// that resolves the nearest station (via onLocate).
 function StationInput({
-  label, value, onChange, stations, placeholder,
+  label, value, onChange, stations, placeholder, onLocate, locating,
 }: {
   label: string
   value: PlannerStation | null
   onChange: (s: PlannerStation | null) => void
   stations: PlannerStation[]
   placeholder: string
+  onLocate?: () => void
+  locating?: boolean
 }) {
+  const { t } = useI18n()
   const [query, setQuery] = useState('')
   const [open, setOpen]   = useState(false)
   const ref               = useRef<HTMLDivElement>(null)
@@ -117,8 +126,21 @@ function StationInput({
         onFocus={() => setOpen(true)}
         onKeyDown={e => { if (e.key === 'Enter' && matches.length > 0) { onChange(matches[0]); setOpen(false) } }}
         placeholder={placeholder}
-        style={fieldInputStyle}
+        style={onLocate ? { ...fieldInputStyle, paddingRight: 38 } : fieldInputStyle}
       />
+      {onLocate && (
+        <button
+          type="button"
+          onClick={onLocate}
+          disabled={locating}
+          aria-label={t('useMyLocation')}
+          title={t('useMyLocation')}
+          // Sits over the input's right edge; offset down to clear the label row.
+          style={{ position: 'absolute', right: 6, top: 26, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 7, cursor: locating ? 'default' : 'pointer', color: locating ? 'var(--accent)' : 'var(--muted)', fontSize: 13 }}
+        >
+          <span style={{ display: 'inline-block', animation: locating ? 'spin 0.8s linear infinite' : 'none' }}>{locating ? '◌' : '📍'}</span>
+        </button>
+      )}
       {open && matches.length > 0 && (
         <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 8, marginTop: 4, maxHeight: 200, overflowY: 'auto', zIndex: 40, boxShadow: '0 10px 25px rgba(0,0,0,0.25)' }}>
           {matches.map(s => (
@@ -254,8 +276,9 @@ function JourneyCard({ journey, lineColors, best, live, active, onClick }: { jou
   )
 }
 
-export function TripPlanner({ lineColors, selectedJourney, onSelectJourney }: TripPlannerProps) {
+export function TripPlanner({ lineColors, selectedJourney, onSelectJourney, stops }: TripPlannerProps) {
   const { t } = useI18n()
+  const { locate, locating } = useGeolocation()
   const [stations, setStations] = useState<PlannerStation[]>([])
   const [origin, setOrigin]     = useState<PlannerStation | null>(null)
   const [dest, setDest]         = useState<PlannerStation | null>(null)
@@ -304,6 +327,20 @@ export function TripPlanner({ lineColors, selectedJourney, onSelectJourney }: Tr
     setOrigin({ code: r.fromCode, name: r.fromName })
     setDest({ code: r.toCode, name: r.toName })
   }, [])
+
+  // Set the origin to the nearest station to the user's GPS position. Stops
+  // carry coordinates and a stop id whose parent code matches a planner
+  // station; resolve nearest stop → parent code → planner station.
+  const locateOrigin = useCallback(() => {
+    if (!stops || stops.length === 0) return
+    locate((lat, lng) => {
+      const nearest = nearestByLatLng(lat, lng, stops)
+      if (!nearest) return
+      const code = nearest.stopId.replace(/\d+$/, '')
+      const ps = stations.find(s => s.code === code)
+      if (ps) setOrigin(ps)
+    })
+  }, [stops, stations, locate])
 
   const search = useCallback(async () => {
     if (!origin || !dest) return
@@ -361,7 +398,10 @@ export function TripPlanner({ lineColors, selectedJourney, onSelectJourney }: Tr
   return (
     <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: 16, borderBottom: '1px solid var(--border)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <StationInput label={t('origin')} value={origin} onChange={setOrigin} stations={stations} placeholder={t('fromWhere')} />
+        <StationInput
+          label={t('origin')} value={origin} onChange={setOrigin} stations={stations} placeholder={t('fromWhere')}
+          onLocate={stops && stops.length > 0 ? locateOrigin : undefined} locating={locating}
+        />
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, margin: '-6px 0' }}>
           <button
             onClick={swap}

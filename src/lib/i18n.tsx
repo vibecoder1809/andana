@@ -32,6 +32,13 @@ const DICT = {
   secsAgo:         { ca: (s: number) => `fa ${s}s`,        es: (s: number) => `hace ${s}s`,    en: (s: number) => `${s}s ago` },
   minsAgo:         { ca: (m: number) => `fa ${m}m`,        es: (m: number) => `hace ${m}m`,    en: (m: number) => `${m}m ago` },
 
+  // ── Near me (geolocation) ──
+  nearMe:          { ca: 'A prop meu', es: 'Cerca de mí', en: 'Near me' },
+  locating:        { ca: 'Localitzant…', es: 'Localizando…', en: 'Locating…' },
+  locationDenied:  { ca: 'Permís d’ubicació denegat', es: 'Permiso de ubicación denegado', en: 'Location permission denied' },
+  locationUnavailable: { ca: 'Ubicació no disponible', es: 'Ubicación no disponible', en: 'Location unavailable' },
+  useMyLocation:   { ca: 'Usa la meva ubicació', es: 'Usar mi ubicación', en: 'Use my location' },
+
   // ── Tabs ──
   tabTrains:       { ca: 'Trens',      es: 'Trenes',      en: 'Trains' },
   tabStations:     { ca: 'Estacions',  es: 'Estaciones',  en: 'Stations' },
