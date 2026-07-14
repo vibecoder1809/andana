@@ -22,12 +22,26 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
   process.exit(1)
 }
 
+// fetch with a few retries — the FGC portal returns the odd transient 4xx/5xx,
+// and a best-effort snapshot shouldn't fail over one blip.
+async function fetchRetry(url, label, attempts = 3) {
+  let last
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      const res = await fetch(url)
+      if (res.ok) return res
+      last = new Error(`${label} HTTP ${res.status}`)
+    } catch (e) { last = e }
+    if (i < attempts) await new Promise(r => setTimeout(r, i * 1500))
+  }
+  throw last
+}
+
 // record id -> line, paging the portal's 100-row cap.
 async function fetchPositions() {
   const byId = new Map()
   for (let offset = 0; ; offset += 100) {
-    const res = await fetch(`${BASE}/posicionament-dels-trens/records?select=id,lin&limit=100&offset=${offset}`)
-    if (!res.ok) throw new Error(`positions ${res.status}`)
+    const res = await fetchRetry(`${BASE}/posicionament-dels-trens/records?select=id,lin&limit=100&offset=${offset}`, 'positions')
     const { results, total_count } = await res.json()
     for (const r of results) if (r.id && r.lin) byId.set(r.id, r.lin)
     if (results.length === 0 || offset + 100 >= total_count) break
@@ -37,12 +51,10 @@ async function fetchPositions() {
 
 // tripId -> delay minutes, from the trip-updates GTFS-RT protobuf feed.
 async function fetchDelays() {
-  const rec = await fetch(`${BASE}/trip-updates-gtfs_realtime/records?limit=1`)
-  if (!rec.ok) throw new Error(`trip-updates record ${rec.status}`)
+  const rec = await fetchRetry(`${BASE}/trip-updates-gtfs_realtime/records?limit=1`, 'trip-updates record')
   const pbUrl = (await rec.json()).results?.[0]?.file?.url
-  if (!pbUrl) throw new Error('trip-updates feed has no .pb file')
-  const pb = await fetch(pbUrl)
-  if (!pb.ok) throw new Error(`trip-updates .pb ${pb.status}`)
+  if (!pbUrl) { console.warn('trip-updates feed has no .pb file; no delays this cycle'); return new Map() }
+  const pb = await fetchRetry(pbUrl, 'trip-updates .pb')
 
   const { transit_realtime } = Gtfs
   const msg = transit_realtime.FeedMessage.decode(new Uint8Array(await pb.arrayBuffer()))
@@ -70,7 +82,16 @@ function median(nums) {
 }
 
 async function main() {
-  const [positions, delays] = await Promise.all([fetchPositions(), fetchDelays()])
+  let positions, delays
+  try {
+    [positions, delays] = await Promise.all([fetchPositions(), fetchDelays()])
+  } catch (err) {
+    // The FGC feed is a flaky external dependency and a missed 10-min snapshot
+    // is harmless. Skip this cycle as a success rather than failing the job
+    // (and emailing) — only real problems, like a bad insert below, stay loud.
+    console.warn('skipping cycle — FGC feed unavailable:', err.message)
+    return
+  }
 
   const byLine = new Map()
   for (const [id, line] of positions) {
