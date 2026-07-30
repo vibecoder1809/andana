@@ -1,5 +1,6 @@
 import { fetchTrains } from '@/lib/trains'
 import { fetchTripInfo, fetchVehiclePositions } from '@/lib/gtfs'
+import { cached } from '@/lib/cache'
 
 // GTFS occupancy_status (0–8) → rough percentage, for trains whose
 // posicionament feed reports no per-wagon occupancy.
@@ -12,14 +13,15 @@ const OCCUPANCY_PERCENT: Record<number, number> = {
   5: 100, // FULL
 }
 
-export async function GET() {
-  let trains
-  try {
-    trains = await fetchTrains()
-  } catch (err) {
-    console.error('Train positions API failed:', err)
-    return Response.json({ error: 'Train position API unavailable' }, { status: 503 })
-  }
+// The upstream feed only refreshes every ~20-30s, so a slightly shorter TTL
+// keeps the data as fresh as it can be while collapsing every client's poll
+// into one upstream fetch. Without this, load scales with concurrent users.
+const TTL_MS = 8_000
+
+async function loadTrains() {
+  // Throws on failure rather than returning an error Response: this runs inside
+  // `cached`, so a failed fetch must not be memoised as though it were data.
+  const trains = await fetchTrains()
 
   try {
     const [info, vehicles] = await Promise.all([fetchTripInfo(), fetchVehiclePositions().catch(() => [])])
@@ -44,5 +46,14 @@ export async function GET() {
     console.error('GTFS-RT enrichment failed:', err)
   }
 
-  return Response.json(trains)
+  return trains
+}
+
+export async function GET() {
+  try {
+    return Response.json(await cached('trains', TTL_MS, loadTrains))
+  } catch (err) {
+    console.error('Train positions API failed:', err)
+    return Response.json({ error: 'Train position API unavailable' }, { status: 503 })
+  }
 }

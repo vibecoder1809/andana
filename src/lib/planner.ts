@@ -1,6 +1,7 @@
 import { STATION_CODES } from './constants'
 import { fgcExport, fgcGtfsFile, fgcAllRecords } from './fgc'
 import { fetchStops } from './gtfs'
+import { serviceDate } from './serviceTime'
 
 // Minimum time (seconds) needed to change between two trips at a station.
 const TRANSFER_SECONDS = 120
@@ -87,12 +88,8 @@ let cache: TimetableData | null = null
 let inflight: Promise<TimetableData> | null = null
 
 function todayLocalISO(): string {
-  // FGC service date in local (Europe/Madrid ~ server) terms.
-  const now = new Date()
-  const y = now.getFullYear()
-  const mo = String(now.getMonth() + 1).padStart(2, '0')
-  const d = String(now.getDate()).padStart(2, '0')
-  return `${y}-${mo}-${d}`
+  // Pinned to Europe/Madrid, not the server clock — see lib/serviceTime.ts.
+  return serviceDate()
 }
 
 async function buildTimetable(): Promise<TimetableData> {

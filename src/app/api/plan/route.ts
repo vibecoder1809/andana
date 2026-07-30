@@ -1,5 +1,6 @@
 import { planJourneys, MAX_PLAN_DAYS_AHEAD } from '@/lib/planner'
 import { fetchLineDelays } from '@/lib/gtfs'
+import { serviceSeconds, serviceDate, serviceDatePlus } from '@/lib/serviceTime'
 
 function parseAfter(raw: string | null): number {
   // Accepts "HH:MM"; defaults to current local time.
@@ -10,30 +11,19 @@ function parseAfter(raw: string | null): number {
       if (h < 24 && min < 60) return h * 3600 + min * 60
     }
   }
-  const now = new Date()
-  return now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()
-}
-
-function localISO(d: Date): string {
-  const y = d.getFullYear()
-  const mo = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${mo}-${day}`
+  return serviceSeconds()
 }
 
 // Validate a requested service date: must be YYYY-MM-DD within
-// [today, today + MAX_PLAN_DAYS_AHEAD]. Returns the ISO date, or null for
-// today/invalid (planner treats undefined as today).
+// [today, today + MAX_PLAN_DAYS_AHEAD] **in Europe/Madrid**. Returns the ISO
+// date, or null for today/invalid (planner treats undefined as today).
+// Compared as plain date strings, which sort correctly in ISO form and keep
+// the server's own timezone out of it entirely.
 function parseDate(raw: string | null): string | null {
   if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const max = new Date(today)
-  max.setDate(max.getDate() + MAX_PLAN_DAYS_AHEAD)
-  const req = new Date(`${raw}T00:00:00`)
-  if (Number.isNaN(req.getTime()) || req < today || req > max) return null
-  const iso = localISO(req)
-  return iso === localISO(today) ? null : iso
+  const today = serviceDate()
+  if (raw < today || raw > serviceDatePlus(MAX_PLAN_DAYS_AHEAD)) return null
+  return raw === today ? null : raw
 }
 
 export async function GET(req: Request) {

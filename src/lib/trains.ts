@@ -1,6 +1,6 @@
 import type { Train } from '@/types'
 import { STATION_CODES } from './constants'
-import { fgcRecords } from './fgc'
+import { fgcAllRecords } from './fgc'
 
 interface TrainPositionRecord {
   id: string
@@ -44,9 +44,12 @@ function parseUpcomingStops(raw: string | null): string[] {
 }
 
 export async function fetchTrains(): Promise<Train[]> {
-  const data = await fgcRecords<TrainPositionRecord>('posicionament-dels-trens', { limit: 100 }, 0)
+  // Page the feed rather than taking one 100-row page: FGC runs well over 100
+  // trains at peak, and a capped fetch silently drops them from the map (and
+  // skews the per-line delay medians computed from this list).
+  const results = await fgcAllRecords<TrainPositionRecord>('posicionament-dels-trens', undefined, 0)
 
-  return data.results
+  return results
     .filter(r => r.geo_point_2d !== null)
     .map(r => {
       // Feed-field order is the physical composition order of FGC units:

@@ -1,6 +1,7 @@
 import type { Stop, Alert, Route, StopArrival, StopDetail } from '@/types'
 import { fgcRecords, fgcAllRecords, fgcFeed } from './fgc'
 import { fetchTrains } from './trains'
+import { cached } from './cache'
 
 type RawStop = {
   stop_id: string
@@ -118,7 +119,14 @@ export async function fetchTripDelays(): Promise<Map<string, number>> {
 // Median live delay (minutes) per line, from current train positions joined to
 // GTFS-RT trip delays. Only lines actually running late appear (delay > 0).
 // Shared by the trip planner and the station departures board.
-export async function fetchLineDelays(): Promise<Map<string, number>> {
+// Shared by the departures board (every station view, every 60s) and the trip
+// planner, and derived from two upstream feeds. Memoised so concurrent
+// viewers cost one upstream round trip, not one each.
+export function fetchLineDelays(): Promise<Map<string, number>> {
+  return cached('line-delays', 15_000, computeLineDelays)
+}
+
+async function computeLineDelays(): Promise<Map<string, number>> {
   const result = new Map<string, number>()
   try {
     const [trains, delays] = await Promise.all([fetchTrains(), fetchTripDelays()])

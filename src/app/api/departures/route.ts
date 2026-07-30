@@ -1,11 +1,10 @@
 import { getDepartures } from '@/lib/planner'
 import { fetchLineDelays } from '@/lib/gtfs'
+import { serviceSeconds } from '@/lib/serviceTime'
 
-// Seconds since local midnight, matching the planner's depTime units.
-function nowSeconds(): number {
-  const n = new Date()
-  return n.getHours() * 3600 + n.getMinutes() * 60 + n.getSeconds()
-}
+// Seconds since local midnight in Europe/Madrid, matching the planner's
+// depTime units. Never the server clock — see lib/serviceTime.ts.
+const nowSeconds = serviceSeconds
 
 // Next scheduled departures from a station (by parent code, e.g. "SC"),
 // enriched with the current median live delay for each line.
