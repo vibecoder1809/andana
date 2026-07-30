@@ -7,6 +7,7 @@ import { nearestByLatLng } from '@/lib/geometry'
 import { useGeolocation } from '@/lib/geolocation'
 import { readParam, updateParams } from '@/lib/urlState'
 import { useI18n } from '@/lib/i18n'
+import { ReliabilityNote } from './ReliabilityNote'
 import { useSavedRoutes, type SavedRoute } from '@/lib/savedRoutes'
 
 interface TripPlannerProps {
@@ -200,7 +201,7 @@ function RouteRow({ route, faved, onPick, onToggleFav }: { route: SavedRoute; fa
   )
 }
 
-function JourneyCard({ journey, lineColors, best, live, active, onClick }: { journey: Journey; lineColors: Record<string, string>; best: boolean; live: boolean; active: boolean; onClick: () => void }) {
+function JourneyCard({ journey, lineColors, best, live, active, date, onClick }: { journey: Journey; lineColors: Record<string, string>; best: boolean; live: boolean; active: boolean; date?: string | null; onClick: () => void }) {
   const { t } = useI18n()
   const delayed = journey.liveDelayMin && journey.liveDelayMin > 0
   // The live countdown only makes sense for today's plan; for a future date the
@@ -265,6 +266,16 @@ function JourneyCard({ journey, lineColors, best, live, active, onClick }: { jou
           ⚠ {t('delayLive', journey.legs[0].line, journey.liveDelayMin!)}
         </div>
       )}
+
+      {/* Historical punctuality for the first leg. Suppressed when a live delay
+          is already shown (that is the better signal for today), so in practice
+          this speaks up for future-date plans, which have no live figure. */}
+      <ReliabilityNote
+        line={journey.legs[0].line}
+        minuteOfDay={Math.floor(journey.depTime / 60)}
+        date={date ? new Date(`${date}T00:00:00`) : undefined}
+        hidden={!!delayed}
+      />
 
       {/* Step-free was requested but this journey still changes at a station
           without step-free access. `stepFree` is only present when requested. */}
@@ -564,6 +575,7 @@ export function TripPlanner({ lineColors, selectedJourney, onSelectJourney, stop
             lineColors={lineColors}
             best={i === 0}
             live={depDate === null}
+            date={depDate}
             active={j === selectedJourney}
             onClick={() => onSelectJourney(j)}
           />

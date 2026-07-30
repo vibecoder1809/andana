@@ -17,7 +17,11 @@ GitHub Action (every 10 min)
                                        line × weekday|weekend × 30-min bucket,
                                        rolling 8 weeks)
                                                    │
-                                    GET /api/reliability?line=L6  ──►  UI
+                              GET /api/reliability?lines=L6,S1  ──►  lib/reliability.ts
+                                                                          │
+                                                     ReliabilityNote / ReliabilityCard
+                                                     in TripPlanner, DetailPanel,
+                                                     DeparturesBoard
 ```
 
 ## One-time setup
@@ -42,15 +46,62 @@ Trigger the first run manually: GitHub → **Actions → Capture FGC delays → 
 workflow**. Check the run log for `inserted N observations`, then confirm rows
 in Supabase → Table Editor → `delay_observations`.
 
-## Verifying
+## UI surfaces
+
+[`lib/reliability.ts`](../src/lib/reliability.ts) owns the client side: a
+module-level per-line cache exposed through `useReliability(lines)` (a
+`useSyncExternalStore`, so ten cards cost one batched round trip and a cache
+hit renders with no extra commit), plus the bucket lookup and phrasing rules.
+
+Two guards decide whether we say anything at all, and both matter more than
+the number itself:
+
+- **`MIN_SAMPLES` (12)** — below roughly two hours of accumulated snapshots for
+  a slot, one bad afternoon dominates the median, so we render nothing.
+- **`NOISE_FLOOR` (0.5 min)** — a median under half a minute reads as "usually
+  on time" rather than "+0.4 min". Negative medians (early trains) count as on
+  time too.
+
+Because both degrade to "render nothing", every surface is safe to mount before
+the history exists. The surfaces:
+
+| Where | Component | Shown when |
+|---|---|---|
+| Trip planner journey card | `ReliabilityNote` | Always except when a **live** delay is already displayed — so in practice it speaks up for future-date plans, which have no live figure at all. |
+| Train detail panel | `ReliabilityCard` | Typical delay for that line in the current 30-min slot, plus the p90 "bad day" figure and the sample count. |
+| Station departures board | inline, compact | Per row, only when that line has no live delay to report. |
+
+The general rule: **live data wins, history fills the gaps.** Never show both
+for the same train, or the user has to reconcile two numbers themselves.
+
+## Checks
+
+The repo has no test runner, so these are standalone Node scripts:
 
 ```bash
-# Dry-run the capture locally (needs .env.local):
+npm test          # bucket math + i18n coverage (pure, no network)
+```
+
+For the full chain against a stand-in Postgres — no production key needed:
+
+```bash
+node scripts/mock-supabase.mjs &                  # PostgREST-shaped fixture
+SUPABASE_URL=http://127.0.0.1:54321 \
+  SUPABASE_SERVICE_ROLE_KEY=test npx next start -p 3115 &
+BASE=http://127.0.0.1:3115 node --experimental-strip-types \
+  scripts/test-reliability-e2e.mts
+```
+
+That asserts the request contract (including that junk line names are dropped
+rather than forwarded into the PostgREST filter), the payload shape, and the
+exact sentence rendered to the user. Note Next.js persists its fetch cache to
+`.next/cache/fetch-cache`, so clear it when changing fixture data.
+
+And the capture side, against the real FGC feed:
+
+```bash
 export $(grep -v '^#' .env.local | xargs) && node scripts/capture-delays.mjs
 # → "captured N lines from M trains" then "inserted N observations"
-
-# Read the aggregate back (empty until history accrues):
-curl "http://localhost:3000/api/reliability?line=L6"
 ```
 
 ## Cost & caveats
@@ -67,9 +118,10 @@ curl "http://localhost:3000/api/reliability?line=L6"
   weekdays/weekends by date. A later pass can classify them via the GTFS
   calendar.
 
-## Next step (once data exists)
+## Possible next steps
 
-`/api/reliability` is ready to consume. The highest-value surface is the trip
-planner's **future-date** plans, which today get no delay estimate at all: look
-up the first leg's line + departure bucket and show an expected delay. The
-departures board and train detail panel are natural secondary surfaces.
+- **Per-station, not per-line.** Delay is captured per line, but a line is late
+  in one direction and at one end far more often than uniformly. Capturing
+  `(line, direction)` or per-stop would sharpen the claim considerably.
+- **A trend view** — the data supports "is this line getting worse?", which no
+  surface asks yet.

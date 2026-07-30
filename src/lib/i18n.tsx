@@ -144,6 +144,25 @@ const DICT = {
   unsaveRoute:     { ca: 'Treu dels desats', es: 'Quitar de guardados', en: 'Remove from saved' },
   clearRecents:    { ca: 'Esborra', es: 'Borrar', en: 'Clear' },
 
+  // ── Reliability history (Supabase delay_stats) ──
+  usuallyLabel:    { ca: 'Habitualment', es: 'Habitualmente', en: 'Usually' },
+  typicallyLate:   {
+    ca: (line: string, d: string, time: string) => `${line} sol circular +${d} min tard cap a les ${time}`,
+    es: (line: string, d: string, time: string) => `${line} suele circular +${d} min tarde hacia las ${time}`,
+    en: (line: string, d: string, time: string) => `${line} usually runs +${d} min late around ${time}`,
+  },
+  typicallyOnTime: {
+    ca: (line: string, time: string) => `${line} sol ser puntual cap a les ${time}`,
+    es: (line: string, time: string) => `${line} suele ser puntual hacia las ${time}`,
+    en: (line: string, time: string) => `${line} is usually on time around ${time}`,
+  },
+  typicalShortLate:   { ca: (d: string) => `sol anar +${d} min tard`, es: (d: string) => `suele ir +${d} min tarde`, en: (d: string) => `usually +${d} min late` },
+  typicalShortOnTime: { ca: 'sol ser puntual', es: 'suele ser puntual', en: 'usually on time' },
+  worstCase:       { ca: (d: string) => `els dies dolents, fins a +${d} min`, es: (d: string) => `en días malos, hasta +${d} min`, en: (d: string) => `on bad days, up to +${d} min` },
+  basedOnHistory:  { ca: (n: number) => `Segons ${n} mesures de les últimes 8 setmanes`, es: (n: number) => `Según ${n} mediciones de las últimas 8 semanas`, en: (n: number) => `Based on ${n} readings from the last 8 weeks` },
+  historyTitle:    { ca: 'Puntualitat habitual', es: 'Puntualidad habitual', en: 'Typical punctuality' },
+  noHistoryYet:    { ca: "Encara no hi ha prou historial per a aquesta franja.", es: 'Aún no hay suficiente histórico para esta franja.', en: 'Not enough history yet for this time slot.' },
+
   // ── Alerts ──
   alert:           { ca: 'ALERTA',     es: 'ALERTA',      en: 'ALERT' },
 

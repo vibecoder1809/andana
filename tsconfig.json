@@ -11,6 +11,10 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    // The check scripts under `scripts/` run directly on Node's type-stripping,
+    // which requires the explicit `.ts` extension in their imports. Safe here
+    // because the project is `noEmit` (bundling is Turbopack's job).
+    "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "incremental": true,
     "plugins": [

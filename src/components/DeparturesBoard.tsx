@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { LINE_COLORS } from '@/lib/constants'
 import { useI18n } from '@/lib/i18n'
+import { typicalAt, useReliability, dayTypeOf } from '@/lib/reliability'
 
 interface Departure {
   line: string
@@ -57,6 +58,14 @@ export function DeparturesBoard({ stationCode, lineColors }: { stationCode: stri
     return () => clearInterval(id)
   }, [])
 
+  // Historical punctuality for every line on the board, in one batched call.
+  const boardLines = useMemo(
+    () => [...new Set((departures ?? []).map(d => d.line))],
+    [departures],
+  )
+  const reliability = useReliability(boardLines)
+  const today = dayTypeOf(new Date())
+
   // Effective departure = schedule + live delay; keep those still upcoming
   // (allow a 30s grace so a train "at the platform" doesn't vanish instantly).
   const upcoming = (departures ?? [])
@@ -80,6 +89,11 @@ export function DeparturesBoard({ stationCode, lineColors }: { stationCode: stri
             const color     = lineColors[d.line] || LINE_COLORS[d.line] || '#7a82a0'
             const remaining = d.eff - now
             const imminent  = remaining <= IMMINENT_S
+            // Fall back to the historical pattern only when there's no live
+            // delay to report — a real +3 beats "usually +2".
+            const typical = d.delayMin > 0
+              ? null
+              : typicalAt(reliability[d.line], Math.floor(d.depTime / 60), today)
             return (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg3)', borderRadius: 8, padding: '7px 10px' }}>
                 <span style={{ background: color, color: '#fff', fontWeight: 700, fontSize: 11, padding: '2px 7px', borderRadius: 6, fontFamily: 'var(--font-space-grotesk), sans-serif', flexShrink: 0, minWidth: 30, textAlign: 'center' }}>
@@ -90,6 +104,14 @@ export function DeparturesBoard({ stationCode, lineColors }: { stationCode: stri
                 </span>
                 {d.delayMin > 0 && (
                   <span style={{ color: 'var(--red)', fontWeight: 600, fontSize: 10, flexShrink: 0 }}>+{d.delayMin}m</span>
+                )}
+                {typical && !typical.onTime && (
+                  <span
+                    title={t('typicallyLate', d.line, String(typical.median), fmtClock(d.depTime))}
+                    style={{ color: 'var(--yellow)', fontWeight: 600, fontSize: 10, flexShrink: 0, opacity: 0.85 }}
+                  >
+                    ~+{typical.median}m
+                  </span>
                 )}
                 <span style={{
                   flexShrink: 0,

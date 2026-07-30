@@ -3,6 +3,8 @@
 import type { Train } from '@/types'
 import { LINE_COLORS, WAGON_LABELS } from '@/lib/constants'
 import { useI18n } from '@/lib/i18n'
+import { ReliabilityCard } from './ReliabilityNote'
+import { minutesOfDay } from '@/lib/reliability'
 
 function occColor(pct: number) {
   if (pct > 70) return 'var(--red)'
@@ -61,6 +63,14 @@ export function DetailPanel({ train, lineColors, onClose, mobile = false }: Deta
             ))}
           </div>
 
+
+          {/* How this line usually performs in the current half-hour slot.
+              Renders nothing until the capture history covers the slot. */}
+          <ReliabilityCard
+            line={train.line}
+            minuteOfDay={minutesOfDay(new Date())}
+            lineColors={lineColors}
+          />
 
           {/* Per-wagon occupancy — only rendered for real telemetry (fetchTrains
               suppresses aggregate-copied breakdowns), in physical composition

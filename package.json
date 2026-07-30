@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --experimental-strip-types --no-warnings scripts/test-reliability.mts && node --experimental-strip-types --no-warnings scripts/test-i18n-reliability.mts"
   },
   "dependencies": {
     "gtfs-realtime-bindings": "^2.0.0",
