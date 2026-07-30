@@ -46,10 +46,11 @@ const { body } = await get('/api/reliability?lines=L6,R5')
 const stats = body.stats as Record<string, ReliabilityBucket[]>
 
 ok(Object.keys(stats).sort().join(',') === 'L6,R5', 'every requested line is keyed')
+ok(body.configured === true, 'server reports Supabase credentials are present')
 
 const l6 = stats.L6
 if (l6.length === 0) {
-  console.log('e2e: no history served (Supabase unset?) — contract checks only')
+  console.log('e2e: no history served — contract checks only')
   console.log(`reliability e2e: ${checks} checks passed`)
   process.exit(0)
 }

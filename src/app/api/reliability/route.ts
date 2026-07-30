@@ -37,7 +37,12 @@ export async function GET(req: Request) {
   const empty: Record<string, ReliabilityBucket[]> = Object.fromEntries(lines.map(l => [l, []]))
 
   // Not wired up yet → behave as "no history", so callers need no special case.
-  if (!SUPABASE_URL || !SUPABASE_KEY) return Response.json({ stats: empty })
+  // `configured` lets an operator tell "Supabase isn't connected" apart from
+  // "connected, but no history for this line yet". Both look identical to the UI
+  // by design, which would otherwise make a missing env var invisible.
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    return Response.json({ stats: empty, configured: false })
+  }
 
   try {
     const url = `${SUPABASE_URL}/rest/v1/delay_stats`
@@ -64,9 +69,9 @@ export async function GET(req: Request) {
         samples: Number(r.samples),
       })
     }
-    return Response.json({ stats })
+    return Response.json({ stats, configured: true })
   } catch (err) {
     console.error('Reliability lookup failed:', err)
-    return Response.json({ stats: empty })
+    return Response.json({ stats: empty, configured: true })
   }
 }

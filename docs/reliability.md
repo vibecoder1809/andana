@@ -41,6 +41,19 @@ variables → Actions → New repository secret**, add both:
 
 Never paste the service-role key anywhere else — not in code, not in chat.
 
+**3b. App environment.** The cron and the app read the same database but are
+configured **separately**: the GitHub Actions secrets above drive the capture
+job only. The deployed app needs the same two variables in its own hosting
+environment (Vercel → Settings → Environment Variables), or it will collect
+data forever and never display any of it.
+
+This failure is silent by design — the UI renders nothing when there's no
+history, so a missing variable looks exactly like "not enough data yet".
+To tell them apart:
+
+```bash
+node scripts/check-reliability-health.mjs https://your-deployment
+```
 **4. Kick off the cron.** The workflow runs every 10 min once secrets exist.
 Trigger the first run manually: GitHub → **Actions → Capture FGC delays → Run
 workflow**. Check the run log for `inserted N observations`, then confirm rows
@@ -106,6 +119,10 @@ export $(grep -v '^#' .env.local | xargs) && node scripts/capture-delays.mjs
 
 ## Cost & caveats
 
+- **Two places need credentials.** GitHub Actions secrets (capture) and the
+  hosting environment (the app). Setting only the first is the most likely way
+  for this feature to look broken while everything reports success;
+  `scripts/check-reliability-health.mjs` diagnoses it.
 - **Cold start.** There's no historical feed to backfill — `delay_stats` is
   empty until the cron has run for a while. Ship capture first; surface later.
 - **Free-tier fit.** ~15 lines × every 10 min ≈ 2k rows/day; the 8-week window
