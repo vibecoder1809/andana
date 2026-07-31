@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import type { Train } from '@/types'
 import { LINE_COLORS } from '@/lib/constants'
 import { useI18n } from '@/lib/i18n'
@@ -19,6 +20,11 @@ function occStyle(pct: number) {
 
 export function TrainCard({ train, selected, onClick, lineColors }: TrainCardProps) {
   const { t } = useI18n()
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
   const colors = lineColors ?? LINE_COLORS
   const color  = colors[train.line] || '#7a82a0'
   const occ    = Math.round(train.occupancyPercent)
@@ -27,7 +33,7 @@ export function TrainCard({ train, selected, onClick, lineColors }: TrainCardPro
   const nextStop = train.upcomingStops[0]
   const etaLabel = (etaUnix: number | undefined): string | null => {
     if (etaUnix == null || !Number.isFinite(etaUnix)) return null
-    const mins = Math.round((etaUnix * 1000 - Date.now()) / 60000)
+    const mins = Math.round((etaUnix * 1000 - now) / 60000)
     if (!Number.isFinite(mins)) return null
     if (mins <= 0) return t('etaNow')
     return t('etaIn', mins)

@@ -122,7 +122,7 @@ export function useInterpolatedTrains(
 ): Train[] {
   const stateMap    = useRef<Map<string, TrainState>>(new Map())
   const rafRef      = useRef<number | null>(null)
-  const lastTick    = useRef<number>(performance.now())
+  const lastTick    = useRef<number>(0)
   const lastRender  = useRef<number>(0)
   const RENDER_INTERVAL = 100  // ms — cap React re-renders at ~10fps
 
@@ -284,6 +284,7 @@ export function useInterpolatedTrains(
       rafRef.current = requestAnimationFrame(tick)
     }
 
+    lastTick.current = performance.now()
     rafRef.current = requestAnimationFrame(tick)
     return () => { if (rafRef.current != null) cancelAnimationFrame(rafRef.current) }
   // eslint-disable-next-line react-hooks/exhaustive-deps

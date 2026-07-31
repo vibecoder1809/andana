@@ -23,13 +23,13 @@ const LINE_GROUPS: { key: string; labelKey: TransKey; prefix: RegExp }[] = [
 
 function useRelativeTime(lastUpdate: Date | null): string {
   const { t } = useI18n()
-  const [, setTick] = useState(0)
+  const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), 1000)
+    const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
   }, [])
   if (!lastUpdate) return '—'
-  const secs = Math.round((Date.now() - lastUpdate.getTime()) / 1000)
+  const secs = Math.round((now - lastUpdate.getTime()) / 1000)
   if (secs < 5) return t('justNow')
   if (secs < 60) return t('secsAgo', secs)
   const mins = Math.floor(secs / 60)
@@ -364,7 +364,8 @@ export function MobileLayout({
   const toggleGroup = useCallback((key: string) => {
     setExpandedGroups(prev => {
       const next = new Set(prev)
-      next.has(key) ? next.delete(key) : next.add(key)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
       return next
     })
   }, [])
