@@ -6,7 +6,7 @@
 //   node --experimental-strip-types scripts/test-infra.mts
 
 import assert from 'node:assert/strict'
-import { serviceDate, serviceSeconds, serviceMinutes, serviceDayType, serviceDatePlus } from '../src/lib/serviceTime.ts'
+import { serviceDate, serviceSeconds, serviceMinutes, serviceDayType, serviceDatePlus, isWithinPlanWindow } from '../src/lib/serviceTime.ts'
 import { cached, clearCache } from '../src/lib/cache.ts'
 
 let checks = 0
@@ -62,6 +62,16 @@ ok(serviceDatePlus(1, new Date('2026-12-31T12:00:00Z')) === '2027-01-01', 'cross
 // Across the DST change (29 Mar 2026), +1 day must still be +1 calendar day.
 ok(serviceDatePlus(1, new Date('2026-03-28T12:00:00Z')) === '2026-03-29', '+1 across the DST switch')
 ok(serviceDatePlus(1, new Date('2026-03-29T12:00:00Z')) === '2026-03-30', '+1 after the DST switch')
+
+// ── planner.ts's timetable cache window: bounds dateCache/dateInflight ──
+// so a long-lived warm instance can't accumulate every date it's ever seen.
+{
+  const today = '2026-07-15'
+  ok(isWithinPlanWindow(today, today, 7), 'today is in-window')
+  ok(isWithinPlanWindow('2026-07-22', today, 7), 'today + 7 is in-window')
+  ok(!isWithinPlanWindow('2026-07-23', today, 7), 'today + 8 is out of window')
+  ok(!isWithinPlanWindow('2026-07-14', today, 7), 'yesterday is out of window')
+}
 
 // ── cache: single-flight ────────────────────────────────────────────────
 {

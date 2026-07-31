@@ -72,3 +72,20 @@ export function serviceDatePlus(offset: number, at: Date = new Date()): string {
   const d = new Date(Date.UTC(year, month - 1, day + offset))
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
 }
+
+/**
+ * `YYYY-MM-DD` for `offset` days from a given service-date string. Pure date
+ * arithmetic anchored on the string itself (no timezone lookup, no dependency
+ * on the real clock) — used to bound a cache window relative to an already-
+ * resolved "today", not to derive "today" itself.
+ */
+export function addServiceDays(date: string, offset: number): string {
+  const [year, month, day] = date.split('-').map(Number)
+  const d = new Date(Date.UTC(year, month - 1, day + offset))
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+}
+
+/** True if `date` falls within `[today, today + maxDaysAhead]`. */
+export function isWithinPlanWindow(date: string, today: string, maxDaysAhead: number): boolean {
+  return date >= today && date <= addServiceDays(today, maxDaysAhead)
+}

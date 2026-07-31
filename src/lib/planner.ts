@@ -1,7 +1,8 @@
 import { STATION_CODES } from './constants'
 import { fgcExport, fgcGtfsFile, fgcAllRecords } from './fgc'
 import { fetchStops } from './gtfs'
-import { serviceDate } from './serviceTime'
+import { serviceDate, isWithinPlanWindow } from './serviceTime'
+import { finiteNum } from './validate'
 
 // Minimum time (seconds) needed to change between two trips at a station.
 const TRANSFER_SECONDS = 120
@@ -279,8 +280,10 @@ async function buildTimetableForDate(date: string): Promise<TimetableData> {
     const dep = parseClock(st.departure_time)
     const arr = parseClock(st.arrival_time) ?? dep
     if (dep == null || arr == null) continue
+    const seq = finiteNum(st.stop_sequence)
+    if (seq == null) continue
     const list = byTrip.get(st.trip_id)
-    const row = { seq: Number(st.stop_sequence), arr, dep, parent: info.parent, name: info.name }
+    const row = { seq, arr, dep, parent: info.parent, name: info.name }
     if (list) list.push(row)
     else byTrip.set(st.trip_id, [row])
   }
@@ -303,14 +306,21 @@ async function buildTimetableForDate(date: string): Promise<TimetableData> {
 }
 
 // Cache built timetables per service date (today via the fast viajes-de-hoy
-// path, other dates via the static GTFS builder). Bounded to the planning
-// window so it can't grow without limit.
+// path, other dates via the static GTFS builder). Dates are validated against
+// the planning window on every call, and dateCache/dateInflight are pruned to
+// that window each time getTimetable runs — so the cache holds at most
+// MAX_PLAN_DAYS_AHEAD + 1 entries even on a long-lived warm instance, without
+// needing a separate eviction timer.
 const dateCache = new Map<string, TimetableData>()
 const dateInflight = new Map<string, Promise<TimetableData>>()
 
 async function getTimetable(date?: string): Promise<TimetableData> {
   const today = todayLocalISO()
-  const target = date ?? today
+  const requested = date ?? today
+  // Defense in depth: the /api/plan route already clamps the date, but don't
+  // trust callers — anything outside the plan window collapses to today
+  // rather than growing the cache with a date we'll never validly serve again.
+  const target = isWithinPlanWindow(requested, today, MAX_PLAN_DAYS_AHEAD) ? requested : today
 
   if (target === today) {
     if (cache && cache.date === today) return cache
@@ -319,6 +329,16 @@ async function getTimetable(date?: string): Promise<TimetableData> {
       .then(data => { cache = data; inflight = null; return data })
       .catch(err => { inflight = null; throw err })
     return inflight
+  }
+
+  // Opportunistically prune entries that have rolled out of the window (e.g.
+  // "yesterday" once the service date advances) before adding a new one —
+  // bounds the map without a separate timer.
+  for (const key of dateCache.keys()) {
+    if (!isWithinPlanWindow(key, today, MAX_PLAN_DAYS_AHEAD)) dateCache.delete(key)
+  }
+  for (const key of dateInflight.keys()) {
+    if (!isWithinPlanWindow(key, today, MAX_PLAN_DAYS_AHEAD)) dateInflight.delete(key)
   }
 
   const cached = dateCache.get(target)

@@ -1,6 +1,7 @@
 import type { Train } from '@/types'
 import { STATION_CODES } from './constants'
 import { fgcAllRecords } from './fgc'
+import { finiteNum } from './validate'
 
 interface TrainPositionRecord {
   id: string
@@ -25,7 +26,8 @@ function parsePct(v: string | null): number | null {
   return isNaN(n) ? null : n
 }
 
-function resolveStop(code: string): string {
+function resolveStop(code: string | null | undefined): string {
+  if (!code) return ''
   const base = code.replace(/\d+$/, '')
   return STATION_CODES[code] ?? STATION_CODES[base] ?? code
 }
@@ -50,8 +52,13 @@ export async function fetchTrains(): Promise<Train[]> {
   const results = await fgcAllRecords<TrainPositionRecord>('posicionament-dels-trens', undefined, 0)
 
   return results
-    .filter(r => r.geo_point_2d !== null)
-    .map(r => {
+    .flatMap(r => {
+      // A malformed/missing coordinate must not become NaN in the map's
+      // animation math — drop the record instead of rendering a broken train.
+      const lat = r.geo_point_2d && finiteNum(r.geo_point_2d.lat)
+      const lng = r.geo_point_2d && finiteNum(r.geo_point_2d.lon)
+      if (lat == null || lng == null) return []
+
       // Feed-field order is the physical composition order of FGC units:
       // M1 (cab motor) + M2 (its inseparable pair), then the intermediates.
       // (Keep in sync with WAGON_LABELS in constants.ts.)
@@ -72,11 +79,11 @@ export async function fetchTrains(): Promise<Train[]> {
       // Nulls stay positional so a 3-car unit renders 3 correctly-named cars.
       const perCarReal = valid.length >= 2 && new Set(valid).size > 1
 
-      return {
+      return [{
         id:               r.id,
         line:             r.lin,
-        lat:              r.geo_point_2d!.lat,
-        lng:              r.geo_point_2d!.lon,
+        lat,
+        lng,
         destination:      resolveStop(r.desti),
         origin:           resolveStop(r.origen),
         delayMinutes:     0,
@@ -84,6 +91,6 @@ export async function fetchTrains(): Promise<Train[]> {
         wagons:           perCarReal ? wagons : undefined,
         upcomingStops:    parseUpcomingStops(r.properes_parades),
         currentStop:      r.estacionat_a ? resolveStop(r.estacionat_a) : undefined,
-      }
+      }]
     })
 }

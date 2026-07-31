@@ -2,6 +2,7 @@ import type { Stop, Alert, Route, StopArrival, StopDetail } from '@/types'
 import { fgcRecords, fgcAllRecords, fgcFeed } from './fgc'
 import { fetchTrains } from './trains'
 import { cached } from './cache'
+import { finiteNum } from './validate'
 
 type RawStop = {
   stop_id: string
@@ -13,13 +14,18 @@ type RawStop = {
 export async function fetchStops(): Promise<Stop[]> {
   const all = await fgcAllRecords<RawStop>('gtfs_stops', undefined, 86400)
 
-  return all.map(r => ({
-    stopId: r.stop_id,
-    name: r.stop_name,
-    lat: r.stop_coordinates.lat,
-    lng: r.stop_coordinates.lon,
-    wheelchairBoarding: r.wheelchair_boarding === 1,
-  }))
+  return all.flatMap(r => {
+    const lat = finiteNum(r.stop_coordinates?.lat)
+    const lng = finiteNum(r.stop_coordinates?.lon)
+    if (lat == null || lng == null) return []
+    return [{
+      stopId: r.stop_id,
+      name: r.stop_name,
+      lat,
+      lng,
+      wheelchairBoarding: r.wheelchair_boarding === 1,
+    }]
+  })
 }
 
 function pickText(
@@ -169,11 +175,14 @@ export async function fetchVehiclePositions(): Promise<VehiclePosition[]> {
   for (const e of feed.entity) {
     const v = e.vehicle
     if (!v?.position || !v.trip?.tripId) continue
+    const lat = finiteNum(v.position.latitude)
+    const lng = finiteNum(v.position.longitude)
+    if (lat == null || lng == null) continue
     out.push({
       vehicleId: v.vehicle?.id ?? e.id,
       tripId: v.trip.tripId,
-      lat: v.position.latitude,
-      lng: v.position.longitude,
+      lat,
+      lng,
       stopId: v.stopId ?? null,
       occupancyStatus: v.occupancyStatus ?? null,
       timestamp: v.timestamp != null ? Number(v.timestamp) : null,
