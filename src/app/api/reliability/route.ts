@@ -31,7 +31,7 @@ export async function GET(req: Request) {
   )].slice(0, MAX_LINES)
 
   if (lines.length === 0) {
-    return Response.json({ error: 'Missing line' }, { status: 400 })
+    return Response.json({ error: 'missing_params' }, { status: 400 })
   }
 
   const empty: Record<string, ReliabilityBucket[]> = Object.fromEntries(lines.map(l => [l, []]))

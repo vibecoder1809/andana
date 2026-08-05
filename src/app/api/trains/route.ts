@@ -54,6 +54,6 @@ export async function GET() {
     return Response.json(await cached('trains', TTL_MS, loadTrains))
   } catch (err) {
     console.error('Train positions API failed:', err)
-    return Response.json({ error: 'Train position API unavailable' }, { status: 503 })
+    return Response.json({ error: 'trains_unavailable' }, { status: 503 })
   }
 }

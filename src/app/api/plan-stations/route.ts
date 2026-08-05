@@ -6,6 +6,6 @@ export async function GET() {
     return Response.json(stations)
   } catch (err) {
     console.error('Planner stations failed:', err)
-    return Response.json({ error: 'Timetable unavailable' }, { status: 503 })
+    return Response.json({ error: 'timetable_unavailable' }, { status: 503 })
   }
 }

@@ -6,7 +6,7 @@ import { LINE_COLORS } from '@/lib/constants'
 import { nearestByLatLng } from '@/lib/geometry'
 import { useGeolocation } from '@/lib/geolocation'
 import { readParam, updateParams } from '@/lib/urlState'
-import { useI18n } from '@/lib/i18n'
+import { useI18n, type TransKey } from '@/lib/i18n'
 import { ReliabilityNote } from './ReliabilityNote'
 import { useSavedRoutes, type SavedRoute } from '@/lib/savedRoutes'
 
@@ -29,6 +29,18 @@ function fmtTime(sec: number): string {
 function nowSecondsOfDay(): number {
   const n = new Date()
   return n.getHours() * 3600 + n.getMinutes() * 60 + n.getSeconds()
+}
+
+// /api/plan returns machine-readable error codes (see the route handler), not
+// user-facing prose — this maps them to a translated string, falling back to
+// a generic message for codes the client doesn't recognise.
+const PLAN_ERROR_KEYS: Record<string, TransKey> = {
+  same_station: 'sameOriginDest',
+  missing_params: 'genericError',
+  plan_unavailable: 'cannotConnect',
+}
+function planErrorMessage(code: string | undefined, t: (key: TransKey, ...args: (string | number)[]) => string): string {
+  return t(code && PLAN_ERROR_KEYS[code] ? PLAN_ERROR_KEYS[code] : 'genericError')
 }
 
 // Live countdown (in seconds) until this journey's train reaches the origin.
@@ -398,7 +410,7 @@ export function TripPlanner({ lineColors, selectedJourney, onSelectJourney, stop
       if (preferStepFree) qs += `&stepFree=1`
       const res = await fetch(`/api/plan?${qs}`)
       const data = await res.json()
-      if (!res.ok) { setError(data.error ?? t('genericError')); return }
+      if (!res.ok) { setError(planErrorMessage(data.error, t)); return }
       const found: Journey[] = data.journeys ?? []
       setJourneys(found)
       // Auto-draw the best journey's path; clicking another card switches it.

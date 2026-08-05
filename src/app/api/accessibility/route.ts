@@ -6,7 +6,7 @@ export async function GET(req: Request) {
   const to = url.searchParams.get('to')
 
   if (!from || !to) {
-    return Response.json({ error: 'Missing from/to' }, { status: 400 })
+    return Response.json({ error: 'missing_params' }, { status: 400 })
   }
 
   try {
@@ -14,6 +14,6 @@ export async function GET(req: Request) {
     return Response.json({ itinerary })
   } catch (err) {
     console.error('Accessibility lookup failed:', err)
-    return Response.json({ error: 'Accessibility data unavailable' }, { status: 503 })
+    return Response.json({ error: 'accessibility_unavailable' }, { status: 503 })
   }
 }

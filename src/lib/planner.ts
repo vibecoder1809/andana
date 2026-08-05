@@ -3,6 +3,7 @@ import { fgcExport, fgcGtfsFile, fgcAllRecords } from './fgc'
 import { fetchStops } from './gtfs'
 import { serviceDate, isWithinPlanWindow } from './serviceTime'
 import { finiteNum } from './validate'
+import type { PlannerStation, JourneyLeg, Journey } from '@/types'
 
 // Minimum time (seconds) needed to change between two trips at a station.
 const TRANSFER_SECONDS = 120
@@ -380,11 +381,6 @@ async function getAccessibleStations(): Promise<Set<string>> {
 
 // ---- public: station list ----------------------------------------------
 
-export interface PlannerStation {
-  code: string
-  name: string
-}
-
 export async function getStations(): Promise<PlannerStation[]> {
   const data = await getTimetable()
   return [...data.stationNames.entries()]
@@ -425,32 +421,6 @@ export async function getDepartures(
 }
 
 // ---- public: journey planning (CSA) -------------------------------------
-
-export interface JourneyLeg {
-  line: string
-  headsign: string
-  fromCode: string
-  fromName: string
-  toCode: string
-  toName: string
-  depTime: number       // seconds since midnight (scheduled)
-  arrTime: number
-  intermediateStops: number
-}
-
-export interface Journey {
-  legs: JourneyLeg[]
-  depTime: number
-  arrTime: number
-  durationMin: number
-  transfers: number
-  /** Live delay (minutes) currently reported for the first leg's line, if any. */
-  liveDelayMin?: number
-  /** Set only when a step-free route was requested: true iff every interchange
-      station on this journey has step-free access. False means it's the best
-      available but still routes through an inaccessible change. */
-  stepFree?: boolean
-}
 
 // Penalty (seconds) added per boarding so the search prefers staying on one
 // train over hopping between parallel services on the same corridor. A change

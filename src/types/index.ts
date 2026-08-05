@@ -67,4 +67,37 @@ export interface StopDetail {
 
 export type Theme = 'dark' | 'light'
 
-export type { PlannerStation, JourneyLeg, Journey } from '@/lib/planner'
+// Journey-planning domain types. Defined here (not re-exported from
+// lib/planner.ts) so this client-safe types barrel never depends on a
+// server-only module that imports lib/fgc.ts — a stray value import there
+// would otherwise pull the GTFS timetable parser into the client bundle.
+export interface PlannerStation {
+  code: string
+  name: string
+}
+
+export interface JourneyLeg {
+  line: string
+  headsign: string
+  fromCode: string
+  fromName: string
+  toCode: string
+  toName: string
+  depTime: number       // seconds since midnight (scheduled)
+  arrTime: number
+  intermediateStops: number
+}
+
+export interface Journey {
+  legs: JourneyLeg[]
+  depTime: number
+  arrTime: number
+  durationMin: number
+  transfers: number
+  /** Live delay (minutes) currently reported for the first leg's line, if any. */
+  liveDelayMin?: number
+  /** Set only when a step-free route was requested: true iff every interchange
+      station on this journey has step-free access. False means it's the best
+      available but still routes through an inaccessible change. */
+  stepFree?: boolean
+}

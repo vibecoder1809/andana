@@ -34,11 +34,15 @@ export async function GET(req: Request) {
   const date = parseDate(url.searchParams.get('date'))
   const stepFree = url.searchParams.get('stepFree') === '1'
 
+  // Machine-readable error codes, not prose: this API is consumed by a
+  // trilingual client (see AGENTS.md) — the client maps `code` to a
+  // translated string via i18n, so no UI-facing language decision is made
+  // here on the server.
   if (!from || !to) {
-    return Response.json({ error: 'Missing from/to' }, { status: 400 })
+    return Response.json({ error: 'missing_params' }, { status: 400 })
   }
   if (from === to) {
-    return Response.json({ error: "L'origen i la destinació són iguals" }, { status: 400 })
+    return Response.json({ error: 'same_station' }, { status: 400 })
   }
 
   try {
@@ -49,6 +53,6 @@ export async function GET(req: Request) {
     return Response.json({ journeys })
   } catch (err) {
     console.error('Plan failed:', err)
-    return Response.json({ error: 'No es pot calcular la ruta' }, { status: 503 })
+    return Response.json({ error: 'plan_unavailable' }, { status: 503 })
   }
 }

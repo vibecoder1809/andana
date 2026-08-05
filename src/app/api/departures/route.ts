@@ -11,7 +11,7 @@ const nowSeconds = serviceSeconds
 export async function GET(req: Request) {
   const station = new URL(req.url).searchParams.get('station')
   if (!station) {
-    return Response.json({ error: 'Missing station' }, { status: 400 })
+    return Response.json({ error: 'missing_params' }, { status: 400 })
   }
 
   try {
@@ -28,6 +28,6 @@ export async function GET(req: Request) {
     return Response.json({ departures: enriched })
   } catch (err) {
     console.error('Departures failed:', err)
-    return Response.json({ error: 'No es poden carregar les sortides' }, { status: 503 })
+    return Response.json({ error: 'departures_unavailable' }, { status: 503 })
   }
 }

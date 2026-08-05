@@ -5,7 +5,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const stopId = searchParams.get('stopId')
   if (!stopId || stopId.length > 20 || !/^[A-Za-z0-9_-]+$/.test(stopId))
-    return Response.json({ error: 'invalid stopId' }, { status: 400 })
+    return Response.json({ error: 'invalid_stop_id' }, { status: 400 })
 
   const baseCode = stopId.replace(/\d+$/, '')
 

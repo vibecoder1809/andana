@@ -153,8 +153,10 @@ function AppInner() {
     try {
       const res = await fetch('/api/trains')
       if (!res.ok) {
-        const err = await res.json().catch(() => ({})) as { error?: string }
-        setApiError(err.error ?? `Error ${res.status}`)
+        // /api/trains returns a machine-readable error code, not user-facing
+        // prose (see the route handler) — show the existing translated
+        // "can't reach the trains API" message rather than the raw code.
+        setApiError(t('apiConnectError'))
         return
       }
       const data: Train[] = await res.json()
