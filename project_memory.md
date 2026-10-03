@@ -271,3 +271,17 @@ Before committing any changes or concluding a session, verify:
   - `cmd /c npm test`: 30/30 checks passed.
   - `cmd /c npx tsc --noEmit`: 0 errors.
   - `cmd /c npm run build`: build succeeded.
+
+### Session: 2026-10-03 (Branch Unification & PWA/Sheet Ceiling Merges)
+- **Branch Merges & Resolution:**
+  - Merged `origin/claude/andana-distribution-strategy-1rl1mi`:
+    - Updated `next.config.ts`: Changed `Permissions-Policy` from `geolocation=()` to `geolocation=(self)` to prevent browser blocking user geolocation requests.
+    - Updated `src/components/ServiceWorkerRegister.tsx`: Handles hydration occurring after the `window.load` event via `document.readyState === 'complete'`.
+  - Merged and harmonized `origin/claude/mobile-menu-scroll-knob-stuck-tzb9wr`:
+    - Resolved conflict in `src/components/MobileLayout.tsx` by integrating `useSheetCeiling` and `topBarRef` into the unified one-sheet architecture (preventing sheet grab handle from slipping underneath floating top bar pills at full screen expansion on notched mobile devices).
+    - Preserved `MobileSettingsModal` and `AlertModal` while removing obsolete `DetailSheet` structures.
+- **Verification:**
+  - `cmd /c npm test`: 30/30 checks passed.
+  - `cmd /c npx tsc --noEmit`: 0 errors across entire repository.
+  - `cmd /c npm run build`: Next.js Turbopack production build succeeded cleanly.
+
