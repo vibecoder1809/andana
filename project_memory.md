@@ -285,3 +285,19 @@ Before committing any changes or concluding a session, verify:
   - `cmd /c npx tsc --noEmit`: 0 errors across entire repository.
   - `cmd /c npm run build`: Next.js Turbopack production build succeeded cleanly.
 
+### Session: 2026-10-03 (AI/LLM Discovery, SEO Schema.org, & README Overhaul)
+- **AI & Modern SEO Optimization:**
+  - Added `public/llms.txt` following the [llmstxt.org](https://llmstxt.org) standard: concise, high-density summary of capabilities, covered FGC/Rodalies lines, architecture, and common FAQs for AI search engines (Perplexity, ChatGPT Search, Gemini).
+  - Added `src/app/robots.ts` with Next.js App Router metadata route.
+  - Updated `src/app/layout.tsx`:
+    - Updated `<title>` and `<meta name="description">` to accurately reflect multi-network coverage (FGC + Rodalies de Catalunya).
+    - Added OpenGraph and Twitter card metadata.
+    - Injected Schema.org `WebApplication` structured data (`JSON-LD`) for authoritative search engine & AI extraction.
+- **Documentation:**
+  - Completely updated `README.md` to reflect the current state of the application: dual-network intelligence, 60fps interpolation, CSA timetable routing, departures board with delay countdowns, corridor service alerts, and installable PWA.
+- **Verification:**
+  - `cmd /c npm test`: 30/30 checks passed.
+  - `cmd /c npx tsc --noEmit`: 0 errors.
+  - `cmd /c npm run build`: Next.js Turbopack production build succeeded cleanly (including static generation of `/robots.txt` and `/manifest.webmanifest`).
+
+

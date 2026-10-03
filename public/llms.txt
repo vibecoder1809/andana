@@ -1,0 +1,64 @@
+# Andana
+
+> Real-time train tracker, departures board, service alerts, and journey planner for FGC (Ferrocarrils de la Generalitat de Catalunya) and Rodalies de Catalunya (Renfe) networks in Catalonia.
+
+Andana is an independent, open-source companion web application and Progressive Web App (PWA) designed for rail passengers in Catalonia. It aggregates official open-data feeds from FGC and Rodalies/Renfe to answer the questions that matter on the platform: *where is my train, will it be on time, how crowded is it, and how do I reach my destination?*
+
+Website: https://andana.cat
+Source code: https://github.com/vibecoder1809/andana
+
+## Key Capabilities
+
+- **Interactive Live Map**: Real-time positions of moving trains on a high-performance MapLibre GL map. Trains are projected along route geometries using dead-reckoned interpolation, providing smooth 60fps animations between feed updates rather than jumpy 30-second teleports.
+- **Unified Multi-Network Support**: Switch effortlessly between FGC, Rodalies de Catalunya (Renfe), or both concurrently on the same map and board.
+- **Live Departures Board**: Next departures by station with live countdowns combining scheduled GTFS departure times with current median per-line delays.
+- **Connection Scan Algorithm (CSA) Journey Planner**: Fast timetable routing over GTFS data featuring transfer penalties to avoid redundant train hops across parallel corridors, step-free accessibility preferences, and live delay integration for same-day trips.
+- **Service Alerts**: Corridor-grouped service incidents and scheduled maintenance with published timestamps, severity indicators, and direct links to official operator advisories.
+- **Per-Car Occupancy**: Displays individual car passenger load percentages (M1, M2, Mi, Ri) for supported FGC trainsets.
+- **Station Enrichment**: Step-free accessibility routes, air quality readings (NO₂, PM10, O₃), and local weather forecasts.
+- **Trilingual Interface**: Native support for Catalan (source), Spanish, and English with dark and light theme options.
+- **Progressive Web App**: Installable PWA with service worker caching for instant offline shell launch.
+
+## Networks & Lines Covered
+
+### FGC (Ferrocarrils de la Generalitat de Catalunya)
+- **Barcelona-Vallès (Metro del Vallès)**:
+  - Urban lines: L6 (Pl. Catalunya – Sarrià), L7 (Pl. Catalunya – Av. Tibidabo), L12 (Sarrià – Reina Elisenda).
+  - Suburban lines: S1 (Pl. Catalunya – Terrassa Nacions Unides), S2 (Pl. Catalunya – Sabadell Parc del Nord).
+- **Llobregat-Anoia (Metro del Baix Llobregat)**:
+  - Urban & Suburban lines: L8 (Pl. Espanya – Molí Nou), S3 (Can Ros), S4 (Olesa), S8 (Martorell Enllaç), S9 (Quatre Camins).
+  - Commuter & Regional lines: R5 / R50 (Pl. Espanya – Manresa Baixador), R6 / R60 (Pl. Espanya – Igualada).
+
+### Rodalies de Catalunya (Renfe)
+- **Barcelona Commuter Network**:
+  - R1: Molins de Rei / L'Hospitalet – Mataró – Arenys de Mar – Maçanet-Massanes (Maresme corridor).
+  - R2: Castelldefels – Granollers Centre.
+  - R2 Nord: Aeroport – Granollers Centre – Sant Celoni – Maçanet-Massanes.
+  - R2 Sud: Sant Vicenç de Calders – Vilanova i la Geltrú – Barcelona França.
+  - R3: L'Hospitalet de Llobregat – Vic – Ripoll – Puigcerdà – La Tour de Carol.
+  - R4: Sant Vicenç de Calders – Vilafranca del Penedès – Barcelona – Terrassa – Manresa.
+  - R7: Barcelona Sant Andreu Arenal – Cerdanyola Universitat.
+  - R8: Martorell Central – Granollers Centre (via Cerdanyola Universitat).
+- **Regional & Lleida/Tarragona Lines**:
+  - R11, R12, R13, R14, R15, R16, R17, RL1, RL2, RG1, RT1, RT2.
+
+## Frequently Asked Questions
+
+### Where does Andana get its data?
+All information comes directly from official public open-data portals:
+- FGC: dadesobertes.fgc.cat (Opendatasoft v2.1 API, GTFS zip timetable exports, and GTFS-Realtime protobuf feeds for vehicle positions, trip updates, and alerts).
+- Rodalies / Renfe: Official Rodalies API and timetable feeds.
+
+### How does the real-time delay tracking work?
+Real-time delays are calculated by comparing scheduled arrival and departure times from GTFS against GTFS-Realtime `TripUpdate` messages. For departures boards, median line delays are computed across currently running trains and added to the timetable schedule to show actual platform departure countdowns.
+
+### Can Andana be installed on iOS and Android?
+Yes. Andana is a Progressive Web App (PWA). In Safari on iOS, tap "Share" and then "Add to Home Screen". On Chrome/Android, tap the install prompt or menu to add it to your device.
+
+## Technical Architecture
+
+- **Framework**: Next.js 16 (App Router, Turbopack), React 19, TypeScript (strict).
+- **Map Engine**: MapLibre GL via `react-map-gl/maplibre` with CARTO positron/dark-matter tiles.
+- **Routing Engine**: Connection Scan Algorithm (CSA) in TypeScript.
+- **Protobuf Decoding**: `gtfs-realtime-bindings`.
+- **License**: MIT.
