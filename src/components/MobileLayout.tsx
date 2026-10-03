@@ -59,15 +59,65 @@ const SNAP_HALF = 0.48  // half screen: map visible in top half, content in bott
 const SNAP_FULL = 0.90  // almost full screen
 const SNAPS = [SNAP_PEEK, SNAP_HALF, SNAP_FULL]
 
-function resolveSnap(ratio: number, velocity: number): number {
+// Velocity-aware snap: a fast flick jumps a step in its direction, otherwise we
+// settle to the nearest snap point. `velocity` is in ratio-units per second
+// (positive = expanding upward); `ceiling` is the ceiling from `useSheetCeiling`.
+function resolveSnap(ratio: number, velocity: number, ceiling = SNAP_FULL): number {
   const FLICK = 0.6
-  const nearestIdx = SNAPS.reduce(
-    (best, _, i) => (Math.abs(SNAPS[i] - ratio) < Math.abs(SNAPS[best] - ratio) ? i : best),
+  const snaps = [SNAP_PEEK, SNAP_HALF, ceiling]
+  const nearestIdx = snaps.reduce(
+    (best, _, i) => (Math.abs(snaps[i] - ratio) < Math.abs(snaps[best] - ratio) ? i : best),
     0,
   )
-  if (velocity > FLICK && nearestIdx < SNAPS.length - 1) return SNAPS[nearestIdx + 1]
-  if (velocity < -FLICK && nearestIdx > 0) return SNAPS[nearestIdx - 1]
-  return SNAPS[nearestIdx]
+  if (velocity > FLICK && nearestIdx < snaps.length - 1) return snaps[nearestIdx + 1]
+  if (velocity < -FLICK && nearestIdx > 0) return snaps[nearestIdx - 1]
+  return snaps[nearestIdx]
+}
+
+// ── Sheet ceiling ────────────────────────────────────────────────────────
+// The floating top bar is painted *over* the sheets (zIndex 35 vs 10), so a
+// sheet tall enough to reach it tucks its own grab handle behind the pills —
+// and the pills swallow the touch, so the sheet can't be dragged back down.
+// How far down the bar reaches depends on the notch inset, so measure it
+// instead of guessing a snap fraction, and cap every sheet just below it.
+const SHEET_TOP_GAP = 10
+
+function useSheetCeiling(
+  rootRef: React.RefObject<HTMLDivElement | null>,
+  barRef: React.RefObject<HTMLDivElement | null>,
+): number {
+  const [ceiling, setCeiling] = useState(SNAP_FULL)
+
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    const bar = barRef.current
+    if (!root || !bar) return
+
+    const measure = () => {
+      const vh = root.clientHeight
+      if (!vh) return
+      const rootTop = root.getBoundingClientRect().top
+      // Only the bar's pills are opaque and clickable — its own bottom padding
+      // is a transparent gradient tail the sheet may safely slide under.
+      const pillsBottom = Array.from(bar.children).reduce(
+        (bottom, el) => Math.max(bottom, el.getBoundingClientRect().bottom - rootTop),
+        0,
+      )
+      setCeiling(Math.max(SNAP_HALF, Math.min(SNAP_FULL, 1 - (pillsBottom + SHEET_TOP_GAP) / vh)))
+    }
+
+    measure()
+    // The bar grows with the safe-area inset on rotation, and the root resizes
+    // whenever mobile browser chrome (URL bar) slides in or out. Watch the
+    // *border* box: the inset lands on the bar's padding, which leaves its
+    // content box (and so a default ResizeObserver) completely unmoved.
+    const ro = new ResizeObserver(measure)
+    ro.observe(root, { box: 'border-box' })
+    ro.observe(bar, { box: 'border-box' })
+    return () => ro.disconnect()
+  }, [rootRef, barRef])
+
+  return ceiling
 }
 
 function useVerticalDrag(onMove: (deltaY: number) => void, onEnd: (deltaY: number, velocityPxPerS: number) => void) {
@@ -265,6 +315,9 @@ export function MobileLayout({
 }: MobileLayoutProps) {
   const { t } = useI18n()
   const rootRef = useRef<HTMLDivElement>(null)
+  const topBarRef = useRef<HTMLDivElement>(null)
+  // Tallest the sheet may grow without hiding its handle under the top bar.
+  const sheetCeiling = useSheetCeiling(rootRef, topBarRef)
   const [sheetRatio, setSheetRatio]       = useState(SNAP_PEEK)
   const [sheetDragging, setSheetDragging] = useState(false)
   const [activeTab, setActiveTab]         = useState<'trains' | 'stations' | 'plan'>('trains')
@@ -363,9 +416,11 @@ export function MobileLayout({
 
   const onSheetMove = useCallback((deltaY: number) => {
     const vh = viewH()
-    const next = Math.max(SNAP_PEEK - 0.03, Math.min(SNAP_FULL + 0.03, dragBase.current - deltaY / vh))
+    // Dragging up (negative deltaY) raises the sheet, but never past the
+    // ceiling — the handle has to stay below the top bar to stay grabbable.
+    const next = Math.max(SNAP_PEEK - 0.03, Math.min(sheetCeiling, dragBase.current - deltaY / vh))
     setSheetRatio(next)
-  }, [])
+  }, [sheetCeiling])
 
   const onSheetEnd = useCallback((deltaY: number, velocityPxPerS: number) => {
     const vh = viewH()
@@ -381,8 +436,8 @@ export function MobileLayout({
       return
     }
 
-    setSheetRatio(resolveSnap(landed, ratioVel))
-  }, [selectedTrain, selectedStop, handleDismissDetail])
+    setSheetRatio(resolveSnap(landed, ratioVel, sheetCeiling))
+  }, [selectedTrain, selectedStop, handleDismissDetail, sheetCeiling])
 
   const beginSheetDrag = useVerticalDrag(onSheetMove, onSheetEnd)
   const startSheetDrag = useCallback((clientY: number) => {
@@ -401,9 +456,11 @@ export function MobileLayout({
     setSheetRatio(r => (r < SNAP_HALF ? SNAP_HALF : r))
   }, [])
 
+  // Typing needs the keyboard *and* the results visible: raise the sheet as
+  // high as it goes whenever any input inside it gains focus.
   const onSheetFocus = useCallback((e: React.FocusEvent) => {
-    if ((e.target as HTMLElement).tagName === 'INPUT') setSheetRatio(SNAP_FULL)
-  }, [])
+    if ((e.target as HTMLElement).tagName === 'INPUT') setSheetRatio(sheetCeiling)
+  }, [sheetCeiling])
 
   const fitPadding = useMemo(() => ({
     top: 90, left: 40, right: 40,
@@ -424,7 +481,7 @@ export function MobileLayout({
     <div ref={rootRef} style={{ position: 'fixed', inset: 0, background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
 
       {/* ── Floating Top Bar (Clean, Uncluttered & Spaced) ── */}
-      <div style={{
+      <div ref={topBarRef} style={{
         position: 'absolute', top: 0, left: 0, right: 0, zIndex: 35,
         display: 'flex', alignItems: 'center', gap: 8,
         padding: 'calc(env(safe-area-inset-top, 0px) + 10px) 12px 16px',
