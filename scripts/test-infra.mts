@@ -6,7 +6,7 @@
 //   node --experimental-strip-types scripts/test-infra.mts
 
 import assert from 'node:assert/strict'
-import { serviceDate, serviceSeconds, serviceMinutes, serviceDayType, serviceDatePlus, isWithinPlanWindow } from '../src/lib/serviceTime.ts'
+import { serviceDate, serviceSeconds, serviceMinutes, serviceDatePlus, isWithinPlanWindow } from '../src/lib/serviceTime.ts'
 import { cached, clearCache } from '../src/lib/cache.ts'
 
 let checks = 0
@@ -47,13 +47,6 @@ const ok = (cond: unknown, msg: string) => { assert.ok(cond, msg); checks++ }
   ok(serviceDate(at) === '2026-07-16', 'local midnight belongs to the new date')
   ok(serviceSeconds(at) === 0, 'local midnight is 0 seconds, not 86400')
 }
-
-// ── day type follows the Barcelona weekday ──────────────────────────────
-// 2026-07-04 is a Saturday. At 22:30 UTC on Friday the 3rd it is already
-// Saturday in Barcelona, so the day type must flip before the server's does.
-ok(serviceDayType(new Date('2026-07-03T22:30:00Z')) === 'weekend', 'late Friday UTC is already the weekend locally')
-ok(serviceDayType(new Date('2026-07-03T12:00:00Z')) === 'weekday', 'Friday midday is a weekday')
-ok(serviceDayType(new Date('2026-07-05T22:30:00Z')) === 'weekday', 'late Sunday UTC is already Monday locally')
 
 // ── date arithmetic stays on local calendar days ────────────────────────
 ok(serviceDatePlus(0, new Date('2026-07-15T12:00:00Z')) === '2026-07-15', '+0 is today')

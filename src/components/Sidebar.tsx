@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import type { Train, Stop, Journey } from '@/types'
-import { LINE_COLORS, STATION_CODES } from '@/lib/constants'
+import { LINE_COLORS } from '@/lib/constants'
 import { TrainCard } from './TrainCard'
 import { TripPlanner } from './TripPlanner'
 import { isPlannerLink } from '@/lib/urlState'
@@ -26,10 +26,12 @@ interface SidebarProps {
 }
 
 const LINE_GROUPS: { key: string; labelKey: TransKey; prefix: RegExp }[] = [
-  { key: 'L',     labelKey: 'groupUrban',    prefix: /^L/ },
-  { key: 'S',     labelKey: 'groupValles',   prefix: /^S/ },
-  { key: 'R',     labelKey: 'groupRegional', prefix: /^R/ },
-  { key: 'Other', labelKey: 'groupOther',    prefix: /^(?!L|S|R)/ },
+  { key: 'L',          labelKey: 'groupUrban',     prefix: /^L\d/ },
+  { key: 'S',          labelKey: 'groupValles',    prefix: /^S\d/ },
+  { key: 'R-fgc',      labelKey: 'groupRegional',  prefix: /^R(5|6|50|53|60|63)$/ },
+  { key: 'R-rodalies', labelKey: 'groupRodalies',  prefix: /^R([1-478]|2[NS]|2Nord|2Sud)$/ },
+  { key: 'R-regional', labelKey: 'groupRegionals', prefix: /^(R1[1-7]|R[LGT]\d+)$/ },
+  { key: 'Other',      labelKey: 'groupOther',     prefix: /^(?!L|S|R)/ },
 ]
 
 export function Sidebar({ trains, stops, lines, lineColors, activeLines, selectedTrain, selectedStop, onToggleLine, onSelectTrain, onSelectStop, selectedJourney, onSelectJourney }: SidebarProps) {
@@ -38,8 +40,6 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [filterOpen, setFilterOpen]         = useState(true)
   const [stationQuery, setStationQuery]     = useState('')
-  const [showDropdown, setShowDropdown]     = useState(false)
-  const dropdownRef                         = useRef<HTMLDivElement>(null)
 
   // Open the Plan tab on load when arriving via a shared planner link. Done in
   // an effect (not the initial state) to avoid an SSR/hydration mismatch.
@@ -47,57 +47,32 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
     if (isPlannerLink()) setActiveTab('plan')
   }, [])
 
-  // Sync station query label when parent's selectedStop changes (e.g. map click)
-  useEffect(() => {
-    if (selectedStop) {
-      setStationQuery(selectedStop.name)
-      setActiveTab('stations')
-    }
-  }, [selectedStop?.stopId]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setShowDropdown(false)
+  const displayStops = useMemo(() => {
+    const uniqueMap = new Map<string, Stop>()
+    for (const s of stops) {
+      if (!uniqueMap.has(s.name)) {
+        uniqueMap.set(s.name, s)
       }
     }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const filteredStops = useMemo(() =>
-    stationQuery
-      ? Array.from(
-          new Map(
-            stops
-              .filter(s => s.name.toLowerCase().includes(stationQuery.toLowerCase()))
-              .map(s => [s.name, s]),
-          ).values(),
-        ).slice(0, 10)
-      : [],
-    [stops, stationQuery],
-  )
-
-  // Trains report stops by their canonical name (resolved via STATION_CODES),
-  // which differs from the stop's raw API name (e.g. "Barcelona - Plaça
-  // Catalunya" vs "Pl. Catalunya"). Resolve the selected stop the same way the
-  // map popup does so the two panels agree.
-  const selectedStationName = useMemo(() => {
-    if (!selectedStop) return null
-    const code = selectedStop.stopId.replace(/\d+$/, '')
-    return STATION_CODES[code] ?? selectedStop.name
-  }, [selectedStop])
-
-  const passingTrains = useMemo(() =>
-    selectedStationName
-      ? trains.filter(t =>
-          t.currentStop === selectedStationName ||
-          t.upcomingStops.includes(selectedStationName)
-        )
-      : [],
-    [trains, selectedStationName],
-  )
+    const all = Array.from(uniqueMap.values())
+    if (!stationQuery.trim()) {
+      return all.sort((a, b) => a.name.localeCompare(b.name))
+    }
+    const q = stationQuery.toLowerCase().trim()
+    return all
+      .filter(s =>
+        s.name.toLowerCase().includes(q) ||
+        s.stopId.toLowerCase().includes(q) ||
+        (s.lines && s.lines.some(l => l.toLowerCase().includes(q)))
+      )
+      .sort((a, b) => {
+        const aStarts = a.name.toLowerCase().startsWith(q)
+        const bStarts = b.name.toLowerCase().startsWith(q)
+        if (aStarts && !bStarts) return -1
+        if (!aStarts && bStarts) return 1
+        return a.name.localeCompare(b.name)
+      })
+  }, [stops, stationQuery])
 
   const lineGroups = useMemo(() =>
     LINE_GROUPS.map(g => ({
@@ -106,12 +81,6 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
     })).filter(g => g.members.length > 0),
     [lines],
   )
-
-  function selectStop(stop: Stop) {
-    setStationQuery(stop.name)
-    setShowDropdown(false)
-    onSelectStop(stop)
-  }
 
   function toggleGroup(key: string) {
     setExpandedGroups(prev => {
@@ -218,78 +187,135 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
       {/* ── Stations tab ── */}
       {activeTab === 'stations' && (
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <div ref={dropdownRef} style={{ padding: 16, borderBottom: '1px solid var(--border)', flexShrink: 0, position: 'relative' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10 }}>
+          {/* Station search bar */}
+          <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>
               {t('searchStation')}
             </div>
-            <input
-              type="text"
-              value={stationQuery}
-              onChange={e => { setStationQuery(e.target.value); setShowDropdown(true) }}
-              onKeyDown={e => { if (e.key === 'Enter' && filteredStops.length > 0) selectStop(filteredStops[0]) }}
-              onFocus={() => setShowDropdown(true)}
-              placeholder={t('searchStationPlaceholder')}
-              style={{ width: '100%', padding: '10px 12px', background: 'var(--bg3)', border: '1px solid var(--border2)', borderRadius: 8, color: 'var(--text)', fontFamily: 'inherit', fontSize: 13, outline: 'none' }}
-            />
-            {showDropdown && filteredStops.length > 0 && (
-              <div style={{ position: 'absolute', left: 16, right: 16, top: '100%', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 8, marginTop: 4, maxHeight: 200, overflowY: 'auto', zIndex: 30, boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
-                {filteredStops.map(s => (
-                  <div key={s.stopId} onClick={() => selectStop(s)} style={{ padding: '10px 12px', cursor: 'pointer', fontSize: 13 }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg3)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    {s.name}
-                    {s.wheelchairBoarding && <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--accent)' }}>♿</span>}
-                  </div>
-                ))}
-              </div>
-            )}
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                value={stationQuery}
+                onChange={e => setStationQuery(e.target.value)}
+                placeholder={t('searchStationPlaceholder')}
+                style={{
+                  width: '100%',
+                  padding: '9px 30px 9px 12px',
+                  background: 'var(--bg3)',
+                  border: '1px solid var(--border2)',
+                  borderRadius: 8,
+                  color: 'var(--text)',
+                  fontFamily: 'inherit',
+                  fontSize: 13,
+                  outline: 'none',
+                }}
+              />
+              {stationQuery && (
+                <button
+                  onClick={() => setStationQuery('')}
+                  style={{
+                    position: 'absolute',
+                    right: 8,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--muted)',
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    padding: 4,
+                    lineHeight: 1,
+                  }}
+                  title="Clear"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
 
-          <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-            {selectedStop ? (
-              <>
-                <h3 style={{ fontFamily: 'var(--font-space-grotesk)', fontSize: 15, marginBottom: 4, color: 'var(--accent)' }}>
-                  {selectedStop.name}
-                </h3>
-                <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12 }}>
-                  {t('passingNowSoon')}
-                </p>
-                {passingTrains.length > 0 ? passingTrains.map(train => {
-                  const color = lineColors[train.line] || LINE_COLORS[train.line] || '#7a82a0'
-                  const isHere = train.currentStop === selectedStationName
-                  const stopsAway = isHere ? 0 : train.upcomingStops.indexOf(selectedStationName!) + 1
-                  return (
-                    <div
-                      key={train.id}
-                      onClick={() => onSelectTrain(train)}
-                      style={{ border: `1px solid ${isHere ? color : 'var(--border)'}`, padding: 10, borderRadius: 8, marginBottom: 6, background: isHere ? `${color}12` : 'rgba(0,0,0,0.1)', cursor: 'pointer' }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                        <b style={{ color, fontSize: 13 }}>{train.line}</b>
-                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                          {train.delayMinutes > 0 && <span style={{ color: 'var(--red)', fontWeight: 600, fontSize: 11 }}>+{train.delayMinutes}m</span>}
-                          {isHere
-                            ? <span style={{ background: color, color: '#fff', fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4 }}>{t('hereNow')}</span>
-                            : <span style={{ color: 'var(--muted)', fontSize: 10 }}>{t('stopsAway', stopsAway)}</span>
-                          }
-                        </div>
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                        {t('towards')} <b style={{ color: 'var(--text)' }}>{train.destination}</b> · {Math.round(train.occupancyPercent)}% {t('occupancyLabel')}
+          {/* Stations directory list */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px' }}>
+            {displayStops.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 30, color: 'var(--muted)', fontSize: 13 }}>
+                {t('noStationFound')}
+              </div>
+            ) : (
+              displayStops.map(s => {
+                const isSelected = selectedStop?.stopId === s.stopId || selectedStop?.name === s.name
+                const isRenfe = s.operator === 'renfe' || /^\d+$/.test(s.stopId)
+                return (
+                  <div
+                    key={s.stopId}
+                    onClick={() => onSelectStop(s)}
+                    style={{
+                      padding: '10px 12px',
+                      marginBottom: 6,
+                      borderRadius: 8,
+                      cursor: 'pointer',
+                      background: isSelected ? 'var(--accent)18' : 'var(--bg3)',
+                      border: `1px solid ${isSelected ? 'var(--accent)' : 'transparent'}`,
+                      transition: 'background 0.15s, border-color 0.15s',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
+                      <span style={{
+                        fontFamily: 'var(--font-space-grotesk)',
+                        fontWeight: isSelected ? 700 : 600,
+                        fontSize: 13,
+                        color: isSelected ? 'var(--accent)' : 'var(--text)',
+                      }}>
+                        {s.name}
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                        {s.wheelchairBoarding && (
+                          <span style={{ fontSize: 11, color: 'var(--accent)' }} title={t('accessible')}>♿</span>
+                        )}
+                        <span style={{
+                          fontSize: 9,
+                          fontWeight: 700,
+                          padding: '2px 5px',
+                          borderRadius: 4,
+                          background: isRenfe ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255, 140, 0, 0.15)',
+                          color: isRenfe ? '#ef4444' : '#ff8c00',
+                          letterSpacing: '0.4px',
+                        }}>
+                          {isRenfe ? 'Rodalies' : 'FGC'}
+                        </span>
                       </div>
                     </div>
-                  )
-                }) : (
-                  <p style={{ color: 'var(--muted)', fontSize: 12, marginTop: 8 }}>
-                    {t('noTrainHere')}
-                  </p>
-                )}
-              </>
-            ) : (
-              <p style={{ color: 'var(--muted)', textAlign: 'center', padding: 20, fontSize: 13 }}>
-                {t('searchToSeeTrains')}
-              </p>
+
+                    {s.lines && s.lines.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                        {s.lines.slice(0, 8).map(l => {
+                          const c = lineColors[l] || LINE_COLORS[l] || '#7a82a0'
+                          return (
+                            <span
+                              key={l}
+                              style={{
+                                fontSize: 9,
+                                fontWeight: 700,
+                                padding: '1px 5px',
+                                borderRadius: 3,
+                                background: `${c}20`,
+                                color: c,
+                                fontFamily: 'var(--font-space-grotesk)',
+                              }}
+                            >
+                              {l}
+                            </span>
+                          )
+                        })}
+                        {s.lines.length > 8 && (
+                          <span style={{ fontSize: 9, color: 'var(--muted)', alignSelf: 'center' }}>
+                            +{s.lines.length - 8}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })
             )}
           </div>
         </div>

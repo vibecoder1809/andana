@@ -64,16 +64,75 @@ export function LanguagePicker({ compact = false }: { compact?: boolean }) {
   )
 }
 
+import type { NetworkMode } from '@/types'
+
+export function NetworkSwitch({
+  mode,
+  onChange,
+  compact = false,
+}: {
+  mode: NetworkMode
+  onChange: (m: NetworkMode) => void
+  compact?: boolean
+}) {
+  const { t } = useI18n()
+  const options: { id: NetworkMode; label: string }[] = [
+    { id: 'fgc', label: t('networkFgc') },
+    { id: 'renfe', label: t('networkRenfe') },
+    { id: 'both', label: t('networkBoth') },
+  ]
+
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        background: 'var(--bg3)',
+        borderRadius: compact ? 16 : 8,
+        padding: 2,
+        border: '1px solid var(--border2)',
+        gap: 2,
+      }}
+    >
+      {options.map(opt => {
+        const active = mode === opt.id
+        return (
+          <button
+            key={opt.id}
+            onClick={() => onChange(opt.id)}
+            style={{
+              background: active ? 'var(--accent)' : 'transparent',
+              color: active ? '#fff' : 'var(--muted)',
+              border: 'none',
+              borderRadius: compact ? 13 : 6,
+              padding: compact ? '4px 9px' : '5px 12px',
+              fontSize: compact ? 11 : 12,
+              fontWeight: active ? 700 : 500,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              transition: 'background 0.15s, color 0.15s',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {opt.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 interface HeaderProps {
   trainCount: number
   lineCount: number
   lastUpdate: Date | null
   refreshing: boolean
+  networkMode: NetworkMode
+  onNetworkChange: (m: NetworkMode) => void
   onThemeToggle: () => void
   onRefresh: () => void
 }
 
-export function Header({ trainCount, lineCount, lastUpdate, refreshing, onThemeToggle, onRefresh }: HeaderProps) {
+export function Header({ trainCount, lineCount, lastUpdate, refreshing, networkMode, onNetworkChange, onThemeToggle, onRefresh }: HeaderProps) {
   const { t } = useI18n()
   const relativeTime = useRelativeTime(lastUpdate)
 
@@ -100,6 +159,9 @@ export function Header({ trainCount, lineCount, lastUpdate, refreshing, onThemeT
         <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', display: 'inline-block', animation: 'pulse-dot 1.5s infinite' }} />
         {t('live')}
       </div>
+
+      {/* Network Switch: FGC | Rodalies | Ambas */}
+      <NetworkSwitch mode={networkMode} onChange={onNetworkChange} />
 
       {/* Stats */}
       <div style={{ marginLeft: 'auto', display: 'flex', gap: 20, alignItems: 'center' }}>

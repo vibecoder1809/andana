@@ -57,16 +57,33 @@ export function TrainCard({ train, selected, onClick, lineColors }: TrainCardPro
       {/* Left accent bar */}
       <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: color, borderRadius: '3px 0 0 3px' }} />
 
-      {/* Top row: line badge + delay or on-time */}
+      {/* Top row: line badge + train number + accessibility + status/delay */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-        <span style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 12, fontWeight: 700, color, letterSpacing: '0.3px' }}>
-          {train.line}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 12, fontWeight: 700, color, letterSpacing: '0.3px' }}>
+            {train.line}
+          </span>
+          {train.trainNumber && (
+            <span style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-space-grotesk), monospace' }}>
+              #{train.trainNumber}
+            </span>
+          )}
+          {train.accessible && (
+            <span style={{ fontSize: 11, color: 'var(--accent)' }} title={t('accessibleTrain')}>♿</span>
+          )}
+        </div>
+
         <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 8,
-          background: delayed ? 'rgba(239,68,68,0.12)' : oStyle.bg,
-          color:      delayed ? '#f87171' : oStyle.color,
+          background: delayed ? 'rgba(239,68,68,0.12)' : train.operationalStatus ? 'rgba(59,130,246,0.12)' : oStyle.bg,
+          color:      delayed ? '#f87171' : train.operationalStatus ? 'var(--accent)' : oStyle.color,
         }}>
-          {delayed ? `+${train.delayMinutes} min` : occ > 0 ? `${occ}% ${t('occupied')}` : t('onTime')}
+          {delayed
+            ? `+${train.delayMinutes} min`
+            : train.operationalStatus
+              ? t(train.operationalStatus)
+              : occ > 0
+                ? `${occ}% ${t('occupied')}`
+                : t('onTime')}
         </span>
       </div>
 
@@ -75,18 +92,29 @@ export function TrainCard({ train, selected, onClick, lineColors }: TrainCardPro
         → {train.destination}
       </div>
 
+      {/* Previous stop (for Renfe) */}
+      {train.prevStop && (
+        <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2, display: 'flex', justifyContent: 'space-between' }}>
+          <span>{t('prevStopLabel')}: <span style={{ color: 'var(--text)' }}>{train.prevStop}</span></span>
+          {train.prevTrack && <span style={{ color: 'var(--muted)' }}>{t('trackLabel')}: {train.prevTrack}</span>}
+        </div>
+      )}
+
       {/* Current stop if known */}
-      {train.currentStop && (
+      {train.currentStop && !train.prevStop && (
         <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
           {t('nowAt')} <span style={{ color: 'var(--text)' }}>{train.currentStop}</span>
         </div>
       )}
 
-      {/* Next stop + ETA */}
-      {nextStop && (
+      {/* Next stop + track + ETA */}
+      {(train.nextStop || nextStop) && (
         <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>{t('nextStop')}: <span style={{ color: 'var(--text)' }}>{nextStop}</span></span>
-          {eta && <span style={{ color: color, fontWeight: 600 }}>{eta}</span>}
+          <span>{t('nextStop')}: <span style={{ color: 'var(--text)' }}>{train.nextStop || nextStop}</span></span>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            {train.nextTrack && <span style={{ color: 'var(--muted)', fontSize: 9 }}>{t('trackLabel')}: {train.nextTrack}</span>}
+            {eta && <span style={{ color: color, fontWeight: 600 }}>{eta}</span>}
+          </div>
         </div>
       )}
 

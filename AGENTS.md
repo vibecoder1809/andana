@@ -6,6 +6,11 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Andana
 
+> [!IMPORTANT]
+> **Project Memory & Workflow Log:**
+> Every AI agent working on this repository **MUST read [project_memory.md](project_memory.md) at the start of each session** to understand active workflows and conventions.
+> Furthermore, **any changes made to the app MUST be recorded in [`project_memory.md`](project_memory.md)** under the *Change History & Session Log* section before concluding.
+
 Real-time map and trip planner for **FGC** (Ferrocarrils de la Generalitat de Catalunya) trains. A single-page Next.js app that shows live train positions on a MapLibre map, station info, service alerts, and a journey planner — all sourced from FGC's public open-data portal. UI is trilingual (Catalan / Spanish / English), Catalan being the source language.
 
 Formerly named "Geotren" — renamed because that's FGC's own product name for their official live map. Andana is positioned as the companion app the official one isn't: same live positions, plus a trip planner, departures board, and per-car occupancy. Legacy `geotren-*` localStorage keys are still read as a migration fallback.
@@ -18,7 +23,7 @@ Formerly named "Geotren" — renamed because that's FGC's own product name for t
 - **Tailwind v4** (`@tailwindcss/postcss`) is installed, but components are styled almost entirely with **inline `style={{}}` objects** and CSS variables (`var(--bg)`, `var(--accent)`, `var(--muted)`, etc.) defined in `globals.css` and switched by `data-theme`. Match that convention — don't introduce Tailwind class soup.
 - **gtfs-realtime-bindings** for decoding GTFS-RT protobuf feeds.
 
-Scripts: `npm run dev` (Turbopack dev), `npm run build`, `npm start`, `npm run lint` (eslint). There is **no test runner**, but `npm test` runs standalone Node check scripts under `scripts/` (currently covering the reliability bucket math and its i18n coverage). Otherwise verify changes by building (`npx tsc --noEmit` / `next build`) and running the app.
+Scripts: `npm run dev` (Turbopack dev), `npm run build`, `npm start`, `npm run lint` (eslint). There is **no test runner**, but `npm test` runs standalone Node check scripts under `scripts/` (covering service clock, cache, and date math). Otherwise verify changes by building (`npx tsc --noEmit` / `next build`) and running the app.
 
 ## Data source: the FGC Open Data portal
 
@@ -101,21 +106,6 @@ Connection Scan Algorithm over the GTFS timetable (parsed from `gtfs_zip`). A pe
 ### Station departures board ([DeparturesBoard.tsx](src/components/DeparturesBoard.tsx))
 `/api/departures?station=<parentCode>` calls `getDepartures()` (in `planner.ts`, reusing the same parsed GTFS timetable as the trip planner) for the next scheduled departures, enriched server-side with each line's current median live delay from `fetchLineDelays()`. The client re-fetches every 60s and ticks a per-second countdown locally between fetches; effective time = scheduled `depTime` + live delay.
 
-### Reliability history ([reliability.ts](src/lib/reliability.ts) + [ReliabilityNote.tsx](src/components/ReliabilityNote.tsx))
-"L6 usually runs +4 min late around 08:00." A GitHub Actions cron
-(`scripts/capture-delays.mjs`, every 10 min) snapshots each line's median live
-delay into Supabase; the `delay_stats` view aggregates median/p90 per line ×
-weekday|weekend × 30-min local bucket over a rolling 8 weeks;
-`/api/reliability?lines=L6,S1` reads it **server-side only** (the service-role
-key must never reach the browser).
-
-Client-side, `useReliability(lines)` is a `useSyncExternalStore` over a
-module-level per-line cache, so mounting many cards costs one batched request.
-`ReliabilityNote` / `ReliabilityCard` **render nothing** when history is absent
-or the bucket has under `MIN_SAMPLES` observations — so surfaces can be added
-freely and simply light up as data accrues. The rule when both exist: **live
-delay wins, history fills the gaps**; never show both for the same train.
-Full details and how to check it: [docs/reliability.md](docs/reliability.md).
 ### Saved / recent planner routes ([savedRoutes.ts](src/lib/savedRoutes.ts))
 `useSavedRoutes()` persists favorite and recent origin→destination pairs to `localStorage` (`andana-fav-routes` / `andana-recent-routes`, with a read fallback to the legacy `geotren-*` keys), hydrated post-mount to avoid an SSR mismatch (same pattern as the i18n provider). Because the hook owns its own state, `TripPlanner` gets favorites/recents "for free" on both roots — this is the one case where a feature **doesn't** need separate wiring in `App.tsx`/`MobileLayout.tsx`.
 
@@ -130,3 +120,4 @@ All user-facing strings go in the `DICT` object as `{ ca, es, en }` (Catalan is 
 - **Caching is deliberate:** pick `revalidate` by how often the upstream data really changes; realtime → `0`, timetable/static → `3600`/`86400`.
 - **Lint note:** the repo has pre-existing `react-hooks/set-state-in-effect` and `exhaustive-deps` lint findings in effects; these don't block `next build`. Don't churn unrelated files to "fix" them.
 - **Mobile parity:** when adding a user-facing feature, wire it into both `App.tsx` and `MobileLayout.tsx`.
+- **Data model changes:** API-facing entity types live in `src/types/index.ts`; planner types (`PlannerStation`, `JourneyLeg`, `Journey`) are defined in `src/lib/planner.ts` and re-exported. When changing a model, trace its data producer, API payload, and consumers; verify both app roots when the UI is affected.

@@ -207,6 +207,16 @@ export function useInterpolatedTrains(
     for (const id of stateMap.current.keys()) {
       if (!apiIds.has(id)) stateMap.current.delete(id)
     }
+
+    // Immediately reflect the updated/filtered train list in React state so
+    // trains removed by network mode or line filters disappear without delay.
+    setDisplayed(
+      apiTrains.map(t => {
+        const st = stateMap.current.get(t.id)
+        if (!st) return t
+        return { ...t, lat: st.lat, lng: st.lng }
+      })
+    )
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiTrains, routes, stops])
 

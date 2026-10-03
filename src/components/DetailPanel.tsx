@@ -1,15 +1,27 @@
 'use client'
-
+ 
+import { useState, useEffect } from 'react'
 import type { Train } from '@/types'
 import { LINE_COLORS, WAGON_LABELS } from '@/lib/constants'
 import { useI18n } from '@/lib/i18n'
-import { ReliabilityCard } from './ReliabilityNote'
-import { minutesOfDay } from '@/lib/reliability'
 
 function occColor(pct: number) {
   if (pct > 70) return 'var(--red)'
   if (pct > 40) return 'var(--yellow)'
   return 'var(--green)'
+}
+
+function formatEta(etaEpoch?: number, nowMs: number = Date.now()): string {
+  if (!etaEpoch || !Number.isFinite(etaEpoch)) return '—'
+  const diffSec = Math.round((etaEpoch * 1000 - nowMs) / 1000)
+  const d = new Date(etaEpoch * 1000)
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  const timeStr = `${hh}:${mm}`
+  if (diffSec <= 0) return `0s (${timeStr})`
+  if (diffSec < 60) return `${diffSec}s (${timeStr})`
+  const diffMin = Math.floor(diffSec / 60)
+  return `${diffMin} min (${timeStr})`
 }
 
 interface DetailPanelProps {
@@ -21,10 +33,18 @@ interface DetailPanelProps {
   mobile?: boolean
 }
 
-
 export function DetailPanel({ train, lineColors, onClose, mobile = false }: DetailPanelProps) {
   const { t } = useI18n()
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    if (!train) return
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [train])
+
   const open = train !== null
+  const isRenfe = train?.operator === 'renfe'
 
   const inner = train && (
         <>
@@ -37,40 +57,128 @@ export function DetailPanel({ train, lineColors, onClose, mobile = false }: Deta
             </button>
           )}
 
-          <div style={{ fontSize: 11, fontWeight: 700, color: lineColors[train.line] || LINE_COLORS[train.line] || '#7a82a0', marginBottom: 4, fontFamily: 'var(--font-space-grotesk)' }}>
-            {t('activeService')}
-          </div>
-          <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 24, marginBottom: 2 }}>
-            {t('line')} {train.line}
-          </h2>
-          <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 14 }}>
-            {t('unit')} <b>#{train.id.split('|')[1]?.slice(-6) ?? train.id}</b>
-          </p>
+          {isRenfe ? (
+            <>
+              {/* Renfe header */}
+              <div style={{ fontSize: 11, fontWeight: 700, color: lineColors[train.line] || LINE_COLORS[train.line] || '#FAB400', marginBottom: 4, fontFamily: 'var(--font-space-grotesk)' }}>
+                {t('cercanias')} {train.trainNumber ? `· #${train.trainNumber}` : ''}
+              </div>
+              <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 24, marginBottom: 4, color: lineColors[train.line] || LINE_COLORS[train.line] || 'var(--text)' }}>
+                {train.line}
+              </h2>
 
-          {/* Metrics grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
-            {[
-              { label: t('finalDest'),   value: train.destination, size: 13 },
-              { label: t('punctuality'), value: train.delayMinutes > 0 ? `+${train.delayMinutes} min` : t('onTime'), color: train.delayMinutes > 0 ? 'var(--red)' : 'var(--green)', size: 18 },
-              { label: t('avgOccupancy'), value: `${Math.round(train.occupancyPercent)}%`, size: 18 },
-            ].map(m => (
-              <div key={m.label} style={{ background: 'var(--bg3)', borderRadius: 10, padding: 10 }}>
-                <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 2 }}>{m.label}</div>
-                <div style={{ fontFamily: 'var(--font-space-grotesk)', fontSize: m.size, fontWeight: 600, color: m.color || 'var(--text)', paddingTop: m.size === 13 ? 4 : 0 }}>
-                  {m.value}
+              {/* Route banner */}
+              <div style={{ background: 'var(--bg3)', borderRadius: 10, padding: '10px 12px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{train.origin}</span>
+                <span style={{ color: 'var(--muted)', fontSize: 12 }}>➔</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{train.destination}</span>
+              </div>
+
+              {/* Status + Accessible badges */}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
+                {train.operationalStatus && (
+                  <span style={{
+                    background: train.operationalStatus === 'approaching' ? 'rgba(59,130,246,0.15)'
+                      : train.operationalStatus === 'stationed' ? 'rgba(34,197,94,0.15)'
+                      : 'var(--bg3)',
+                    color: train.operationalStatus === 'approaching' ? 'var(--accent)'
+                      : train.operationalStatus === 'stationed' ? 'var(--green)'
+                      : 'var(--text)',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: '4px 10px',
+                    borderRadius: 20,
+                    border: '1px solid currentColor',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                  }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', display: 'inline-block' }} />
+                    {t(train.operationalStatus)}
+                  </span>
+                )}
+
+                <span style={{
+                  background: train.accessible ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
+                  color: train.accessible ? 'var(--green)' : 'var(--muted)',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: '4px 10px',
+                  borderRadius: 20,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                }}>
+                  ♿ {t(train.accessible ? 'accessibleTrain' : 'inaccessibleTrain')}
+                </span>
+              </div>
+
+              {/* Renfe Telemetry Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8, marginBottom: 14 }}>
+                <div style={{ background: 'var(--bg3)', borderRadius: 10, padding: '10px 12px' }}>
+                  <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 2 }}>{t('prevStopLabel')}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontFamily: 'var(--font-space-grotesk)', fontSize: 13, fontWeight: 600 }}>{train.prevStop ?? '—'}</span>
+                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>({t('trackLabel')}: <b style={{ color: 'var(--text)' }}>{train.prevTrack ?? '—'}</b>)</span>
+                  </div>
+                </div>
+
+                <div style={{ background: 'var(--bg3)', borderRadius: 10, padding: '10px 12px' }}>
+                  <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 2 }}>{t('nextStopLabel')}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontFamily: 'var(--font-space-grotesk)', fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>{train.nextStop ?? '—'}</span>
+                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>({t('trackLabel')}: <b style={{ color: 'var(--text)' }}>{train.nextTrack ?? '—'}</b>)</span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div style={{ background: 'var(--bg3)', borderRadius: 10, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 2 }}>{t('expectedArrival')}</div>
+                    <div style={{ fontFamily: 'var(--font-space-grotesk)', fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+                      {formatEta(train.nextStopEta, now)}
+                    </div>
+                  </div>
+
+                  <div style={{ background: 'var(--bg3)', borderRadius: 10, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 2 }}>{t('variation')}</div>
+                    <div style={{ fontFamily: 'var(--font-space-grotesk)', fontSize: 14, fontWeight: 700, color: train.delayMinutes > 0 ? 'var(--red)' : 'var(--green)' }}>
+                      {train.delayMinutes > 0 ? `+${train.delayMinutes} min` : t('onTime')}
+                    </div>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
+            </>
+          ) : (
+            <>
+              {/* FGC service header */}
+              <div style={{ fontSize: 11, fontWeight: 700, color: lineColors[train.line] || LINE_COLORS[train.line] || '#7a82a0', marginBottom: 4, fontFamily: 'var(--font-space-grotesk)' }}>
+                {t('activeService')}
+              </div>
+              <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 24, marginBottom: 2 }}>
+                {t('line')} {train.line}
+              </h2>
+              <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 14 }}>
+                {t('unit')} <b>#{train.id.split('|')[1]?.slice(-6) ?? train.id}</b>
+              </p>
 
+              {/* Metrics grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+                {[
+                  { label: t('finalDest'),   value: train.destination, size: 13 },
+                  { label: t('punctuality'), value: train.delayMinutes > 0 ? `+${train.delayMinutes} min` : t('onTime'), color: train.delayMinutes > 0 ? 'var(--red)' : 'var(--green)', size: 18 },
+                  { label: t('avgOccupancy'), value: `${Math.round(train.occupancyPercent)}%`, size: 18 },
+                ].map(m => (
+                  <div key={m.label} style={{ background: 'var(--bg3)', borderRadius: 10, padding: 10 }}>
+                    <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 2 }}>{m.label}</div>
+                    <div style={{ fontFamily: 'var(--font-space-grotesk)', fontSize: m.size, fontWeight: 600, color: m.color || 'var(--text)', paddingTop: m.size === 13 ? 4 : 0 }}>
+                      {m.value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
-          {/* How this line usually performs in the current half-hour slot.
-              Renders nothing until the capture history covers the slot. */}
-          <ReliabilityCard
-            line={train.line}
-            minuteOfDay={minutesOfDay(new Date())}
-            lineColors={lineColors}
-          />
 
           {/* Per-wagon occupancy — only rendered for real telemetry (fetchTrains
               suppresses aggregate-copied breakdowns), in physical composition

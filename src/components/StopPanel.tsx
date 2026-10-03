@@ -65,7 +65,9 @@ function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColo
   // Live trains at / heading toward this station, nearest first. Train feeds
   // reference stations by display name, so resolve the parent-station name
   // from the stop code.
-  const stationName = STATION_CODES[stop.stopId.replace(/\d+$/, '')] ?? stop.name
+  const isRenfe = stop.operator === 'renfe' || /^\d+$/.test(stop.stopId)
+  const stationCode = isRenfe ? stop.stopId : stop.stopId.replace(/\d+$/, '')
+  const stationName = isRenfe ? stop.name : (STATION_CODES[stationCode] ?? stop.name)
   const passing = useMemo(() =>
     (trains ?? [])
       .map(tr => {
@@ -90,23 +92,35 @@ function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColo
       )}
 
       <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 4 }}>
-        {t('stationFgc')}
+        {isRenfe ? t('stationRenfe') : t('stationFgc')}
       </div>
       <h2 style={{ fontFamily: 'var(--font-space-grotesk)', fontSize: 20, marginBottom: 2 }}>
         {stop.name}
       </h2>
-      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 16, display: 'flex', gap: 8 }}>
+      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 16, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <span>{stop.stopId}</span>
         {stop.wheelchairBoarding && <span style={{ color: 'var(--accent)' }}>♿ {t('accessible')}</span>}
+        {stop.lines && stop.lines.length > 0 && (
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            {stop.lines.map(l => {
+              const c = lineColors[l] || LINE_COLORS[l] || '#7a82a0'
+              return (
+                <span key={l} style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: `${c}25`, color: c, fontFamily: 'var(--font-space-grotesk)' }}>
+                  {l}
+                </span>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Trains passing now/soon — tap to jump to the train's detail */}
-      {trains && (
+      {trains && passing.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8 }}>
             {t('passingNowSoon')}
           </div>
-          {passing.length > 0 ? passing.map(({ train, here, dist }) => {
+          {passing.map(({ train, here, dist }) => {
             const color = lineColors[train.line] || LINE_COLORS[train.line] || '#7a82a0'
             return (
               <div
@@ -122,15 +136,12 @@ function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColo
                   : <span style={{ color: 'var(--muted)', fontSize: 10 }}>{t('stopsAway', dist)}</span>}
               </div>
             )
-          }) : (
-            <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('noTrainHere')}</div>
-          )}
+          })}
         </div>
       )}
 
-      {/* Live next-departures board (timetable + current line delays). The parent
-          station code is the stop id without its trailing platform digits. */}
-      <DeparturesBoard stationCode={stop.stopId.replace(/\d+$/, '')} lineColors={lineColors} />
+      {/* Live next-departures board */}
+      <DeparturesBoard stationCode={stationCode} lineColors={lineColors} />
 
       {loading && (
         <div style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 0' }}>{t('loadingData')}</div>

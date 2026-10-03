@@ -54,18 +54,6 @@ export function serviceMinutes(at: Date = new Date()): number {
   return hour * 60 + minute
 }
 
-/**
- * Day type used by the reliability aggregation (weekend = Sat/Sun **in
- * Barcelona**, which can differ from the server's own weekday near midnight).
- */
-export function serviceDayType(at: Date = new Date()): 'weekday' | 'weekend' {
-  const { year, month, day } = zoned(at)
-  // Reconstruct the local calendar date as UTC so getUTCDay() reads the
-  // Barcelona weekday regardless of where this runs.
-  const dow = new Date(Date.UTC(year, month - 1, day)).getUTCDay()
-  return dow === 0 || dow === 6 ? 'weekend' : 'weekday'
-}
-
 /** `YYYY-MM-DD` for `offset` days from today, in Europe/Madrid. */
 export function serviceDatePlus(offset: number, at: Date = new Date()): string {
   const { year, month, day } = zoned(at)

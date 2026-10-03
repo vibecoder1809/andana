@@ -7,7 +7,6 @@ import { nearestByLatLng } from '@/lib/geometry'
 import { useGeolocation } from '@/lib/geolocation'
 import { readParam, updateParams } from '@/lib/urlState'
 import { useI18n, type TransKey } from '@/lib/i18n'
-import { ReliabilityNote } from './ReliabilityNote'
 import { useSavedRoutes, type SavedRoute } from '@/lib/savedRoutes'
 
 interface TripPlannerProps {
@@ -278,16 +277,6 @@ function JourneyCard({ journey, lineColors, best, live, active, date, onClick }:
           ⚠ {t('delayLive', journey.legs[0].line, journey.liveDelayMin!)}
         </div>
       )}
-
-      {/* Historical punctuality for the first leg. Suppressed when a live delay
-          is already shown (that is the better signal for today), so in practice
-          this speaks up for future-date plans, which have no live figure. */}
-      <ReliabilityNote
-        line={journey.legs[0].line}
-        minuteOfDay={Math.floor(journey.depTime / 60)}
-        date={date ? new Date(`${date}T00:00:00`) : undefined}
-        hidden={!!delayed}
-      />
 
       {/* Step-free was requested but this journey still changes at a station
           without step-free access. `stepFree` is only present when requested. */}

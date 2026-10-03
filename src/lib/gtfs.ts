@@ -3,6 +3,7 @@ import { fgcRecords, fgcAllRecords, fgcFeed } from './fgc'
 import { fetchTrains } from './trains'
 import { cached } from './cache'
 import { finiteNum } from './validate'
+import { STATION_CODES } from './constants'
 
 type RawStop = {
   stop_id: string
@@ -223,20 +224,108 @@ export async function fetchStopArrivals(
 export async function fetchAlerts(): Promise<Alert[]> {
   const feed = await fgcFeed('alerts-gtfs_realtime')
 
-  return feed.entity
-    .filter(e => e.alert)
-    .map(e => {
-      const a = e.alert!
-      return {
+  // FGC publishes an individual alert entity per station for the same line notice
+  // (e.g. 20 separate entities for the same bus connection bulletin).
+  // Group by normalized header so the user gets clean, deduplicated notices.
+  const groupMap = new Map<string, {
+    id: string
+    header: string
+    description?: string
+    stops: Set<string>
+    routes: Set<string>
+    start?: number
+    end?: number
+    cause?: number
+    effect?: number
+  }>()
+
+  const defaultAlertTime = feed.header?.timestamp != null ? Number(feed.header.timestamp) : Math.floor(Date.now() / 1000)
+
+  for (const e of feed.entity) {
+    if (!e.alert) continue
+    const a = e.alert
+    const rawHeader = pickText(a.headerText)
+    if (!rawHeader) continue
+
+    const header = rawHeader.replace(/\s+/g, ' ').trim()
+    const key = header.toLowerCase()
+
+    const rawStart = a.activePeriod?.[0]?.start
+    const entityStart = rawStart != null ? Number(rawStart) : defaultAlertTime
+    const rawEnd = a.activePeriod?.[0]?.end
+    const entityEnd = rawEnd != null ? Number(rawEnd) : undefined
+
+    if (!groupMap.has(key)) {
+      groupMap.set(key, {
         id: e.id,
-        header: pickText(a.headerText),
+        header,
         description: pickText(a.descriptionText),
-        routes: (a.informedEntity ?? [])
-          .map(ie => ie.routeId)
-          .filter((r): r is string => !!r),
+        stops: new Set(),
+        routes: new Set(),
+        start: entityStart,
+        end: entityEnd,
+        cause: a.cause as number | undefined,
+        effect: a.effect as number | undefined,
+      })
+    } else {
+      const g = groupMap.get(key)!
+      // Preserve earliest timestamp when the alert was first issued
+      if (entityStart && (!g.start || entityStart < g.start)) {
+        g.start = entityStart
       }
+      if (entityEnd && (!g.end || entityEnd > g.end)) {
+        g.end = entityEnd
+      }
+    }
+
+    const g = groupMap.get(key)!
+    for (const ie of a.informedEntity ?? []) {
+      if (ie.stopId) g.stops.add(ie.stopId)
+      if (ie.routeId) g.routes.add(ie.routeId)
+    }
+  }
+
+  const result: Alert[] = []
+
+  for (const g of groupMap.values()) {
+    const stopCodes = Array.from(g.stops)
+    const stopNames = stopCodes.map(code => {
+      const base = code.replace(/\d+$/, '')
+      return STATION_CODES[base] ?? STATION_CODES[code] ?? code
     })
-    .filter(a => a.header)
+
+    const routes = Array.from(g.routes)
+    let explanation: string | undefined = g.description
+
+    const lower = g.header.toLowerCase()
+    if (lower.includes('autobús') || lower.includes('autobus')) {
+      if (routes.length === 0) {
+        routes.push('R5', 'R6', 'S4', 'S8')
+      }
+      explanation = 'Servei substitutori per carretera: els trens enllacen amb autobús degut a treballs o incidències en el tram indicat.'
+    } else if (lower.includes('primers cotxes') || lower.includes('primer cotxe')) {
+      if (routes.length === 0) {
+        routes.push('R5', 'R6')
+      }
+      explanation = 'Embarcament exclusiu als primers 3 cotxes degut a la longitud reduïda de les andanes a les parades indicades.'
+    }
+
+    result.push({
+      id: g.id,
+      header: g.header,
+      description: g.description,
+      explanation,
+      routes,
+      stops: stopNames,
+      stopCodes,
+      start: g.start,
+      end: g.end,
+      operator: 'fgc',
+      url: 'https://www.fgc.cat/avisos/',
+    })
+  }
+
+  return result
 }
 
 // Air quality keyed by base stop code (no digit suffix), e.g. "PC", "SR"

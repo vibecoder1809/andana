@@ -105,7 +105,8 @@ export async function fgcFeed(dataset: string) {
   if (!pbRes.ok) throw new Error(`${dataset} .pb fetch ${pbRes.status}`)
   const buffer = new Uint8Array(await pbRes.arrayBuffer())
 
-  const { transit_realtime } = await import('gtfs-realtime-bindings')
+  const gtfsRt = await import('gtfs-realtime-bindings')
+  const transit_realtime = gtfsRt.transit_realtime ?? (gtfsRt as unknown as { default?: { transit_realtime?: typeof gtfsRt.transit_realtime } }).default?.transit_realtime ?? (gtfsRt as unknown as { default: typeof gtfsRt.transit_realtime }).default
   const message = transit_realtime.FeedMessage.decode(buffer)
   // int64 fields (e.g. stopTimeUpdate arrival/departure `time`) decode as
   // protobufjs Long objects, which break arithmetic (`time * 1000` → NaN).

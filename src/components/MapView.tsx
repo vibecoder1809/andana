@@ -6,7 +6,7 @@ import type { MapRef } from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import type { Train, Stop, Route, Theme } from '@/types'
 import type { JourneyPath } from '@/lib/journeyPath'
-import { LINE_COLORS } from '@/lib/constants'
+import { LINE_COLORS, getStationCode } from '@/lib/constants'
 
 const MAP_STYLES: Record<Theme, string> = {
   dark:  'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
@@ -111,7 +111,7 @@ export default function MapView({ trains, stops, routes, lineColors, selectedTra
       properties: {
         stopId: s.stopId,
         name: s.name,
-        code: s.stopId.replace(/\d+$/, ''),
+        code: s.code ?? getStationCode(s.stopId, s.name),
         wheelchair: s.wheelchairBoarding,
       },
       geometry: { type: 'Point' as const, coordinates: [s.lng, s.lat] },

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react'
 import dynamic from 'next/dynamic'
-import type { Train, Stop, Alert, Route, Theme, Journey } from '@/types'
+import type { Train, Stop, Alert, Route, Theme, Journey, NetworkMode } from '@/types'
 import { LINE_COLORS } from '@/lib/constants'
 import { buildJourneyPath } from '@/lib/journeyPath'
 import { Header } from './Header'
@@ -15,14 +15,17 @@ import { useInterpolatedTrains } from '@/lib/interpolate'
 import { I18nProvider, useI18n } from '@/lib/i18n'
 import { readParam, updateParams } from '@/lib/urlState'
 
+import { AlertModal } from './AlertModal'
+import { formatAlertDateTime } from '@/lib/alertTime'
+
 const MapView = dynamic(() => import('./MapView'), { ssr: false })
 
 const ROTATION_MS = 7_000
 const PREVIEW_COUNT = 5
 const EXPANDED_COUNT = 10
 
-function AlertBanner({ alerts }: { alerts: Alert[] }) {
-  const { t } = useI18n()
+function AlertBanner({ alerts, onSelectAlert }: { alerts: Alert[]; onSelectAlert: (a: Alert) => void }) {
+  const { t, lang } = useI18n()
   const preview = alerts.slice(0, PREVIEW_COUNT)
   const [idx, setIdx]           = useState(0)
   const [expanded, setExpanded] = useState(false)
@@ -47,10 +50,10 @@ function AlertBanner({ alerts }: { alerts: Alert[] }) {
   useLayoutEffect(() => { setIdx(0) }, [alerts])
 
   const visible = preview[idx]
+  const visibleTime = formatAlertDateTime(visible?.start, lang, t)
 
   return (
     <div
-      onClick={() => setExpanded(e => !e)}
       style={{
         gridColumn: '1 / -1',
         background: 'rgba(234,179,8,0.1)',
@@ -58,19 +61,57 @@ function AlertBanner({ alerts }: { alerts: Alert[] }) {
         color: 'var(--yellow)',
         fontSize: 12,
         fontWeight: 500,
-        cursor: 'pointer',
         userSelect: 'none',
       }}
     >
       {/* rotating single-line preview */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 8, padding: '6px 20px',
-        opacity: fade ? 1 : 0, transition: 'opacity 0.25s',
-      }}>
+      <div
+        onClick={() => setExpanded(e => !e)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '7px 20px',
+          opacity: fade ? 1 : 0, transition: 'opacity 0.25s', cursor: 'pointer',
+        }}
+      >
         <span style={{ background: 'var(--yellow)', color: '#000', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{t('alert')}</span>
-        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{visible?.header}</span>
+        <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{visible?.header}</span>
+        {visibleTime && (
+          <span style={{ fontSize: 10, opacity: 0.9, flexShrink: 0, background: 'rgba(234,179,8,0.18)', padding: '1px 6px', borderRadius: 4, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            🕒 {visibleTime.compact}
+          </span>
+        )}
+        {visible?.stops && visible.stops.length > 0 && (
+          <span style={{ fontSize: 10, opacity: 0.8, flexShrink: 0, background: 'rgba(234,179,8,0.15)', padding: '1px 6px', borderRadius: 4 }}>
+            {t('allStationsAffected', visible.stops.length)}
+          </span>
+        )}
+
+        <button
+          onClick={e => {
+            e.stopPropagation()
+            if (visible) onSelectAlert(visible)
+          }}
+          style={{
+            marginLeft: 'auto',
+            background: 'rgba(234,179,8,0.2)',
+            border: '1px solid rgba(234,179,8,0.35)',
+            color: 'var(--yellow)',
+            padding: '2px 8px',
+            borderRadius: 6,
+            fontSize: 10,
+            fontWeight: 700,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+          }}
+        >
+          {t('viewMoreInfo')}
+        </button>
+
         {preview.length > 1 && (
-          <span style={{ color: 'var(--muted)', fontSize: 10, flexShrink: 0 }}>
+          <span style={{ color: 'var(--muted)', fontSize: 10, flexShrink: 0, marginLeft: 4 }}>
             {idx + 1}/{preview.length} {expanded ? '▲' : '▼'}
           </span>
         )}
@@ -78,15 +119,71 @@ function AlertBanner({ alerts }: { alerts: Alert[] }) {
 
       {/* expanded list */}
       {expanded && (
-        <div style={{ borderTop: '1px solid rgba(234,179,8,0.15)', padding: '4px 20px 8px' }}>
-          {alerts.slice(0, EXPANDED_COUNT).map((a, i) => (
-            <div key={i} style={{ padding: '4px 0', borderBottom: i < Math.min(alerts.length, EXPANDED_COUNT) - 1 ? '1px solid rgba(234,179,8,0.1)' : 'none', fontSize: 11, lineHeight: 1.4 }}>
-              <span style={{ fontWeight: 700 }}>{a.header}</span>
-              {a.description && (
-                <div style={{ color: 'var(--muted)', marginTop: 2, fontWeight: 400 }}>{a.description}</div>
-              )}
+        <div style={{ borderTop: '1px solid rgba(234,179,8,0.15)', padding: '6px 20px 10px' }}>
+          {alerts.slice(0, EXPANDED_COUNT).map((a, i) => {
+            const aTime = formatAlertDateTime(a.start, lang, t)
+            return (
+              <div
+                key={a.id || i}
+                onClick={() => onSelectAlert(a)}
+                style={{
+                  padding: '8px 10px',
+                  borderBottom: i < Math.min(alerts.length, EXPANDED_COUNT) - 1 ? '1px solid rgba(234,179,8,0.1)' : 'none',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(234,179,8,0.08)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span>{a.header}</span>
+                    {aTime && (
+                      <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', background: 'rgba(234,179,8,0.12)', padding: '1px 6px', borderRadius: 4, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                        🕒 {aTime.full}
+                      </span>
+                    )}
+                  </div>
+                  {a.explanation && (
+                    <div style={{ color: 'var(--text)', opacity: 0.8, fontSize: 11, lineHeight: 1.35 }}>
+                      {a.explanation}
+                    </div>
+                  )}
+                {a.stops && a.stops.length > 0 && (
+                  <div style={{ marginTop: 4, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 10, color: 'var(--muted)' }}>
+                      📍 {t('allStationsAffected', a.stops.length)}:
+                    </span>
+                    <span style={{ fontSize: 10, color: 'var(--text)', opacity: 0.7 }}>
+                      {a.stops.slice(0, 4).join(', ')}{a.stops.length > 4 ? ` +${a.stops.length - 4}` : ''}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div style={{
+                background: 'rgba(234,179,8,0.18)',
+                border: '1px solid rgba(234,179,8,0.3)',
+                padding: '3px 8px',
+                borderRadius: 6,
+                fontSize: 10,
+                fontWeight: 700,
+                color: 'var(--yellow)',
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 3,
+              }}>
+                ℹ️ {t('viewMoreInfo')}
+              </div>
             </div>
-          ))}
+          )
+        })}
         </div>
       )}
     </div>
@@ -107,6 +204,7 @@ function AppInner() {
   const [stops, setStops]                 = useState<Stop[]>([])
   const [routes, setRoutes]               = useState<Route[]>([])
   const [alerts, setAlerts]               = useState<Alert[]>([])
+  const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null)
   const [selectedTrain, setSelectedTrain] = useState<Train | null>(null)
   const [selectedStop, setSelectedStop]   = useState<Stop | null>(null)
   const [activeLines, setActiveLines]     = useState<Set<string>>(new Set(['ALL']))
@@ -115,10 +213,50 @@ function AppInner() {
   const [lastUpdate, setLastUpdate]       = useState<Date | null>(null)
   const [apiError, setApiError]           = useState<string | null>(null)
   const [isMobile, setIsMobile]           = useState(false)
+  const [networkMode, setNetworkModeState] = useState<NetworkMode>('both')
   // Journey whose path is drawn on the map (from the Plan tab). Null = none.
   const [selectedJourney, setSelectedJourney] = useState<Journey | null>(null)
 
   const prevDataRef = useRef<string>('')
+
+  // Hydrate network mode from localStorage after mount
+  useEffect(() => {
+    const saved = typeof window !== 'undefined' ? window.localStorage.getItem('andana-network-mode') as NetworkMode | null : null
+    if (saved === 'fgc' || saved === 'renfe' || saved === 'both') {
+      setNetworkModeState(saved)
+    }
+  }, [])
+
+  const setNetworkMode = useCallback((mode: NetworkMode) => {
+    setNetworkModeState(mode)
+    try { window.localStorage.setItem('andana-network-mode', mode) } catch {}
+    setActiveLines(new Set(['ALL']))
+    if (mode === 'fgc') {
+      setSelectedTrain(curr => curr?.operator === 'renfe' ? null : curr)
+      setSelectedStop(curr => curr?.operator === 'renfe' || (curr && /^\d+$/.test(curr.stopId)) ? null : curr)
+    } else if (mode === 'renfe') {
+      setSelectedTrain(curr => curr?.operator !== 'renfe' ? null : curr)
+      setSelectedStop(curr => curr?.operator !== 'renfe' && (curr && !/^\d+$/.test(curr.stopId)) ? null : curr)
+    }
+  }, [])
+
+  const visibleRoutes = useMemo(() => {
+    if (networkMode === 'both') return routes
+    if (networkMode === 'renfe') return routes.filter(r => r.operator === 'renfe')
+    return routes.filter(r => r.operator !== 'renfe')
+  }, [routes, networkMode])
+
+  const visibleStops = useMemo(() => {
+    if (networkMode === 'both') return stops
+    if (networkMode === 'renfe') return stops.filter(s => s.operator === 'renfe' || /^\d+$/.test(s.stopId))
+    return stops.filter(s => s.operator !== 'renfe' && !/^\d+$/.test(s.stopId))
+  }, [stops, networkMode])
+
+  const visibleTrains = useMemo(() => {
+    if (networkMode === 'both') return trains
+    if (networkMode === 'renfe') return trains.filter(t => t.operator === 'renfe')
+    return trains.filter(t => t.operator !== 'renfe')
+  }, [trains, networkMode])
 
   const lineColors = useMemo<Record<string, string>>(
     () => routes.length > 0
@@ -128,11 +266,11 @@ function AppInner() {
   )
 
   const lines = useMemo(
-    () => [...new Set(routes.map(r => r.shortName))].sort(),
-    [routes],
+    () => [...new Set(visibleRoutes.map(r => r.shortName))].sort(),
+    [visibleRoutes],
   )
 
-  const interpolatedTrains = useInterpolatedTrains(trains, routes, stops)
+  const interpolatedTrains = useInterpolatedTrains(visibleTrains, routes, stops)
 
   // Drawable path for the selected journey, recomputed when the journey or the
   // underlying route/stop data changes.
@@ -268,15 +406,15 @@ function AppInner() {
     updateParams({ train: selectedTrain?.id ?? null, stop: selectedStop?.stopId ?? null })
   }, [selectedTrain, selectedStop])
 
-  const lineCount = useMemo(() => new Set(trains.map(t => t.line)).size, [trains])
+  const lineCount = useMemo(() => new Set(visibleTrains.map(t => t.line)).size, [visibleTrains])
 
   if (isMobile) {
     return (
       <div data-theme={theme}>
         <MobileLayout
-          trains={interpolatedTrains}
-          stops={stops}
-          routes={routes}
+          trains={filteredTrains}
+          stops={visibleStops}
+          routes={visibleRoutes}
           alerts={alerts}
           lines={lines}
           lineColors={lineColors}
@@ -287,6 +425,8 @@ function AppInner() {
           lastUpdate={lastUpdate}
           apiError={apiError}
           theme={theme}
+          networkMode={networkMode}
+          onNetworkChange={setNetworkMode}
           onToggleLine={toggleLine}
           onSelectTrain={handleSelectTrain}
           onSelectStop={handleSelectStop}
@@ -313,10 +453,12 @@ function AppInner() {
       }}
     >
       <Header
-        trainCount={trains.length}
+        trainCount={visibleTrains.length}
         lineCount={lineCount}
         lastUpdate={lastUpdate}
         refreshing={refreshing}
+        networkMode={networkMode}
+        onNetworkChange={setNetworkMode}
         onThemeToggle={toggleTheme}
         onRefresh={handleRefresh}
       />
@@ -329,12 +471,12 @@ function AppInner() {
       )}
 
       {!apiError && alerts.length > 0 && (
-        <AlertBanner alerts={alerts} />
+        <AlertBanner alerts={alerts} onSelectAlert={setSelectedAlert} />
       )}
 
       <Sidebar
         trains={filteredTrains}
-        stops={stops}
+        stops={visibleStops}
         lines={lines}
         lineColors={lineColors}
         activeLines={activeLines}
@@ -350,8 +492,8 @@ function AppInner() {
       <div style={{ position: 'relative', overflow: 'hidden' }}>
         <MapView
           trains={filteredTrains}
-          stops={stops}
-          routes={routes}
+          stops={visibleStops}
+          routes={visibleRoutes}
           lineColors={lineColors}
           selectedTrain={selectedTrain}
           selectedStop={selectedStop}
@@ -361,10 +503,16 @@ function AppInner() {
           theme={theme}
         />
         {/* Nearest-station shortcut → opens its live departures. */}
-        <NearMeButton stops={stops} onPick={handleSelectStop} style={{ position: 'absolute', left: 16, bottom: 16, zIndex: 3 }} />
+        <NearMeButton stops={visibleStops} onPick={handleSelectStop} style={{ position: 'absolute', left: 16, bottom: 16, zIndex: 3 }} />
         <DetailPanel train={selectedTrain} lineColors={lineColors} onClose={handleCloseTrain} />
-        <StopPanel stop={selectedStop} onClose={handleCloseStop} lineColors={lineColors} />
+        <StopPanel stop={selectedStop} onClose={handleCloseStop} lineColors={lineColors} trains={filteredTrains} onSelectTrain={handleSelectTrain} />
       </div>
+
+      <AlertModal
+        alert={selectedAlert}
+        onClose={() => setSelectedAlert(null)}
+        lineColors={lineColors}
+      />
     </div>
   )
 }

@@ -1,3 +1,6 @@
+export type Operator = 'fgc' | 'renfe'
+export type NetworkMode = 'fgc' | 'renfe' | 'both'
+
 export interface Train {
   id: string
   line: string
@@ -14,6 +17,16 @@ export interface Train {
   upcomingStops: string[]
   currentStop?: string
   nextStopEta?: number
+
+  // Multi-operator & Renfe fields:
+  operator?: Operator
+  trainNumber?: string
+  prevStop?: string
+  prevTrack?: string
+  nextStop?: string
+  nextTrack?: string
+  operationalStatus?: 'approaching' | 'stationed' | 'moving' | 'departing'
+  accessible?: boolean
 }
 
 export interface StopArrival {
@@ -29,13 +42,34 @@ export interface Stop {
   lat: number
   lng: number
   wheelchairBoarding: boolean
+  operator?: Operator
+  lines?: string[]
+  code?: string
+}
+
+export interface Departure {
+  line: string
+  headsign: string
+  depTime: number    // scheduled seconds since midnight
+  delayMin: number   // current median live delay or reported delay
+  track?: string     // platform/track (e.g. "1", "3")
+  accessible?: boolean
 }
 
 export interface Alert {
   id: string
   header: string
-  description: string
+  description?: string
+  explanation?: string
   routes: string[]
+  stops?: string[]
+  stopCodes?: string[]
+  operator?: Operator
+  url?: string
+  start?: number
+  end?: number
+  cause?: string
+  effect?: string
 }
 
 export interface Route {
@@ -43,6 +77,7 @@ export interface Route {
   shortName: string
   longName: string
   color: string
+  operator?: Operator
   geometry: {
     type: 'MultiLineString'
     coordinates: number[][][]
