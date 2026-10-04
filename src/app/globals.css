@@ -2,28 +2,39 @@
 
 /* ── Design tokens ── */
 :root {
-  --bg:      #0a0e1a;
-  --bg2:     #111623;
-  --bg3:     #181e2e;
-  --border:  rgba(255, 255, 255, 0.07);
-  --border2: rgba(255, 255, 255, 0.13);
-  --text:    #f0f2f8;
-  --muted:   #7a82a0;
-  --accent:  #3b82f6;
-  --green:   #22c55e;
-  --yellow:  #eab308;
-  --red:     #ef4444;
+  --bg:           #0a0e1a;
+  --bg2:          #111623;
+  --bg3:          #181e2e;
+  --border:       rgba(255, 255, 255, 0.07);
+  --border2:      rgba(255, 255, 255, 0.13);
+  --text:         #f0f2f8;
+  --muted:        #7a82a0;
+  --accent:       #3b82f6;
+  --green:        #22c55e;
+  --yellow:       #eab308;
+  --red:          #ef4444;
+  --status-green:  #4ade80;
+  --status-yellow: #fbbf24;
+  --status-red:    #f87171;
+  --card-shadow:   none;
 }
 
 [data-theme="light"] {
-  --bg:      #f4f6fa;
-  --bg2:     #ffffff;
-  --bg3:     #edf0f6;
-  --border:  rgba(0, 0, 0, 0.06);
-  --border2: rgba(0, 0, 0, 0.12);
-  --text:    #1e293b;
-  --muted:   #64748b;
-  --accent:  #2563eb;
+  --bg:           #f0f3f8;
+  --bg2:          #ffffff;
+  --bg3:          #e4e9f2;
+  --border:       rgba(15, 23, 42, 0.09);
+  --border2:      rgba(15, 23, 42, 0.16);
+  --text:         #0f172a;
+  --muted:        #475569;
+  --accent:       #2563eb;
+  --green:        #15803d;
+  --yellow:       #b45309;
+  --red:          #dc2626;
+  --status-green:  #15803d;
+  --status-yellow: #b45309;
+  --status-red:    #dc2626;
+  --card-shadow:   0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 @theme inline {

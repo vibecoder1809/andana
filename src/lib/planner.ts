@@ -4,6 +4,7 @@ import { fetchStops } from './gtfs'
 import { fetchRenfeStations } from './renfe'
 import { loadRodaliesTimetable } from './renfeTimetable'
 import { FOOTPATH_MAP } from './footpaths'
+import { computeJourneyFare } from './fares'
 import { serviceDate, isWithinPlanWindow } from './serviceTime'
 import { finiteNum } from './validate'
 import type { PlannerStation, JourneyLeg, Journey, Operator, Stop } from '@/types'
@@ -465,6 +466,7 @@ export interface Departure {
   headsign: string   // trip destination shown on the board
   depTime: number    // scheduled seconds since midnight
   tripId: number
+  isLastService?: boolean
 }
 
 // The next scheduled departures leaving `stationCode` at or after
@@ -487,6 +489,19 @@ export async function getDepartures(
     out.push({ line: c.line, headsign: c.headsign, depTime: c.depTime, tripId: c.tripId })
     if (out.length >= count) break
   }
+
+  // Check if any late-evening departure (>= 21:00) is the last one of the day for its line & destination
+  for (const d of out) {
+    if (d.depTime >= 21 * 3600) {
+      const hasLater = data.connections.some(
+        c => c.fromParent === stationCode && c.line === d.line && c.headsign === d.headsign && c.depTime > d.depTime
+      )
+      if (!hasLater) {
+        d.isLastService = true
+      }
+    }
+  }
+
   return out
 }
 
@@ -608,6 +623,10 @@ function legsFromPath(
         arrTime,
         intermediateStops: 0,
         operator: 'walk',
+        stops: [
+          { code: step.fromParent, name: stationNames.get(step.fromParent) ?? step.fromParent, depTime, arrTime: depTime },
+          { code: step.toParent, name: stationNames.get(step.toParent) ?? step.toParent, depTime: arrTime, arrTime },
+        ],
       })
       continue
     }
@@ -626,6 +645,14 @@ function legsFromPath(
       last.toName = c.toName
       last.arrTime = c.arrTime
       last.intermediateStops++
+      if (last.stops) {
+        last.stops.push({
+          code: c.toParent,
+          name: c.toName,
+          depTime: c.arrTime,
+          arrTime: c.arrTime,
+        })
+      }
       prevArr = c.arrTime
     } else {
       rawLegs.push({
@@ -639,6 +666,10 @@ function legsFromPath(
         arrTime: c.arrTime,
         intermediateStops: 0,
         operator: c.operator ?? 'fgc',
+        stops: [
+          { code: c.fromParent, name: c.fromName, depTime: c.depTime, arrTime: c.depTime },
+          { code: c.toParent, name: c.toName, depTime: c.arrTime, arrTime: c.arrTime },
+        ],
       })
       prevArr = c.arrTime
     }
@@ -660,6 +691,9 @@ function legsFromPath(
       prev.toName = leg.toName
       prev.arrTime = leg.arrTime
       prev.intermediateStops += leg.intermediateStops + 1
+      if (prev.stops && leg.stops) {
+        prev.stops.push(...leg.stops.slice(1))
+      }
     } else {
       merged.push(leg)
     }
@@ -670,6 +704,12 @@ function legsFromPath(
     const walkDur = merged[0].arrTime - merged[0].depTime
     merged[0].arrTime = merged[1].depTime
     merged[0].depTime = Math.max(searchAfterSeconds, merged[1].depTime - walkDur)
+    if (merged[0].stops && merged[0].stops.length >= 2) {
+      merged[0].stops[0].depTime = merged[0].depTime
+      merged[0].stops[0].arrTime = merged[0].depTime
+      merged[0].stops[1].depTime = merged[0].arrTime
+      merged[0].stops[1].arrTime = merged[0].arrTime
+    }
   }
 
   return merged
@@ -826,7 +866,7 @@ export async function planJourney(
   const stepFreeOk = accessible
     ? legs.slice(1).every(l => accessible.has(l.fromCode))
     : undefined
-  return {
+  const journey: Journey = {
     legs,
     depTime,
     arrTime,
@@ -835,6 +875,8 @@ export async function planJourney(
     ...(liveDelayMin ? { liveDelayMin } : {}),
     ...(stepFreeOk !== undefined ? { stepFree: stepFreeOk } : {}),
   }
+  journey.fare = computeJourneyFare(journey)
+  return journey
 }
 
 /**
@@ -859,5 +901,19 @@ export async function planJourneys(
     const firstTrain = j.legs.find(l => l.operator !== 'walk')
     after = (firstTrain ? firstTrain.depTime : j.depTime) + 1
   }
+
+  // Detect if the final journey found is the last service of the day (especially late evening / night >= 20:30)
+  if (journeys.length > 0) {
+    const last = journeys[journeys.length - 1]
+    if (last.depTime >= 20.5 * 3600) {
+      const firstTrain = last.legs.find(l => l.operator !== 'walk')
+      const nextAfter = (firstTrain ? firstTrain.depTime : last.depTime) + 1
+      const later = await planJourney(originCode, destCode, nextAfter, lineDelays, date, stepFree)
+      if (!later) {
+        last.isLastService = true
+      }
+    }
+  }
+
   return journeys
 }

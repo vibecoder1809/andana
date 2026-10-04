@@ -8,6 +8,9 @@ import { useGeolocation } from '@/lib/geolocation'
 import { readParam, updateParams } from '@/lib/urlState'
 import { useI18n, type TransKey } from '@/lib/i18n'
 import { useSavedRoutes, type SavedRoute } from '@/lib/savedRoutes'
+import { getMetroInterchanges, findDirectMetroConnections } from '@/lib/metroInterchanges'
+import { getStationZone } from '@/lib/fares'
+import { matchesSearch, startsWithSearch } from '@/lib/searchUtils'
 
 interface TripPlannerProps {
   lineColors: Record<string, string>
@@ -16,6 +19,7 @@ interface TripPlannerProps {
   // Stations with coordinates, used to resolve the nearest planner station for
   // the "use my location" origin shortcut. Optional — the button hides without it.
   stops?: Stop[]
+  onStartLiveTrip?: (journey: Journey) => void
 }
 
 function fmtTime(sec: number): string {
@@ -122,9 +126,18 @@ function StationInput({
   }, [])
 
   const matches = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q || q === value?.name.toLowerCase()) return []
-    return stations.filter(s => s.name.toLowerCase().includes(q)).slice(0, 8)
+    const q = query.trim()
+    if (!q || (value && matchesSearch(value.name, q) && matchesSearch(q, value.name))) return []
+    return stations
+      .filter(s => matchesSearch(s.name, q) || matchesSearch(s.code, q))
+      .sort((a, b) => {
+        const aStarts = startsWithSearch(a.name, q)
+        const bStarts = startsWithSearch(b.name, q)
+        if (aStarts && !bStarts) return -1
+        if (!aStarts && bStarts) return 1
+        return a.name.localeCompare(b.name, 'ca')
+      })
+      .slice(0, 8)
   }, [query, stations, value])
 
   return (
@@ -169,6 +182,26 @@ function StationInput({
                 {s.lines && s.lines.length > 0 && (
                   <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>
                     ({s.lines.slice(0, 4).join(', ')}{s.lines.length > 4 ? '…' : ''})
+                  </span>
+                )}
+                {getMetroInterchanges(s.code).length > 0 && (
+                  <span style={{ display: 'inline-flex', gap: 3, marginLeft: 6, verticalAlign: 'middle' }}>
+                    {getMetroInterchanges(s.code).map(m => (
+                      <span
+                        key={m.line}
+                        title={m.type === 'metro' ? `Metro ${m.line}` : `Tram ${m.line}`}
+                        style={{
+                          fontSize: 8,
+                          fontWeight: 700,
+                          padding: '0 4px',
+                          borderRadius: 3,
+                          background: m.color,
+                          color: '#fff',
+                        }}
+                      >
+                        {m.type === 'metro' ? 'M' : 'T'}{m.line}
+                      </span>
+                    ))}
                   </span>
                 )}
               </div>
@@ -233,20 +266,46 @@ function RouteRow({ route, faved, onPick, onToggleFav }: { route: SavedRoute; fa
   )
 }
 
-function JourneyCard({ journey, lineColors, best, live, active, date, onClick }: { journey: Journey; lineColors: Record<string, string>; best: boolean; live: boolean; active: boolean; date?: string | null; onClick: () => void }) {
-  const { t } = useI18n()
+function JourneyCard({
+  journey,
+  lineColors,
+  best,
+  live,
+  active,
+  date,
+  onClick,
+  onStartLiveTrip,
+}: {
+  journey: Journey
+  lineColors: Record<string, string>
+  best: boolean
+  live: boolean
+  active: boolean
+  date?: string | null
+  onClick: () => void
+  onStartLiveTrip?: (journey: Journey) => void
+}) {
+  const { lang, t } = useI18n()
+  const [expanded, setExpanded] = useState(false)
   const delayed = journey.liveDelayMin && journey.liveDelayMin > 0
-  // The live countdown only makes sense for today's plan; for a future date the
-  // scheduled departure time is shown without a ticking timer.
   const countdown = useDepartureCountdown(journey.depTime, journey.liveDelayMin, live)
+
   return (
     <div
       onClick={onClick}
       title={t('showOnMap')}
-      style={{ border: `1px solid ${active ? 'var(--accent)' : best ? 'var(--border2)' : 'var(--border)'}`, outline: active ? '1px solid var(--accent)' : 'none', background: active ? 'rgba(0,0,0,0.18)' : best ? 'rgba(0,0,0,0.12)' : 'rgba(0,0,0,0.06)', borderRadius: 10, padding: 12, marginBottom: 8, cursor: 'pointer' }}
+      style={{
+        border: `1px solid ${active ? 'var(--accent)' : best ? 'var(--border2)' : 'var(--border)'}`,
+        outline: active ? '1px solid var(--accent)' : 'none',
+        background: active ? 'rgba(0,0,0,0.18)' : best ? 'rgba(0,0,0,0.12)' : 'rgba(0,0,0,0.06)',
+        borderRadius: 10,
+        padding: 12,
+        marginBottom: 8,
+        cursor: 'pointer',
+      }}
     >
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-space-grotesk), sans-serif' }}>
             {fmtTime(journey.depTime)}
           </span>
@@ -254,6 +313,26 @@ function JourneyCard({ journey, lineColors, best, live, active, date, onClick }:
           <span style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-space-grotesk), sans-serif' }}>
             {fmtTime(journey.arrTime)}
           </span>
+          {journey.isLastService && (
+            <span
+              style={{
+                fontSize: 9.5,
+                fontWeight: 700,
+                padding: '2px 6px',
+                borderRadius: 5,
+                background: 'rgba(245, 158, 11, 0.2)',
+                color: 'var(--yellow)',
+                border: '1px solid rgba(245, 158, 11, 0.4)',
+                fontFamily: 'var(--font-space-grotesk), sans-serif',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 3,
+              }}
+            >
+              <span>🌙</span>
+              <span>{t('lastService')}</span>
+            </span>
+          )}
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{journey.durationMin} min</div>
@@ -321,6 +400,21 @@ function JourneyCard({ journey, lineColors, best, live, active, date, onClick }:
         ))}
       </div>
 
+      {/* ATM Fare breakdown */}
+      {journey.fare && (
+        <div style={{ marginTop: 8, padding: '5px 8px', background: 'var(--bg3)', borderRadius: 6, fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'var(--muted)' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <span>🎫</span>
+            <strong style={{ color: 'var(--text)' }}>
+              {journey.fare.zones} {journey.fare.zones === 1 ? (lang === 'ca' ? 'zona' : lang === 'es' ? 'zona' : 'zone') : (lang === 'ca' ? 'zones' : lang === 'es' ? 'zonas' : 'zones')} ATM
+            </strong>
+          </span>
+          <span style={{ color: 'var(--text)', fontWeight: 600 }}>
+            {journey.fare.singleTicket.toFixed(2)} € <span style={{ fontWeight: 400, color: 'var(--muted)' }}>({lang === 'ca' ? 'senzill' : lang === 'es' ? 'sencillo' : 'single'})</span> · {(journey.fare.tCasual / 10).toFixed(2)} € <span style={{ fontWeight: 400, color: 'var(--muted)' }}>(T-casual)</span>
+          </span>
+        </div>
+      )}
+
       {delayed && (
         <div style={{ marginTop: 8, fontSize: 11, color: 'var(--red)', fontWeight: 600 }}>
           ⚠ {t('delayLive', journey.legs[0].line, journey.liveDelayMin!)}
@@ -334,11 +428,172 @@ function JourneyCard({ journey, lineColors, best, live, active, date, onClick }:
           {t('notFullyStepFree')}
         </div>
       )}
+
+      {/* Card actions: Expand Timeline toggle & Live Follow button */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            setExpanded(v => !v)
+          }}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            fontSize: 11,
+            fontWeight: 600,
+            color: 'var(--accent)',
+            fontFamily: 'inherit',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+          }}
+        >
+          <span>{expanded ? t('hideStops') : t('showStops')}</span>
+        </button>
+
+        {onStartLiveTrip && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onStartLiveTrip(journey)
+            }}
+            style={{
+              background: 'var(--accent)',
+              border: 'none',
+              borderRadius: 6,
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: 11,
+              padding: '5px 11px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              fontFamily: 'inherit',
+              boxShadow: '0 2px 6px rgba(59,130,246,0.3)',
+              transition: 'opacity 0.15s ease',
+            }}
+          >
+            <span>🧭</span>
+            <span>{t('trackLive')}</span>
+          </button>
+        )}
+      </div>
+
+      {/* Detailed stops vertical timeline */}
+      {expanded && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {journey.legs.map((leg, legIdx) => {
+            const legColor = leg.operator === 'walk' ? '#f59e0b' : (lineColors[leg.line] || LINE_COLORS[leg.line] || '#7a82a0')
+            const isWalkLeg = leg.operator === 'walk'
+            const legStops = leg.stops && leg.stops.length > 0 ? leg.stops : [
+              { code: leg.fromCode, name: leg.fromName, depTime: leg.depTime, arrTime: leg.depTime },
+              { code: leg.toCode, name: leg.toName, depTime: leg.arrTime, arrTime: leg.arrTime },
+            ]
+
+            return (
+              <div key={legIdx} style={{ background: 'var(--bg3)', borderRadius: 8, padding: '10px 12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {isWalkLeg ? (
+                      <span style={{ fontSize: 13 }}>🚶</span>
+                    ) : (
+                      <LinePill line={leg.line} lineColors={lineColors} />
+                    )}
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>
+                      {isWalkLeg ? leg.headsign : `${leg.headsign ? `→ ${leg.headsign}` : leg.fromName}`}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                    {Math.round((leg.arrTime - leg.depTime) / 60)} min
+                  </span>
+                </div>
+
+                <div style={{ position: 'relative', paddingLeft: 16 }}>
+                  {/* Vertical connecting line */}
+                  <div style={{ position: 'absolute', left: 4, top: 6, bottom: 6, width: 2, background: legColor, opacity: 0.6 }} />
+
+                  {legStops.map((st, sIdx) => {
+                    const isFirst = sIdx === 0
+                    const isLast = sIdx === legStops.length - 1
+                    const metros = getMetroInterchanges(st.code)
+
+                    return (
+                      <div
+                        key={sIdx}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 8,
+                          position: 'relative',
+                          marginBottom: isLast ? 0 : 8,
+                        }}
+                      >
+                        {/* Dot */}
+                        <div
+                          style={{
+                            position: 'absolute',
+                            left: -16,
+                            width: isFirst || isLast ? 10 : 8,
+                            height: isFirst || isLast ? 10 : 8,
+                            borderRadius: '50%',
+                            background: isFirst || isLast ? legColor : 'var(--bg2)',
+                            border: `2px solid ${legColor}`,
+                            boxSizing: 'border-box',
+                            top: isFirst || isLast ? 3 : 4,
+                          }}
+                        />
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 12, fontWeight: isFirst || isLast ? 700 : 500, color: isFirst || isLast ? 'var(--text)' : 'var(--muted)' }}>
+                            {st.name}
+                          </span>
+                          <span style={{ fontSize: 9, color: 'var(--muted)', background: 'var(--bg2)', padding: '0 4px', borderRadius: 3, border: '1px solid var(--border2)' }}>
+                            Z{getStationZone(st.code)}
+                          </span>
+                          {metros.length > 0 && (
+                            <span style={{ display: 'inline-flex', gap: 3 }}>
+                              {metros.map(m => (
+                                <span
+                                  key={m.line}
+                                  style={{
+                                    fontSize: 8,
+                                    fontWeight: 700,
+                                    padding: '0 3px',
+                                    borderRadius: 3,
+                                    background: m.color,
+                                    color: '#fff',
+                                  }}
+                                >
+                                  {m.type === 'metro' ? 'M' : 'T'}{m.line}
+                                </span>
+                              ))}
+                            </span>
+                          )}
+                        </div>
+
+                        <span style={{ fontSize: 11, fontFamily: 'var(--font-space-grotesk)', color: isFirst || isLast ? 'var(--text)' : 'var(--muted)', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+                          {fmtTime(isFirst ? st.depTime : st.arrTime)}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
 
-export function TripPlanner({ lineColors, selectedJourney, onSelectJourney, stops }: TripPlannerProps) {
+export function TripPlanner({ lineColors, selectedJourney, onSelectJourney, stops, onStartLiveTrip }: TripPlannerProps) {
   const { t } = useI18n()
   const { locate, locating } = useGeolocation()
   const [stations, setStations] = useState<PlannerStation[]>([])
@@ -368,6 +623,33 @@ export function TripPlanner({ lineColors, selectedJourney, onSelectJourney, stop
     })
   }, [])
   const { favorites, recents, isFavorite, toggleFavorite, recordRecent, clearRecents } = useSavedRoutes()
+
+  const [copiedRoute, setCopiedRoute] = useState(false)
+
+  const handleShareRoute = async () => {
+    if (!origin || !dest || typeof window === 'undefined') return
+    const url = `${window.location.origin}${window.location.pathname}?from=${encodeURIComponent(origin.code)}&to=${encodeURIComponent(dest.code)}`
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: `${origin.name} ➔ ${dest.name} · Andana`,
+          url,
+        })
+        return
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return
+      }
+    }
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(url)
+        setCopiedRoute(true)
+        setTimeout(() => setCopiedRoute(false), 2000)
+      } catch {
+        // clipboard unavailable
+      }
+    }
+  }
 
   useEffect(() => {
     fetch('/api/plan-stations')
@@ -496,8 +778,8 @@ export function TripPlanner({ lineColors, selectedJourney, onSelectJourney, stop
   const swap = () => { setOrigin(dest); setDest(origin) }
 
   return (
-    <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: 16, borderBottom: '1px solid var(--border)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
         <StationInput
           label={t('origin')} value={origin} onChange={setOrigin} stations={stations} placeholder={t('fromWhere')}
           onLocate={stops && stops.length > 0 ? locateOrigin : undefined} locating={locating}
@@ -506,19 +788,79 @@ export function TripPlanner({ lineColors, selectedJourney, onSelectJourney, stop
           <button
             onClick={swap}
             title={t('swap')}
-            style={{ background: 'var(--bg3)', border: '1px solid var(--border2)', color: 'var(--muted)', borderRadius: 20, width: 28, height: 28, cursor: 'pointer', fontSize: 13, lineHeight: 1 }}
+            aria-label={t('swap')}
+            style={{
+              background: 'var(--bg3)',
+              border: '1px solid var(--border2)',
+              color: 'var(--muted)',
+              borderRadius: '50%',
+              width: 28,
+              height: 28,
+              cursor: 'pointer',
+              fontSize: 13,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
+            }}
           >
             ⇅
           </button>
           {currentRoute && (
-            <button
-              onClick={() => toggleFavorite(currentRoute)}
-              title={isFavorite(currentRoute) ? t('unsaveRoute') : t('saveRoute')}
-              aria-label={isFavorite(currentRoute) ? t('unsaveRoute') : t('saveRoute')}
-              style={{ background: 'var(--bg3)', border: `1px solid ${isFavorite(currentRoute) ? 'var(--accent)' : 'var(--border2)'}`, color: isFavorite(currentRoute) ? 'var(--accent)' : 'var(--muted)', borderRadius: 20, width: 28, height: 28, cursor: 'pointer', fontSize: 14, lineHeight: 1 }}
-            >
-              {isFavorite(currentRoute) ? '★' : '☆'}
-            </button>
+            <>
+              <button
+                onClick={() => toggleFavorite(currentRoute)}
+                title={isFavorite(currentRoute) ? t('unsaveRoute') : t('saveRoute')}
+                aria-label={isFavorite(currentRoute) ? t('unsaveRoute') : t('saveRoute')}
+                style={{
+                  background: isFavorite(currentRoute) ? 'rgba(234,179,8,0.18)' : 'var(--bg3)',
+                  border: `1px solid ${isFavorite(currentRoute) ? 'rgba(234,179,8,0.45)' : 'var(--border2)'}`,
+                  color: isFavorite(currentRoute) ? '#eab308' : 'var(--muted)',
+                  borderRadius: '50%',
+                  width: 28,
+                  height: 28,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.15s ease',
+                  padding: 0,
+                }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill={isFavorite(currentRoute) ? '#eab308' : 'none'} stroke={isFavorite(currentRoute) ? '#eab308' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+              </button>
+              <button
+                onClick={handleShareRoute}
+                title={copiedRoute ? t('linkCopied') : t('shareRoute')}
+                aria-label={t('shareRoute')}
+                style={{
+                  background: copiedRoute ? 'rgba(34,197,94,0.18)' : 'var(--bg3)',
+                  border: `1px solid ${copiedRoute ? 'rgba(34,197,94,0.45)' : 'var(--border2)'}`,
+                  color: copiedRoute ? 'var(--green)' : 'var(--muted)',
+                  borderRadius: '50%',
+                  width: 28,
+                  height: 28,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.15s ease',
+                  padding: 0,
+                }}
+              >
+                {copiedRoute ? (
+                  <span style={{ fontSize: 12, fontWeight: 700 }}>✓</span>
+                ) : (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                    <polyline points="16 6 12 2 8 6" />
+                    <line x1="12" y1="2" x2="12" y2="15" />
+                  </svg>
+                )}
+              </button>
+            </>
           )}
         </div>
         <StationInput label={t('destination')} value={dest} onChange={setDest} stations={stations} placeholder={t('toWhere')} />
@@ -593,13 +935,70 @@ export function TripPlanner({ lineColors, selectedJourney, onSelectJourney, stop
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+      <div style={{ padding: '12px 14px 28px' }}>
         {loading && <p style={{ color: 'var(--muted)', textAlign: 'center', padding: 20, fontSize: 13 }}>{t('calcRoute')}</p>}
         {error && !loading && <p style={{ color: 'var(--red)', textAlign: 'center', padding: 20, fontSize: 13 }}>{error}</p>}
         {!loading && !error && journeys && journeys.length === 0 && (
-          <p style={{ color: 'var(--muted)', textAlign: 'center', padding: 20, fontSize: 13 }}>
-            {t('noDirectRoute')}
-          </p>
+          <div style={{ padding: '8px 2px' }}>
+            {(() => {
+              const directMetro = origin && dest ? findDirectMetroConnections(origin.code, dest.code) : []
+              if (directMetro.length > 0) {
+                return (
+                  <div
+                    style={{
+                      background: 'var(--bg3)',
+                      border: '1px solid var(--border2)',
+                      borderRadius: 12,
+                      padding: '16px 14px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 10,
+                      boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+                      marginBottom: 12,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <span style={{ fontSize: 18 }} aria-hidden>🚇</span>
+                      <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', fontFamily: 'var(--font-space-grotesk), sans-serif' }}>
+                        {t('recommendedMetroConnection')}
+                      </span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text)', lineHeight: 1.45 }}>
+                      {t('directMetroDesc', origin?.name ?? '', dest?.name ?? '')}
+                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      {directMetro.map(m => (
+                        <span
+                          key={m.line}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            padding: '4px 10px',
+                            borderRadius: 6,
+                            background: m.color,
+                            color: '#fff',
+                            fontWeight: 800,
+                            fontSize: 12,
+                            fontFamily: 'var(--font-space-grotesk), sans-serif',
+                            boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+                          }}
+                        >
+                          <span>{m.type === 'metro' ? 'Metro' : 'Tram'}</span>
+                          <span>{m.line}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )
+              }
+              return (
+                <p style={{ color: 'var(--muted)', textAlign: 'center', padding: 20, fontSize: 13 }}>
+                  {t('noDirectRoute')}
+                </p>
+              )
+            })()}
+          </div>
         )}
         {!loading && !error && stepFree && (
           <div style={{ border: '1px solid var(--border)', background: 'rgba(0,0,0,0.06)', borderRadius: 10, padding: 12, marginBottom: 8 }}>
@@ -628,6 +1027,7 @@ export function TripPlanner({ lineColors, selectedJourney, onSelectJourney, stop
             date={depDate}
             active={j === selectedJourney}
             onClick={() => onSelectJourney(j)}
+            onStartLiveTrip={onStartLiveTrip}
           />
         ))}
         {/* Saved & recent routes — shown in the idle state, before a search. */}

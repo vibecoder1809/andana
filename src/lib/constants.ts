@@ -384,7 +384,9 @@ export const LINE_COLORS: Record<string, string> = {
   RL1: '#FF8000',
   RL2: '#FF8000',
   FV:  '#0A57A3',
-  MM:  '#000000',
+  M1:  '#008542',
+  M2:  '#006837',
+  MM:  '#008542',
   L1:  '#000000',
 
   // Rodalies de Catalunya

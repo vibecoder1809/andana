@@ -17,6 +17,12 @@ import { readParam, updateParams } from '@/lib/urlState'
 
 import { AlertModal } from './AlertModal'
 import { formatAlertDateTime } from '@/lib/alertTime'
+import { NetworkStatusModal } from './NetworkStatusModal'
+import { LiveTripHud } from './LiveTripHud'
+import { OnboardingModal } from './OnboardingModal'
+import { DonationModal } from './DonationModal'
+import { MobileSettingsModal } from './MobileSettingsModal'
+import { useUserEngagement } from '@/lib/userEngagement'
 
 const MapView = dynamic(() => import('./MapView'), { ssr: false })
 
@@ -67,7 +73,11 @@ function AlertBanner({ alerts, onSelectAlert, networkMode }: { alerts: Alert[]; 
       {/* rotating single-line preview */}
       <div
         onClick={() => {
-          if (visible) onSelectAlert(visible)
+          if (count > 1) {
+            setExpanded(exp => !exp)
+          } else if (visible) {
+            onSelectAlert(visible)
+          }
         }}
         style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '7px 20px',
@@ -96,60 +106,63 @@ function AlertBanner({ alerts, onSelectAlert, networkMode }: { alerts: Alert[]; 
           {visible?.header}
         </span>
         {visibleTime && (
-          <span style={{ fontSize: 10, opacity: 0.9, flexShrink: 0, background: 'rgba(234,179,8,0.18)', padding: '1px 6px', borderRadius: 4, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            🕒 {visibleTime.compact}
+          <span style={{ fontSize: 10, opacity: 0.9, flexShrink: 0, background: 'rgba(234,179,8,0.18)', padding: '2px 7px', borderRadius: 4, display: 'inline-flex', alignItems: 'center' }}>
+            {visibleTime.compact}
           </span>
         )}
 
-        <button
-          onClick={e => {
-            e.stopPropagation()
-            if (visible) onSelectAlert(visible)
-          }}
-          style={{
-            marginLeft: 'auto',
-            background: 'rgba(234,179,8,0.2)',
-            border: '1px solid rgba(234,179,8,0.35)',
-            color: 'var(--yellow)',
-            padding: '2px 8px',
-            borderRadius: 6,
-            fontSize: 10,
-            fontWeight: 700,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-          }}
-        >
-          {t('viewMoreInfo')}
-        </button>
-
-        {count > 1 && (
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <button
             onClick={e => {
               e.stopPropagation()
-              setExpanded(exp => !exp)
+              if (visible) onSelectAlert(visible)
             }}
-            title={expanded ? 'Amagar llista' : 'Desplegar avisos'}
             style={{
-              background: 'rgba(234,179,8,0.14)',
-              border: '1px solid rgba(234,179,8,0.25)',
+              background: 'rgba(234,179,8,0.2)',
+              border: '1px solid rgba(234,179,8,0.35)',
               color: 'var(--yellow)',
-              padding: '2px 7px',
+              padding: '3px 9px',
               borderRadius: 6,
-              fontSize: 10,
+              fontSize: 10.5,
               fontWeight: 700,
               cursor: 'pointer',
               fontFamily: 'inherit',
               flexShrink: 0,
-              marginLeft: 4,
+              display: 'flex',
+              alignItems: 'center',
             }}
           >
-            {(idx % count) + 1}/{count} {expanded ? '▲' : '▼'}
+            {t('viewMoreInfo')}
           </button>
-        )}
+
+          {count > 1 && (
+            <button
+              onClick={e => {
+                e.stopPropagation()
+                setExpanded(exp => !exp)
+              }}
+              title={expanded ? t('collapseAlerts') : t('viewAllAlerts', count)}
+              style={{
+                background: expanded ? 'rgba(234,179,8,0.32)' : 'rgba(234,179,8,0.16)',
+                border: '1px solid rgba(234,179,8,0.35)',
+                color: 'var(--yellow)',
+                padding: '3px 9px',
+                borderRadius: 6,
+                fontSize: 10.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                transition: 'background 0.15s',
+              }}
+            >
+              {expanded ? t('collapseAlerts') : t('viewAllAlerts', count)}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* expanded compact list */}
@@ -219,14 +232,13 @@ function AlertBanner({ alerts, onSelectAlert, networkMode }: { alerts: Alert[]; 
                       color: 'var(--muted)',
                       flexShrink: 0,
                       background: 'rgba(234,179,8,0.12)',
-                      padding: '1px 6px',
+                      padding: '2px 7px',
                       borderRadius: 4,
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: 4,
                       whiteSpace: 'nowrap',
                     }}>
-                      🕒 {aTime.full}
+                      {aTime.full}
                     </span>
                   )}
                 </div>
@@ -239,20 +251,19 @@ function AlertBanner({ alerts, onSelectAlert, networkMode }: { alerts: Alert[]; 
                   style={{
                     background: 'rgba(234,179,8,0.18)',
                     border: '1px solid rgba(234,179,8,0.3)',
-                    padding: '3px 8px',
+                    padding: '3px 9px',
                     borderRadius: 6,
-                    fontSize: 10,
+                    fontSize: 10.5,
                     fontWeight: 700,
                     color: 'var(--yellow)',
                     flexShrink: 0,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 3,
                     cursor: 'pointer',
                     fontFamily: 'inherit',
                   }}
                 >
-                  ℹ️ {t('viewMoreInfo')}
+                  {t('viewMoreInfo')}
                 </button>
               </div>
             )
@@ -289,6 +300,20 @@ function AppInner() {
   const [networkMode, setNetworkModeState] = useState<NetworkMode>('both')
   // Journey whose path is drawn on the map (from the Plan tab). Null = none.
   const [selectedJourney, setSelectedJourney] = useState<Journey | null>(null)
+  const [focusedLine, setFocusedLine] = useState<string | null>(null)
+  const [activeTrip, setActiveTrip] = useState<Journey | null>(null)
+  const [networkStatusOpen, setNetworkStatusOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen]           = useState(false)
+
+  const {
+    showTutorial,
+    openTutorial,
+    dismissTutorial,
+    showDonationPrompt,
+    openDonation,
+    snoozeDonation,
+    SUPPORT_SNOOZE_DAYS,
+  } = useUserEngagement()
 
   const prevDataRef = useRef<string>('')
 
@@ -540,6 +565,11 @@ function AppInner() {
         onNetworkChange={setNetworkMode}
         onThemeToggle={toggleTheme}
         onRefresh={handleRefresh}
+        onOpenNetworkStatus={() => setNetworkStatusOpen(true)}
+        alertCount={visibleAlerts.length}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenDonation={openDonation}
+        theme={theme}
       />
 
       {apiError && (
@@ -566,6 +596,10 @@ function AppInner() {
         onSelectStop={handleSelectStop}
         selectedJourney={selectedJourney}
         onSelectJourney={setSelectedJourney}
+        onStartLiveTrip={(j) => {
+          setActiveTrip(j)
+          setSelectedJourney(j)
+        }}
       />
 
       <div style={{ position: 'relative', overflow: 'hidden' }}>
@@ -580,6 +614,8 @@ function AppInner() {
           onSelectStop={handleSelectStop}
           journeyPath={journeyPath}
           theme={theme}
+          focusedLine={focusedLine}
+          onClearFocusedLine={() => setFocusedLine(null)}
         />
         {/* Nearest-station shortcut → opens its live departures. */}
         <NearMeButton stops={visibleStops} onPick={handleSelectStop} style={{ position: 'absolute', left: 16, bottom: 16, zIndex: 3 }} />
@@ -587,10 +623,59 @@ function AppInner() {
         <StopPanel stop={selectedStop} onClose={handleCloseStop} lineColors={lineColors} trains={filteredTrains} onSelectTrain={handleSelectTrain} />
       </div>
 
+      {activeTrip && (
+        <LiveTripHud
+          journey={activeTrip}
+          trains={trains}
+          lineColors={lineColors}
+          onClose={() => setActiveTrip(null)}
+        />
+      )}
+
+      <NetworkStatusModal
+        open={networkStatusOpen}
+        onClose={() => setNetworkStatusOpen(false)}
+        alerts={alerts}
+        trains={trains}
+        lineColors={lineColors}
+        onSelectLine={(line) => {
+          setFocusedLine(line)
+          setNetworkStatusOpen(false)
+        }}
+      />
+
       <AlertModal
         alert={selectedAlert}
         onClose={() => setSelectedAlert(null)}
         lineColors={lineColors}
+      />
+
+      <MobileSettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        theme={theme}
+        onThemeToggle={toggleTheme}
+        trainCount={filteredTrains.length}
+        lineCount={lines.length}
+        lastUpdate={lastUpdate}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        networkMode={networkMode}
+        onNetworkChange={setNetworkMode}
+        onOpenTutorial={openTutorial}
+        onOpenDonation={openDonation}
+      />
+
+      <OnboardingModal
+        open={showTutorial}
+        onClose={dismissTutorial}
+      />
+
+      <DonationModal
+        open={showDonationPrompt}
+        onClose={() => snoozeDonation(14)}
+        onSnooze={snoozeDonation}
+        onSupport={() => snoozeDonation(SUPPORT_SNOOZE_DAYS)}
       />
     </div>
   )

@@ -189,6 +189,23 @@ export function DeparturesBoard({ stationCode, lineColors }: { stationCode: stri
                 }}>
                   {d.headsign}
                 </span>
+                {d.isLastService && !isInactive && (
+                  <span
+                    style={{
+                      fontSize: 9,
+                      fontWeight: 700,
+                      padding: '1px 5px',
+                      borderRadius: 4,
+                      background: 'rgba(245, 158, 11, 0.2)',
+                      color: 'var(--yellow)',
+                      border: '1px solid rgba(245, 158, 11, 0.35)',
+                      flexShrink: 0,
+                    }}
+                    title={t('lastService')}
+                  >
+                    🌙 {t('lastServiceShort')}
+                  </span>
+                )}
                 {d.accessible && (
                   <span style={{ fontSize: 11, color: 'var(--accent)', flexShrink: 0 }} title={t('accessibleTrain')}>♿</span>
                 )}

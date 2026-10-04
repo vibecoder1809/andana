@@ -54,6 +54,15 @@ export function serviceMinutes(at: Date = new Date()): number {
   return hour * 60 + minute
 }
 
+/**
+ * True if current time in Europe/Madrid is during the commercial nighttime closure
+ * (01:15 to 04:55), when regular passenger trains are not in service.
+ */
+export function isNightRestHours(at: Date = new Date()): boolean {
+  const mins = serviceMinutes(at)
+  return mins >= 75 && mins < 295
+}
+
 /** `YYYY-MM-DD` for `offset` days from today, in Europe/Madrid. */
 export function serviceDatePlus(offset: number, at: Date = new Date()): string {
   const { year, month, day } = zoned(at)

@@ -75,6 +75,7 @@ export async function GET(req: Request) {
         delayMin: lineDelays.get(d.line) ?? 0,
         isSuspended,
         isCancelled,
+        isLastService: d.isLastService,
       }
     })
     return Response.json({ departures: enriched })

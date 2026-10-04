@@ -45,11 +45,30 @@ function parseUpcomingStops(raw: string | null): string[] {
   }).filter(Boolean)
 }
 
+function isCremalleraOperatingHours(): boolean {
+  try {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Madrid',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false,
+    }).formatToParts(new Date())
+    const h = Number(parts.find(p => p.type === 'hour')?.value ?? 0)
+    const m = Number(parts.find(p => p.type === 'minute')?.value ?? 0)
+    const minutes = h * 60 + m
+    // Commercial service operates between ~08:20 and 20:15 in Catalonia time
+    return minutes >= 8 * 60 + 20 && minutes <= 20 * 60 + 15
+  } catch {
+    return true
+  }
+}
+
 export async function fetchTrains(): Promise<Train[]> {
   // Page the feed rather than taking one 100-row page: FGC runs well over 100
   // trains at peak, and a capped fetch silently drops them from the map (and
   // skews the per-line delay medians computed from this list).
   const results = await fgcAllRecords<TrainPositionRecord>('posicionament-dels-trens', undefined, 0)
+  const inCremalleraHours = isCremalleraOperatingHours()
 
   return results
     .flatMap(r => {
@@ -79,6 +98,28 @@ export async function fetchTrains(): Promise<Train[]> {
       // Nulls stay positional so a 3-car unit renders 3 correctly-named cars.
       const perCarReal = valid.length >= 2 && new Set(valid).size > 1
 
+      const isCremallera = r.lin === 'M1' || r.lin === 'M2' || r.lin === 'MM'
+      // Outside commercial operating hours, Cremallera units left with transponders on at
+      // sidings are 100% sleeping/inactive. Drop them completely so they are not shown as online trains.
+      if (isCremallera && !inCremalleraHours) {
+        return []
+      }
+
+      let operationalStatus: Train['operationalStatus'] = undefined
+      let isDepot = false
+
+      if (isCremallera) {
+        if (r.estacionat_a) {
+          operationalStatus = 'stationed'
+        } else {
+          operationalStatus = 'moving'
+        }
+      } else if (r.estacionat_a) {
+        operationalStatus = 'stationed'
+      } else {
+        operationalStatus = 'moving'
+      }
+
       return [{
         id:               r.id,
         line:             r.lin,
@@ -92,6 +133,8 @@ export async function fetchTrains(): Promise<Train[]> {
         upcomingStops:    parseUpcomingStops(r.properes_parades),
         currentStop:      r.estacionat_a ? resolveStop(r.estacionat_a) : undefined,
         operator:         'fgc',
+        operationalStatus,
+        isDepot:          isDepot || undefined,
       }]
     })
 }

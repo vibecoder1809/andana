@@ -10,10 +10,10 @@ export interface InterchangeFootpath {
 }
 
 export const INTERCHANGE_FOOTPATHS: InterchangeFootpath[] = [
-  // Barcelona - Plaça Catalunya (indoor underground passage)
+  // Barcelona - Plaça Catalunya (indoor underground passage between FGC and Rodalies)
   {
     from: 'PC',
-    to: '71801',
+    to: '78805',
     durationSec: 240,
     description: {
       ca: 'Passadís subterrani de Pl. Catalunya',
@@ -22,7 +22,7 @@ export const INTERCHANGE_FOOTPATHS: InterchangeFootpath[] = [
     },
   },
   {
-    from: '71801',
+    from: '78805',
     to: 'PC',
     durationSec: 240,
     description: {
@@ -35,7 +35,7 @@ export const INTERCHANGE_FOOTPATHS: InterchangeFootpath[] = [
   // Terrassa Estació del Nord (unified multimodal station building)
   {
     from: 'EN',
-    to: '72207',
+    to: '78700',
     durationSec: 90,
     description: {
       ca: 'Intercanviador Terrassa Estació del Nord',
@@ -44,7 +44,7 @@ export const INTERCHANGE_FOOTPATHS: InterchangeFootpath[] = [
     },
   },
   {
-    from: '72207',
+    from: '78700',
     to: 'EN',
     durationSec: 90,
     description: {
@@ -57,7 +57,7 @@ export const INTERCHANGE_FOOTPATHS: InterchangeFootpath[] = [
   // Sabadell Nord (unified multimodal station building)
   {
     from: 'NO',
-    to: '72205',
+    to: '78709',
     durationSec: 90,
     description: {
       ca: 'Intercanviador Sabadell Nord',
@@ -66,7 +66,7 @@ export const INTERCHANGE_FOOTPATHS: InterchangeFootpath[] = [
     },
   },
   {
-    from: '72205',
+    from: '78709',
     to: 'NO',
     durationSec: 90,
     description: {
@@ -79,7 +79,7 @@ export const INTERCHANGE_FOOTPATHS: InterchangeFootpath[] = [
   // Martorell Central (shared multimodal forecourt)
   {
     from: 'MC',
-    to: '72304',
+    to: '72209',
     durationSec: 120,
     description: {
       ca: 'Intercanviador Martorell Central',
@@ -88,7 +88,7 @@ export const INTERCHANGE_FOOTPATHS: InterchangeFootpath[] = [
     },
   },
   {
-    from: '72304',
+    from: '72209',
     to: 'MC',
     durationSec: 120,
     description: {
@@ -101,7 +101,7 @@ export const INTERCHANGE_FOOTPATHS: InterchangeFootpath[] = [
   // Gornal (FGC) ↔ Bellvitge (Rodalies) (direct pedestrian walkway)
   {
     from: 'GO',
-    to: '72401',
+    to: '71708',
     durationSec: 120,
     description: {
       ca: 'Passarel·la per a vianants Gornal – Bellvitge',
@@ -110,7 +110,7 @@ export const INTERCHANGE_FOOTPATHS: InterchangeFootpath[] = [
     },
   },
   {
-    from: '72401',
+    from: '71708',
     to: 'GO',
     durationSec: 120,
     description: {
@@ -145,7 +145,7 @@ export const INTERCHANGE_FOOTPATHS: InterchangeFootpath[] = [
   // L'Hospitalet Av. Carrilet (FGC) ↔ L'Hospitalet (Rodalies)
   {
     from: 'LH',
-    to: '71701',
+    to: '72305',
     durationSec: 300,
     description: {
       ca: "Enllaç Rambla Marina Av. Carrilet – L'Hospitalet",
@@ -154,7 +154,7 @@ export const INTERCHANGE_FOOTPATHS: InterchangeFootpath[] = [
     },
   },
   {
-    from: '71701',
+    from: '72305',
     to: 'LH',
     durationSec: 300,
     description: {

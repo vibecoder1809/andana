@@ -13,9 +13,9 @@ interface TrainCardProps {
 }
 
 function occStyle(pct: number) {
-  if (pct > 70) return { bg: 'rgba(239,68,68,0.12)', color: '#f87171' }
-  if (pct > 40) return { bg: 'rgba(234,179,8,0.12)',  color: '#fbbf24' }
-  return             { bg: 'rgba(34,197,94,0.12)',   color: '#4ade80' }
+  if (pct > 70) return { bg: 'rgba(239,68,68,0.12)', color: 'var(--status-red)' }
+  if (pct > 40) return { bg: 'rgba(234,179,8,0.12)',  color: 'var(--status-yellow)' }
+  return             { bg: 'rgba(34,197,94,0.12)',   color: 'var(--status-green)' }
 }
 
 export function TrainCard({ train, selected, onClick, lineColors }: TrainCardProps) {
@@ -47,15 +47,17 @@ export function TrainCard({ train, selected, onClick, lineColors }: TrainCardPro
         padding: '10px 14px 10px 18px',
         borderRadius: 10,
         border: `1px solid ${selected ? color + '55' : 'var(--border)'}`,
+        boxShadow: 'var(--card-shadow)',
         marginBottom: 5,
         cursor: 'pointer',
         background: selected ? `${color}0d` : 'transparent',
         position: 'relative',
-        transition: 'background 0.15s, border-color 0.15s',
+        transition: 'background 0.15s, border-color 0.15s, opacity 0.15s',
+        opacity: train.operationalStatus === 'depot' ? 0.68 : 1,
       }}
     >
       {/* Left accent bar */}
-      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: color, borderRadius: '3px 0 0 3px' }} />
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: color, borderRadius: '3px 0 0 3px', opacity: train.operationalStatus === 'depot' ? 0.5 : 1 }} />
 
       {/* Top row: line badge + train number + accessibility + status/delay */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
@@ -73,17 +75,31 @@ export function TrainCard({ train, selected, onClick, lineColors }: TrainCardPro
           )}
         </div>
 
-        <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 8,
-          background: delayed ? 'rgba(239,68,68,0.12)' : train.operationalStatus ? 'rgba(59,130,246,0.12)' : oStyle.bg,
-          color:      delayed ? '#f87171' : train.operationalStatus ? 'var(--accent)' : oStyle.color,
+        <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 8,
+          background: delayed
+            ? 'rgba(239,68,68,0.12)'
+            : train.operationalStatus === 'depot'
+            ? 'rgba(100,116,139,0.16)'
+            : train.operationalStatus
+            ? 'rgba(59,130,246,0.12)'
+            : oStyle.bg,
+          color: delayed
+            ? 'var(--status-red)'
+            : train.operationalStatus === 'depot'
+            ? 'var(--muted)'
+            : train.operationalStatus
+            ? 'var(--accent)'
+            : oStyle.color,
         }}>
           {delayed
             ? `+${train.delayMinutes} min`
-            : train.operationalStatus
-              ? t(train.operationalStatus)
-              : occ > 0
-                ? `${occ}% ${t('occupied')}`
-                : t('onTime')}
+            : train.operationalStatus === 'depot'
+              ? t('depotShort')
+              : train.operationalStatus
+                ? t(train.operationalStatus)
+                : occ > 0
+                  ? `${occ}% ${t('occupied')}`
+                  : t('onTime')}
         </span>
       </div>
 
@@ -129,9 +145,10 @@ export function TrainCard({ train, selected, onClick, lineColors }: TrainCardPro
           {train.wagons.map((v, i) => {
             if (v == null) return null // car not reported (3-car unit)
             const pct = Math.round(v)
-            const wColor = pct > 70 ? '#f87171' : pct > 40 ? '#fbbf24' : '#4ade80'
+            const wColor = pct > 70 ? 'var(--status-red)' : pct > 40 ? 'var(--status-yellow)' : 'var(--status-green)'
+            const wBg = pct > 70 ? 'rgba(239,68,68,0.12)' : pct > 40 ? 'rgba(234,179,8,0.12)' : 'rgba(34,197,94,0.12)'
             return (
-              <span key={i} style={{ fontSize: 9, fontWeight: 600, color: wColor, padding: '1px 5px', borderRadius: 4, background: wColor + '15' }}>
+              <span key={i} style={{ fontSize: 9, fontWeight: 700, color: wColor, padding: '1px 5px', borderRadius: 4, background: wBg }}>
                 {pct}%
               </span>
             )

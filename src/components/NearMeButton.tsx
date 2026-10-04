@@ -37,7 +37,7 @@ export function NearMeButton({
   }
 
   return (
-    <div style={{ position: 'relative', ...style }}>
+    <div data-tour="near-me" style={{ position: 'relative', ...style }}>
       <button
         onClick={onClick}
         disabled={locating || stops.length === 0}

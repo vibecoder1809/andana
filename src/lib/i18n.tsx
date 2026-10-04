@@ -54,10 +54,12 @@ const DICT = {
   groupUrban:      { ca: 'L — Barcelona urbà',           es: 'L — Barcelona urbano',           en: 'L — Barcelona urban' },
   groupValles:     { ca: 'S — Vallès',                   es: 'S — Vallès',                     en: 'S — Vallès' },
   groupRegional:   { ca: 'R — Llobregat-Anoia regional', es: 'R — Llobregat-Anoia regional',   en: 'R — Llobregat-Anoia regional' },
+  groupCremallera: { ca: 'M — Cremallera de Montserrat', es: 'M — Cremallera de Montserrat', en: 'M — Montserrat Rack Railway' },
   groupOther:      { ca: 'Altres',     es: 'Otras',       en: 'Other' },
   groupUrbanShort: { ca: 'L — Urbà',   es: 'L — Urbano',  en: 'L — Urban' },
   groupVallesShort:{ ca: 'S — Vallès', es: 'S — Vallès',  en: 'S — Vallès' },
   groupRegionalShort:{ ca: 'R — Reg.', es: 'R — Reg.',    en: 'R — Reg.' },
+  groupCremalleraShort: { ca: 'Cremallera', es: 'Cremallera', en: 'Rack Railway' },
   noActiveTrains:  { ca: 'Cap tren actiu.', es: 'Ningún tren activo.', en: 'No active trains.' },
 
   // ── Sidebar: stations ──
@@ -104,6 +106,19 @@ const DICT = {
   stationed:       { ca: 'Estacionat',    es: 'Estacionado',  en: 'Stationed' },
   moving:          { ca: 'En marxa',      es: 'En marcha',    en: 'Moving' },
   departing:       { ca: 'Sortint',       es: 'Saliendo',     en: 'Departing' },
+  depot:           { ca: '💤 Cotxeres / Fora de servei', es: '💤 Cocheras / Fuera de servicio', en: '💤 In depot / Out of service' },
+  depotShort:      { ca: '💤 Cotxeres',   es: '💤 Cocheras',  en: '💤 Depot' },
+  cremalleraService: { ca: 'CREMALLERA DE MONTSERRAT', es: 'CREMALLERA DE MONTSERRAT', en: 'MONTSERRAT RACK RAILWAY' },
+  mountainLineNotice: {
+    ca: 'Línia de muntanya (Cremallera): servei turístic diürn. La cobertura GPS pot ser intermitent en trams de túnels i engorjats.',
+    es: 'Línea de montaña (Cremallera): servicio turístico diurno. La cobertura GPS puede ser intermitente en tramos de túneles y desfiladeros.',
+    en: 'Mountain rack railway: daytime tourist service. GPS reception may be intermittent through tunnels and gorges.'
+  },
+  depotNotice: {
+    ca: 'Aquest comboi està estacionat a cotxeres o vies d’apartador fora de l’horari de servei comercial del Cremallera.',
+    es: 'Este convoy está estacionado en cocheras o vías de apartado fuera del horario comercial del Cremallera.',
+    en: 'This train is parked at sidings/depot outside commercial operating hours.'
+  },
   accessibleTrain: { ca: 'Tren accessible', es: 'Tren accesible', en: 'Accessible train' },
   inaccessibleTrain: { ca: 'Tren no accessible', es: 'Tren no accesible', en: 'Inaccessible train' },
   prevStopLabel:   { ca: 'Parada anterior', es: 'Parada anterior', en: 'Previous stop' },
@@ -118,9 +133,14 @@ const DICT = {
   groupRodaliesShort: { ca: 'R — Rodalies', es: 'R — Rodalies', en: 'R — Rodalies' },
   groupRegionalsShort: { ca: 'Regionals', es: 'Regionales', en: 'Regionals' },
 
-  // ── StopPanel ──
+  // ── StopPanel & Sharing ──
   stationFgc:      { ca: 'ESTACIÓ FGC', es: 'ESTACIÓN FGC', en: 'FGC STATION' },
   stationRenfe:    { ca: 'ESTACIÓ RODALIES', es: 'ESTACIÓN RODALIES', en: 'RODALIES STATION' },
+  shareStation:    { ca: "Comparteix l'estació", es: 'Compartir estación', en: 'Share station' },
+  shareTrain:      { ca: 'Comparteix el tren', es: 'Compartir tren', en: 'Share train' },
+  shareRoute:      { ca: 'Comparteix la ruta', es: 'Compartir ruta', en: 'Share route' },
+  linkCopied:      { ca: 'Enllaç copiat!', es: '¡Enlace copiado!', en: 'Link copied!' },
+  close:           { ca: 'Tanca', es: 'Cerrar', en: 'Close' },
   accessible:      { ca: 'Accessible', es: 'Accesible',   en: 'Accessible' },
   departures:      { ca: 'Pròximes sortides', es: 'Próximas salidas', en: 'Next departures' },
   noDepartures:    { ca: 'Sense sortides programades.', es: 'Sin salidas programadas.', en: 'No scheduled departures.' },
@@ -158,6 +178,9 @@ const DICT = {
   stepFreeRoute:   { ca: 'Itinerari accessible', es: 'Itinerario accesible', en: 'Step-free route' },
   showStepFree:    { ca: 'Veure itinerari sense escales', es: 'Ver itinerario sin escalones', en: 'Show step-free route' },
   hideStepFree:    { ca: 'Amagar itinerari', es: 'Ocultar itinerario', en: 'Hide route' },
+  trackLive:       { ca: 'En ruta',    es: 'En ruta',     en: 'Track live' },
+  showStops:       { ca: '▼ Veure parades', es: '▼ Ver paradas', en: '▼ View stops' },
+  hideStops:       { ca: '▲ Amagar parades', es: '▲ Ocultar paradas', en: '▲ Hide stops' },
   preferStepFree:  { ca: 'Prioritza transbords accessibles', es: 'Priorizar transbordos accesibles', en: 'Prefer step-free transfers' },
   stepFreeNote:    { ca: 'Transbords en estacions amb accés sense escales quan és possible.', es: 'Transbordos en estaciones con acceso sin escalones cuando es posible.', en: 'Changes at step-free stations where possible.' },
   notFullyStepFree: { ca: '⚠ El millor trajecte encara té un transbord no accessible.', es: '⚠ El mejor trayecto aún tiene un transbordo no accesible.', en: '⚠ Best route still has a non-step-free transfer.' },
@@ -185,7 +208,10 @@ const DICT = {
   carsRestrictionNotice:{ ca: 'Embarcament exclusiu als primers 3 cotxes degut a la longitud reduïda de les andanes a les parades indicades.', es: 'Embarque exclusivo en los primeros 3 coches por la longitud reducida de los andenes en las paradas indicadas.', en: 'Boarding restricted to the first 3 cars due to short platform lengths at the indicated stops.' },
   generalImpact:   { ca: 'Afectació general al corredor', es: 'Afectación general al corredor', en: 'General corridor impact' },
   activeSchedule:  { ca: 'Vigència de l’avís', es: 'Vigencia del aviso', en: 'Notice validity' },
-  viewMoreInfo:    { ca: 'Més informació ℹ️', es: 'Más información ℹ️', en: 'More info ℹ️' },
+  viewMoreInfo:    { ca: 'Més informació', es: 'Más información', en: 'More info' },
+  viewAllAlerts:   { ca: (n: number) => `Veure tots (${n}) ▼`, es: (n: number) => `Ver todos (${n}) ▼`, en: (n: number) => `View all (${n}) ▼` },
+  collapseAlerts:  { ca: 'Plega ▲', es: 'Plegar ▲', en: 'Collapse ▲' },
+  viewAlertsList:  { ca: (n: number) => `Tots (${n}) ▼`, es: (n: number) => `Todos (${n}) ▼`, en: (n: number) => `All (${n}) ▼` },
   allStationsAffected: { ca: (n: number) => `${n} estacions afectades`, es: (n: number) => `${n} estaciones afectadas`, en: (n: number) => `${n} affected stations` },
   alertIssuedAt:   { ca: 'Emès el:',   es: 'Emitido el:', en: 'Issued on:' },
   alertValidUntil: { ca: 'Vigent fins a:', es: 'Vigente hasta:', en: 'Valid until:' },
@@ -226,6 +252,66 @@ const DICT = {
   installInstructionsIos:{ ca: "A Safari, prem Compartir (⬆) i després 'Afegeix a la pantalla d'inici'.", es: "En Safari, pulsa Compartir (⬆) y luego 'Añadir a pantalla de inicio'.", en: "In Safari, tap Share (⬆) and then 'Add to Home Screen'." },
   installInstructionsAndroid:{ ca: "A Chrome, prem el menú (⋮) i 'Instal·la l'aplicació'.", es: "En Chrome, pulsa el menú (⋮) e 'Instalar aplicación'.", en: "In Chrome, tap menu (⋮) and 'Install app'." },
   installButton:        { ca: 'Instal·lar ara', es: 'Instalar ahora', en: 'Install now' },
+
+  // ── Onboarding / Interactive Tour ──
+  welcomeToAndana:      { ca: 'Benvingut/da a Andana', es: 'Bienvenido/a a Andana', en: 'Welcome to Andana' },
+  tourFirstTimePrompt:  { ca: 'És la primera vegada que fas servir Andana?', es: '¿Es la primera vez que usas Andana?', en: 'Is this your first time using Andana?' },
+  tourFirstTimeDesc:    { ca: 'Vols fer una visita guiada ràpida per descobrir com moure’t per la xarxa, veure els trens en directe i planificar rutes?', es: '¿Quieres hacer una visita guiada rápida para descubrir cómo moverte por la red, ver trenes en directo y planificar rutas?', en: 'Would you like a quick interactive tour to discover how to explore the network, track trains live, and plan journeys?' },
+  tourStart:            { ca: '✨ Sí, ensenya-m’ho', es: '✨ Sí, enséñamelo', en: '✨ Yes, show me' },
+  tourSkip:             { ca: 'No, ja me’n sé sortir', es: 'No, ya me apaño', en: 'No, I know my way' },
+  tourStepNetworkTitle: { ca: 'Commutador de Xarxa', es: 'Conmutador de Red', en: 'Network Switcher' },
+  tourStepNetworkDesc:  { ca: 'Tria fàcilment si vols veure la xarxa d’FGC, Rodalies de Catalunya o ambdues integrades alhora.', es: 'Elige fácilmente si quieres ver la red de FGC, Rodalies de Catalunya o ambas integradas a la vez.', en: 'Easily choose whether to view FGC, Rodalies de Catalunya, or both networks unified together.' },
+  tourStepTabsTitle:    { ca: 'Pestanyes de Navegació', es: 'Pestañas de Navegación', en: 'Navigation Tabs' },
+  tourStepTabsDesc:     { ca: 'Consulta combois en marxa i ocupació per cotxe (Trens), cerca estacions i guarda preferides (Estacions) o calcula rutes multimodals (Anar a…).', es: 'Consulta convoyes en marcha y ocupación por coche (Trenes), busca estaciones y guarda favoritas (Estaciones) o calcula rutas multimodales (Ir a…).', en: 'Check live trains and car occupancy (Trains), find stations and save favorites (Stations), or search multi-modal routes (Go to…).' },
+  tourStepStatusTitle:  { ca: 'Estat de la Xarxa', es: 'Estado de la Red', en: 'Network Health' },
+  tourStepStatusDesc:   { ca: 'Comprova les incidències del servei, retards en temps real i l’estat de salut de cada línia d’un sol cop d’ull.', es: 'Comprueba las incidencias del servicio, retrasos en tiempo real y el estado de cada línea de un solo vistazo.', en: 'Check real-time alerts, live delay metrics, and line health status at a glance.' },
+  tourStepNearMeTitle:  { ca: 'A prop meu', es: 'Cerca de mí', en: 'Near me' },
+  tourStepNearMeDesc:   { ca: 'Prem aquest botó per localitzar a l’instant l’estació més propera a la teva posició i consultar les pròximes sortides.', es: 'Pulsa este botón para localizar al instante la estación más cercana a tu posición y consultar las próximas salidas.', en: 'Tap this button to instantly locate your nearest station and view upcoming departures.' },
+  tourFinish:           { ca: 'Entesos! Finalitzar', es: '¡Entendido! Finalizar', en: 'Got it! Finish' },
+  nextStep:             { ca: 'Següent', es: 'Siguiente', en: 'Next' },
+  prevStep:             { ca: 'Enrere', es: 'Atrás', en: 'Back' },
+  skipTutorial:         { ca: 'Omet', es: 'Saltar', en: 'Skip' },
+  getStarted:           { ca: 'Comença a explorar', es: 'Comenzar a explorar', en: 'Get started' },
+  viewTutorialAgain:    { ca: "Veure el tutorial de l'app", es: 'Ver el tutorial de la app', en: 'View app tutorial' },
+
+  // ── Support / Donation ──
+  supportAndana:        { ca: 'Donar suport a Andana', es: 'Apoyar a Andana', en: 'Support Andana' },
+  enjoyingAndana:       { ca: "T'està sent útil Andana?", es: '¿Te está resultando útil Andana?', en: 'Are you enjoying Andana?' },
+  donationDesc:         { ca: "Andana és un projecte independent i gratuït, sense anuncis ni rastrejadors. Si t'ajuda en els teus desplaçaments diaris, pots col·laborar a mantenir el servei convidant a un cafè.", es: 'Andana es un proyecto independiente y gratuito, sin anuncios ni rastreadores. Si te ayuda en tus desplazamientos diarios, puedes colaborar en mantener el servicio invitando a un café.', en: 'Andana is an independent, free project with no ads or tracking. If it helps your daily commutes, you can help keep the service running by buying a coffee.' },
+  buyACoffee:           { ca: '☕ Convidar a un cafè', es: '☕ Invitar a un café', en: '☕ Buy a coffee' },
+  remindMeLater:        { ca: 'Recorda-m’ho més endavant', es: 'Recuérdamelo más adelante', en: 'Remind me later' },
+  dontShowAgain:        { ca: 'No tornis a mostrar', es: 'No volver a mostrar', en: "Don't show again" },
+
+  // ── Feedback & Bug Reports ──
+  feedbackOrBugReport:      { ca: "Informar d'un error o suggeriment", es: 'Informar de un error o sugerencia', en: 'Report a bug or suggest feature' },
+  feedbackTitle:            { ca: 'Comentaris i Suggeriments', es: 'Comentarios y Sugerencias', en: 'Feedback & Bug Reports' },
+  feedbackTypeBug:          { ca: 'Error / Bug', es: 'Error / Bug', en: 'Bug / Issue' },
+  feedbackTypeFeature:      { ca: 'Suggeriment', es: 'Sugerencia', en: 'Feature idea' },
+  feedbackTypeOther:        { ca: 'Altres', es: 'Otros', en: 'Other' },
+  feedbackDescriptionLabel: { ca: 'Descripció del que has observat o de la teva idea', es: 'Descripción de lo que has observado o de tu idea', en: 'Description of what happened or your idea' },
+  feedbackPlaceholder:      { ca: "Explica'ns què ha passat o quina funció t'agradaria veure a Andana...", es: 'Cuéntanos qué ha ocurrido o qué función te gustaría ver en Andana...', en: 'Tell us what happened or what feature you would like to see in Andana...' },
+  feedbackEmailLabel:       { ca: 'El teu correu de contacte (opcional)', es: 'Tu correo de contacto (opcional)', en: 'Your contact email (optional)' },
+  feedbackAttachDiagnostics:{ ca: 'Incloure informació tècnica del dispositiu (pantalla, xarxa, navegador)', es: 'Incluir información técnica del dispositivo (pantalla, red, navegador)', en: 'Include device diagnostics (screen size, network, browser)' },
+  feedbackRecipientNote:    { ca: 'Els comentaris s’enviaran a', es: 'Los comentarios se enviarán a', en: 'Feedback will be sent to' },
+  feedbackCopiedSuccess:    { ca: 'Missatge copiat al porta-retalls! Pots enviar-lo al nostre correu.', es: '¡Mensaje copiado al portapapeles! Puedes enviarlo a nuestro correo.', en: 'Message copied to clipboard! You can paste it into an email.' },
+  feedbackClientOpened:     { ca: "S'ha obert el teu gestor de correu amb l'informe llest per enviar.", es: 'Se ha abierto tu cliente de correo con el informe listo para enviar.', en: 'Your email client has been opened with the pre-filled report.' },
+  feedbackSendEmail:        { ca: 'Enviar per correu', es: 'Enviar por correo', en: 'Send via email' },
+  feedbackCopy:             { ca: 'Copiar informe', es: 'Copiar informe', en: 'Copy report' },
+  copied:                   { ca: 'Copiat!', es: '¡Copiado!', en: 'Copied!' },
+
+  // ── Night rest & Last service ──
+  nightRestTitle:           { ca: 'Xarxa en descans nocturn', es: 'Red en descanso nocturno', en: 'Network closed overnight' },
+  nightRestDesc:            { ca: 'El servei comercial està tancat durant la nit. Les primeres sortides habituals comencen a partir de les 05:00 h.', es: 'El servicio comercial está cerrado durante la noche. Las primeras salidas habituales comienzan a partir de las 05:00 h.', en: 'Commercial service is closed overnight. Regular early morning departures begin from 05:00.' },
+  lastService:              { ca: 'Últim servei del dia', es: 'Último servicio del día', en: 'Last service of the day' },
+  lastServiceShort:         { ca: 'Últim servei', es: 'Último servicio', en: 'Last service' },
+
+  // ── Recommended Metro connection ──
+  recommendedMetroConnection: { ca: 'Connexió recomanada amb Metro', es: 'Conexión recomendada en Metro', en: 'Recommended Metro connection' },
+  directMetroDesc:          {
+    ca: (orig: string | number, dest: string | number) => `Sense enllaç ferroviari directe entre ${orig} i ${dest}. Pots connectar directament amb la xarxa de Metro TMB / Tram:`,
+    es: (orig: string | number, dest: string | number) => `Sin enlace ferroviario directo entre ${orig} y ${dest}. Puedes conectar directamente con la red de Metro TMB / Tram:`,
+    en: (orig: string | number, dest: string | number) => `No direct rail route between ${orig} and ${dest}. You can connect directly using TMB Metro / Tram:`
+  },
 
   // ── App-level errors ──
   apiConnectError: { ca: "No es pot connectar amb l'API de trens", es: 'No se puede conectar con la API de trenes', en: 'Cannot connect to the trains API' },

@@ -45,17 +45,92 @@ export function DetailPanel({ train, lineColors, onClose, mobile = false }: Deta
 
   const open = train !== null
   const isRenfe = train?.operator === 'renfe'
+  const isCremallera = train?.line === 'M1' || train?.line === 'M2' || train?.line === 'MM'
+
+  const [copied, setCopied] = useState(false)
+
+  const handleShare = async () => {
+    if (!train || typeof window === 'undefined') return
+    const url = `${window.location.origin}${window.location.pathname}?train=${encodeURIComponent(train.id)}`
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: `${train.line} (${train.destination ?? ''}) · Andana`,
+          url,
+        })
+        return
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return
+      }
+    }
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(url)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      } catch {
+        // clipboard unavailable
+      }
+    }
+  }
 
   const inner = train && (
         <>
-          {!mobile && (
+          <div style={{ position: 'absolute', top: mobile ? 0 : 14, right: mobile ? 20 : 14, display: 'flex', alignItems: 'center', gap: 6, zIndex: 2 }}>
             <button
-              onClick={onClose}
-              style={{ position: 'absolute', top: 14, right: 14, background: 'var(--bg3)', border: '1px solid var(--border)', color: 'var(--muted)', width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 12 }}
+              onClick={handleShare}
+              aria-label={t('shareTrain')}
+              title={copied ? t('linkCopied') : t('shareTrain')}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: '50%',
+                background: copied ? 'rgba(34,197,94,0.18)' : 'var(--bg3)',
+                border: `1px solid ${copied ? 'rgba(34,197,94,0.45)' : 'var(--border)'}`,
+                color: copied ? 'var(--green)' : 'var(--muted)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                padding: 0,
+              }}
             >
-              ✕
+              {copied ? (
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>✓</span>
+              ) : (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                  <polyline points="16 6 12 2 8 6" />
+                  <line x1="12" y1="2" x2="12" y2="15" />
+                </svg>
+              )}
             </button>
-          )}
+            {!mobile && (
+              <button
+                onClick={onClose}
+                aria-label={t('close')}
+                title={t('close')}
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: '50%',
+                  background: 'var(--bg3)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  transition: 'all 0.15s ease',
+                  padding: 0,
+                }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
 
           {isRenfe ? (
             <>
@@ -150,9 +225,9 @@ export function DetailPanel({ train, lineColors, onClose, mobile = false }: Deta
             </>
           ) : (
             <>
-              {/* FGC service header */}
+              {/* FGC / Cremallera service header */}
               <div style={{ fontSize: 11, fontWeight: 700, color: lineColors[train.line] || LINE_COLORS[train.line] || '#7a82a0', marginBottom: 4, fontFamily: 'var(--font-space-grotesk)' }}>
-                {t('activeService')}
+                {isCremallera ? t('cremalleraService') : t('activeService')}
               </div>
               <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 24, marginBottom: 2 }}>
                 {t('line')} {train.line}
@@ -160,6 +235,50 @@ export function DetailPanel({ train, lineColors, onClose, mobile = false }: Deta
               <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 14 }}>
                 {t('unit')} <b>#{train.id.split('|')[1]?.slice(-6) ?? train.id}</b>
               </p>
+
+              {/* Depot notice for parked/inactive trains */}
+              {train.operationalStatus === 'depot' && (
+                <div style={{
+                  background: 'rgba(100, 116, 139, 0.12)',
+                  border: '1px solid var(--border2)',
+                  borderRadius: 10,
+                  padding: '10px 12px',
+                  marginBottom: 12,
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                }}>
+                  <span style={{ fontSize: 18, lineHeight: 1 }}>💤</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>
+                      {t('depot')}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, lineHeight: 1.4 }}>
+                      {t('depotNotice')}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Mountain line GPS notice for Cremallera */}
+              {isCremallera && (
+                <div style={{
+                  background: 'rgba(34, 197, 94, 0.08)',
+                  border: '1px solid rgba(34, 197, 94, 0.22)',
+                  borderRadius: 10,
+                  padding: '9px 12px',
+                  marginBottom: 12,
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 8,
+                  fontSize: 11,
+                  color: 'var(--text)',
+                  lineHeight: 1.4,
+                }}>
+                  <span style={{ fontSize: 13, flexShrink: 0, color: 'var(--green)', fontWeight: 700 }}>ℹ</span>
+                  <span>{t('mountainLineNotice')}</span>
+                </div>
+              )}
 
               {/* Metrics grid */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
@@ -247,7 +366,7 @@ export function DetailPanel({ train, lineColors, onClose, mobile = false }: Deta
   // Mobile: in-flow content inside the slide-up sheet (its wrapper handles the
   // panel chrome, scrim and dismiss gesture).
   if (mobile) {
-    return <div style={{ padding: '0 20px 24px' }}>{inner}</div>
+    return <div style={{ padding: '0 20px 24px', position: 'relative' }}>{inner}</div>
   }
 
   // Desktop: absolutely positioned card sliding in from the right of the map.

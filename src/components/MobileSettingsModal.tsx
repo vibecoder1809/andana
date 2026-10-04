@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import type { Theme, NetworkMode } from '@/types'
 import { useI18n, LANGS, type Lang } from '@/lib/i18n'
+import { FeedbackModal } from './FeedbackModal'
 
 interface MobileSettingsModalProps {
   open: boolean
@@ -16,6 +17,8 @@ interface MobileSettingsModalProps {
   onRefresh: () => void
   networkMode: NetworkMode
   onNetworkChange: (m: NetworkMode) => void
+  onOpenTutorial?: () => void
+  onOpenDonation?: () => void
 }
 
 export function MobileSettingsModal({
@@ -30,10 +33,13 @@ export function MobileSettingsModal({
   onRefresh,
   networkMode,
   onNetworkChange,
+  onOpenTutorial,
+  onOpenDonation,
 }: MobileSettingsModalProps) {
   const { t, lang, setLang } = useI18n()
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const [isStandalone, setIsStandalone] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -62,6 +68,8 @@ export function MobileSettingsModal({
   const secsAgo = lastUpdate ? Math.max(0, Math.round((Date.now() - lastUpdate.getTime()) / 1000)) : null
   const relativeText = secsAgo == null ? '—' : secsAgo < 5 ? t('justNow') : secsAgo < 60 ? t('secsAgo', secsAgo) : t('minsAgo', Math.floor(secsAgo / 60))
 
+  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 640
+
   return (
     <div
       onClick={onClose}
@@ -72,8 +80,9 @@ export function MobileSettingsModal({
         background: 'rgba(0,0,0,0.65)',
         backdropFilter: 'blur(5px)',
         display: 'flex',
-        alignItems: 'flex-end',
+        alignItems: isDesktop ? 'center' : 'flex-end',
         justifyContent: 'center',
+        padding: isDesktop ? 16 : 0,
       }}
     >
       <div
@@ -81,16 +90,16 @@ export function MobileSettingsModal({
         style={{
           width: '100%',
           maxWidth: 440,
-          maxHeight: '85vh',
+          maxHeight: isDesktop ? '80vh' : '85vh',
           background: 'var(--bg2)',
           border: '1px solid var(--border2)',
-          borderRadius: '22px 22px 0 0',
-          boxShadow: '0 -10px 40px rgba(0,0,0,0.5)',
+          borderRadius: isDesktop ? 22 : '22px 22px 0 0',
+          boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
           overflowY: 'auto',
           display: 'flex',
           flexDirection: 'column',
-          paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
-          animation: 'slide-up 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+          paddingBottom: isDesktop ? 16 : 'calc(16px + env(safe-area-inset-bottom, 0px))',
+          animation: isDesktop ? 'fade-in 0.2s ease-out' : 'slide-up 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
       >
         {/* Header */}
@@ -357,14 +366,90 @@ export function MobileSettingsModal({
             )}
           </div>
 
-          {/* 6. About Andana */}
+          {/* 6. About Andana & Support */}
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 4 }}>
               {t('aboutApp')}
             </div>
-            <p style={{ margin: '0 0 6px 0', fontSize: 12, color: 'var(--text)', opacity: 0.8, lineHeight: 1.4 }}>
+            <p style={{ margin: '0 0 10px 0', fontSize: 12, color: 'var(--text)', opacity: 0.8, lineHeight: 1.4 }}>
               {t('aboutDescription')}
             </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+              {onOpenTutorial && (
+                <button
+                  onClick={() => {
+                    onClose()
+                    onOpenTutorial()
+                  }}
+                  style={{
+                    background: 'var(--bg3)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 10,
+                    padding: '9px 12px',
+                    color: 'var(--text)',
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <span>📖</span>
+                  <span>{t('viewTutorialAgain')}</span>
+                </button>
+              )}
+
+              {onOpenDonation && (
+                <button
+                  onClick={() => {
+                    onClose()
+                    onOpenDonation()
+                  }}
+                  style={{
+                    background: 'rgba(234,179,8,0.12)',
+                    border: '1px solid rgba(234,179,8,0.3)',
+                    borderRadius: 10,
+                    padding: '9px 12px',
+                    color: 'var(--yellow)',
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <span>☕</span>
+                  <span>{t('supportAndana')}</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => setFeedbackOpen(true)}
+                style={{
+                  background: 'var(--bg3)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 10,
+                  padding: '9px 12px',
+                  color: 'var(--text)',
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontFamily: 'inherit',
+                }}
+              >
+                <span>💡</span>
+                <span>{t('feedbackOrBugReport')}</span>
+              </button>
+            </div>
+
             <div style={{ fontSize: 10, color: 'var(--muted)' }}>
               Andana · Open Data FGC & Rodalies de Catalunya
             </div>
@@ -372,6 +457,13 @@ export function MobileSettingsModal({
 
         </div>
       </div>
+
+      <FeedbackModal
+        open={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+        networkMode={networkMode}
+        theme={theme}
+      />
     </div>
   )
 }

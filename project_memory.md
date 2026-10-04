@@ -118,6 +118,28 @@ Before committing any changes or concluding a session, verify:
 
 ---
 
+## 5.1. Pending External Integrations & Loose Ends (Action Required Before Production)
+
+All external integrations and loose-end handles are centralized in [`src/lib/externalLinks.ts`](src/lib/externalLinks.ts). Before publishing or launching Andana to the public, the owner must update these items with real accounts:
+
+1. **Donation / Coffee Link (`EXTERNAL_HOOKS.donationUrl`):**
+   - **Current placeholder:** `'https://ko-fi.com'`
+   - **Location:** [`src/lib/externalLinks.ts`](src/lib/externalLinks.ts) (consumed by `DonationModal.tsx` and `Header.tsx`).
+   - **Action needed:** Set to the real project/creator Ko-fi, Buy Me a Coffee, or Stripe page URL (e.g. `https://ko-fi.com/andana`).
+
+2. **Bug Reports & Feature Requests (`EXTERNAL_HOOKS.feedbackEmail` & `feedbackWebhookUrl`):**
+   - **Current placeholder:** `'feedback@andana.cat'` (and empty webhook).
+   - **Location:** [`src/lib/externalLinks.ts`](src/lib/externalLinks.ts) (consumed by `FeedbackModal.tsx` inside `MobileSettingsModal.tsx`).
+   - **Action needed:**
+     - Replace `'feedback@andana.cat'` with the real inbox where support messages should be delivered.
+     - *(Optional)* If real-time automated ingestion is desired, connect a webhook endpoint (Discord webhook, Formspree, Telegram, or Next.js `/api/feedback` route) to `feedbackWebhookUrl`.
+
+3. **Source Repository & GitHub Issues (`EXTERNAL_HOOKS.githubIssuesUrl`):**
+   - **Current placeholder:** `'https://github.com'`
+   - **Action needed:** Set to the real GitHub repository issues page.
+
+---
+
 ## 6. Change History & Session Log
 
 <!-- ALL FUTURE AGENTS: APPEND YOUR SESSION UPDATES HERE -->
@@ -472,12 +494,292 @@ Before committing any changes or concluding a session, verify:
      - `locateOrigin` GPS button supports numeric Rodalies stop IDs.
      - Added `walkingTransfer` i18n key in Catalan, Spanish, and English.
 - **Verification:**
+### Session: 2026-10-04 (Implementation of Features 1–6: ATM Fares, Timeline, Network Status, Line Focus, Metro/Tram Badges, Live HUD)
+- **Features Implemented:**
+  1. 🎫 **Zones tarifàries ATM i càlcul de preu (`src/lib/fares.ts`):**
+     - Mapped all FGC and Rodalies Catalunya stations (parent codes and 5-digit station IDs) into official ATM Barcelona tariff crowns (Zones 1 to 6).
+     - Built `computeJourneyFare(journey)` using official 2026 ATM prices (Bitllet Senzill, T-casual, T-usual). Integrated dynamic fare cards inside planned journeys in `TripPlanner.tsx`.
+  2. 📋 **Detall desplegable del viatge (`src/components/TripPlanner.tsx`, `src/lib/planner.ts`):**
+     - Extended CSA planner engine to record intermediate passing stations and scheduled arrival times per leg (`JourneyLegStop[]`).
+     - Added an interactive "Detall de parades" accordion to `JourneyCard` with a vertical timeline, passing times, zone tags, and Metro/Tram connection chips for every stop.
+  3. 🚦 **Estat de la xarxa d'un cop d'ull (`src/components/NetworkStatusModal.tsx`):**
+     - Created a comprehensive real-time network health modal grouped by corridor (FGC Barcelona-Vallès, FGC Llobregat-Anoia, Rodalies de Catalunya, Regionals).
+     - Aggregates active trains, line alerts, and health badges (Servei habitual / Afectacions / Incidència). Clicking any line triggers map focus.
+     - Wired into desktop header (`Header.tsx`) and mobile floating bar (`MobileLayout.tsx`) with live alert count pill.
+  4. 🔍 **Filtre de línia al mapa (`src/components/MapView.tsx`):**
+     - Implemented `focusedLine` mode in MapLibre GL layer expressions: highlights geometry and trains of the selected line while dimming background routes and other trains.
+     - Added a floating glassmorphic cancel pill with the line's official color to clear the filter.
+  5. 🚇 **Enllaços amb Metro TMB i Tram (`src/lib/metroInterchanges.ts`):**
+     - Mapped interchange stations to TMB Metro (L1–L11, FM) and Trambaix/Trambesòs (T1–T6) with official line badge styling and contrast text colors.
+     - Displayed in station autocomplete, `StopPanel`, and the journey timeline.
+  6. 🧭 **Mode «En ruta» (`src/components/LiveTripHud.tsx`):**
+     - Created a live GPS/transit HUD activated from any journey card via "Seguir ruta".
+     - Displays live progress bar, active leg indicator, next upcoming stop countdown, and step-by-step milestones.
+- **Verification:**
+  - `cmd /c npx tsc --noEmit`: 0 errors.
+  - `cmd /c npm test`: 30/30 infra checks passed.
+  - `cmd /c npx next build`: Successful production Turbopack build (all 14 static and dynamic routes compiled cleanly).
+  - STRICT ADHERENCE: Changes kept local; no `git push` performed.
+
+### Session: 2026-10-04 (Client-Side User Engagement: Onboarding Tutorial & Delayed Donation Prompt)
+- **Features Implemented:**
+  1. 🛠️ **Engagement State Machine (`src/lib/userEngagement.ts`):**
+     - Fully client-side using `localStorage` keys: `andana-tutorial-completed`, `andana-first-seen`, `andana-donation-snoozed-until`.
+     - Automatically records `first-seen` on first launch.
+     - Controls non-overlapping presentation (tutorial first; donation prompt only triggers if user has completed tutorial and after $\ge 48$ hours of first use).
+     - Provides configurable snoozing (14 days default, 90 days on support, 10 years on "Don't show again").
+  2. 📖 **First-Run Onboarding & Interactive Spotlight Tour (`src/components/OnboardingModal.tsx`):**
+     - **Initial Pop-up:** Asks *"És la primera vegada que fas servir Andana?"* with *"✨ Sí, ensenya-m’ho"* vs *"No, ja me’n sé sortir"*.
+     - **Interactive Spotlight Tour:** If requested, dims the screen with a spotlight cutout and directional pointer arrow focusing sequentially on:
+       1. Commutador de Xarxa (`[data-tour="network-switch"]`).
+       2. Pestanyes de Navegació (`[data-tour="tabs"]`).
+       3. Estat de la Xarxa (`[data-tour="network-status"]`).
+       4. A prop meu / GPS (`[data-tour="near-me"]`).
+     - Dynamic viewport positioning (clamped coordinates, adaptive arrow orientation, resize/scroll listeners).
+     - Once dismissed or finished, marks `andana-tutorial-completed` in `localStorage` and never reappears automatically.
+  3. ☕ **Delayed Support/Donation Prompt (`src/components/DonationModal.tsx`):**
+     - Polite, respectful modal prompting after 2 days of usage.
+     - Options: "Convidar a un cafè ☕" (opens support link and snoozes for 90 days), "Recorda-m'ho més endavant" (snoozes 14 days), "No tornis a mostrar" (snoozes permanently).
+  4. 📱 **Full Dual-Root & Settings Integration:**
+     - Wired into desktop (`App.tsx`, `Header.tsx`) and mobile (`MobileLayout.tsx`, `MobileSettingsModal.tsx`).
+     - Users can re-open the tutorial or support modal at any time from mobile settings or the desktop header.
+  5. 🌐 **Trilingual Strings:**
+     - All user-facing text translated in Catalan (`ca`), Spanish (`es`), and English (`en`) in `src/lib/i18n.tsx`.
+- **Verification:**
   - `cmd /c npx tsc --noEmit`: 0 errors.
   - `cmd /c npm test`: 30/30 checks passed.
-  - Next.js production build (`next build`) verified clean (Turbopack, App Router, SSR, static page collection).
-  - STRICT ADHERENCE: No `git push` executed.
+  - `cmd /c npx next build`: 14/14 static & dynamic routes compiled successfully with Turbopack.
+  - STRICT ADHERENCE: Local repository only; no `git push` executed.
 
+### Session: 2026-10-05 (Mobile UI De-Cluttering, 2-Row Alerts, Floating NearMe & Desktop Settings Streamlining)
+- **Mobile De-Cluttering & Spacious Top Bar (`MobileLayout.tsx`):**
+  - Removed `NearMeButton` from the crowded mobile top bar. Top bar now comfortably accommodates Brand/NetworkSwitch on the left and only 3 utility buttons (`🚦`, `↻`, `⚙️`) on the right with zero overlap.
+  - Repositioned `NearMeButton` to float above the bottom sheet on the map at the bottom right (`bottom: calc(${sheetHeight} + 12px)`). It smoothly fades out and disables pointer events when the sheet is swiped up past peek (`sheetRatio > 0.32`).
+- **Full-Width Legible Mobile Alert Banner (`MobileAlertBanner`):**
+  - Refactored the single-line squeezed banner into a clean 2-row card:
+    - Row 1: `⚠` badge, operator chip (`Rodalies` / `FGC`), compact timestamp, `+ info ↗` button, and `1/N ▼` count.
+    - Row 2: Full-width alert headline text (up to 2 lines, `lineClamp: 2`, `wordBreak: break-word`), ensuring complete readability on 360–390px screens.
+- **Onboarding Language Switcher (`OnboardingModal.tsx`):**
+  - Added quick `CA | ES | EN` language selector pills to the top-right of the initial welcome prompt dialog so users can switch languages before starting the guided tour.
+- **Desktop Header Streamlining (`Header.tsx`, `App.tsx`):**
+  - Removed the eternal `📖` tutorial button from the desktop header.
+  - Added a clean `⚙️` settings button in desktop `Header.tsx` wired to `MobileSettingsModal` (now fully responsive as a centered modal on $\ge 640px$ screens). Both tutorial and donation options are cleanly accessible through settings.
+- **Verification:**
+  - `cmd /c npx tsc --noEmit`: 0 errors.
+  - `cmd /c npm test`: 30/30 checks passed.
+  - `cmd /c npx next build`: 14/14 routes compiled cleanly in 3.8s.
+  - Local repository only; no `git push` executed.
 
+### Session: 2026-10-05 (PC Header Button Modernization & Alert Panel Emoji Clean-up)
+- **PC Header Button Restyling (`Header.tsx`, `App.tsx`):**
+  - Revamped the plain, borders-only desktop header buttons (`LanguagePicker`, Theme toggle, Refresh, Settings, Support) into modern glassmorphic capsules matching the rest of the application.
+  - **LanguagePicker:** Capsule button with inline SVG globe icon (`🌐`), bold active language label with no awkward newline wrapping, rotating SVG chevron, and a backdrop-blur dropdown with checkmark indicators.
+  - **Theme Toggle:** Added dynamic inline SVG icons (`☀️` sun when light, `🌙` moon when dark) alongside the `{t('theme')}` label, styled with `var(--bg3)`, subtle border, and hover elevation.
+  - **Refresh Button:** Added rotating SVG arrow icon with active CSS spin animation during re-fetching, clear loading state feedback, and responsive hover transitions.
+  - **Settings Gear (`⚙️`):** Positioned at the far right of the desktop header, standardizing navigation and settings access.
+  - Unified heights (34px), border-radius (10px), and subtle box-shadows across all desktop header action pills.
+- **Alerts Panel Emoji Clean-up (`i18n.tsx`, `App.tsx`, `MobileLayout.tsx`, `AlertModal.tsx`):**
+  - Removed duplicate `ℹ️` from `{t('viewMoreInfo')}` across all three languages (`ca: 'Més informació'`, `es: 'Más información'`, `en: 'More info'`).
+  - Removed redundant leading `ℹ️ ` from the alert item button in `App.tsx` (eliminating the double `ℹ️` issue completely).
+  - Removed `🕒 ` clock emojis from `AlertBanner` in `App.tsx` and `MobileLayout.tsx`, replacing them with clean typography and badges.
+  - Replaced emojis in `AlertModal.tsx` publication/validity sections with crisp, theme-aware inline SVG clock and calendar icons.
+- **Alert Banner Accordion & Explicit Expansion (Option 1 Implementation):**
+  - **Natural Accordion Model:** Tapping/clicking anywhere on the alert banner bar now smoothly toggles the expanded list of all alerts when multiple disruptions are active (`count > 1`). When only 1 alert exists, it opens that alert's modal directly.
+  - **Direct Details Action:** Retained the dedicated `+ info ↗` / `Més informació` button to open the previewed alert's detail modal immediately without expanding the drawer.
+  - **Explicit Expansion Pills:** Replaced the cryptic `1/N ▼` counter button with explicit, localized toggle buttons:
+    - Desktop: `Veure tots (N) ▼` / `Plega ▲` (`viewAllAlerts` / `collapseAlerts`).
+    - Mobile: `Tots (N) ▼` / `Plega ▲` (`viewAlertsList` / `collapseAlerts`), fitting comfortably on compact screens alongside `+ info ↗`.
+  - Added trilingual translations (`ca`, `es`, `en`) for all new alert drawer control strings.
+- **Verification:**
+  - `cmd /c npx tsc --noEmit`: 0 errors.
+  - `cmd /c npm test`: 30/30 unit tests passed.
+  - STRICT ADHERENCE: Local repository only; no `git push` executed.
 
+### Session: 2026-10-05 (Light Theme Legibility Overhaul, Bug Reports & External Hooks Centralization)
+- **Light Theme Legibility & High-Contrast Overhaul (`globals.css`, `TrainCard.tsx`):**
+  - **High-contrast semantic status tokens:** Defined dedicated, WCAG AA compliant colors for `[data-theme="light"]`:
+    - `--green: #15803d` (deep emerald, replacing neon `#22c55e` for 5:1 contrast).
+    - `--yellow: #b45309` (rich warm amber, replacing blinding `#eab308` for 5:1 contrast).
+    - `--red: #dc2626` (crisp crimson, replacing pale coral `#ef4444`).
+  - **Crisp typography & defined boundaries:**
+    - Darkened primary text `--text` to `#0f172a` (Slate 900) for sharp readability.
+    - Darkened muted text `--muted` to `#475569` (Slate 600) so secondary timestamps, tracks, and station subtitles stay crisp even with opacity.
+    - Strengthened borders (`--border: rgba(15, 23, 42, 0.09)`, `--border2: rgba(15, 23, 42, 0.16)`) and distinct background surfaces (`--bg: #f0f3f8`, `--bg3: #e4e9f2`).
+  - **Preserved Dark Mode 100% Intact:** All original `:root` dark-mode tokens and exact pastel shades (`#4ade80`, `#fbbf24`, `#f87171`) were mapped directly to `--status-*` variables in `:root` so dark mode has zero visual changes.
+  - **Fixed TrainCard status contrast in Light Mode:** Used dynamic `--status-*` tokens in `TrainCard.tsx` so dark mode stays soft and familiar while light mode automatically gains sharp, deep, readable status colors.
+- **Bug Reports & Feature Requests (`FeedbackModal.tsx`, `MobileSettingsModal.tsx`):**
+  - Added dedicated `FeedbackModal` accessible from Settings on both desktop and mobile.
+  - Supports Bug Report (`🐛`), Feature Request (`💡`), and General Feedback (`❓`).
+  - Includes message input, optional reply email, device diagnostic collector, "Enviar per correu" (`mailto:`), and "Copiar informe" clipboard fallback.
+- **Centralized Integration Hooks & Loose Ends (`src/lib/externalLinks.ts`, `Section 5.1`):**
+  - Created `src/lib/externalLinks.ts` centralizing all placeholder accounts and endpoints (`donationUrl`, `feedbackEmail`, `feedbackWebhookUrl`, `githubIssuesUrl`).
+  - Documented requirements in `project_memory.md` under Section 5.1 so future contributors and the owner know what needs to be configured before production launch.
+- **Verification:**
+  - `cmd /c npx tsc --noEmit`: 0 errors.
+  - `cmd /c npm test`: 30/30 unit tests passed.
+  - STRICT ADHERENCE: Local repository only; no `git push` executed.
 
+### Session: 2026-10-05 (Sharing Infrastructure & StopPanel 3-Circle Header Alignment)
+- **StopPanel Header & Button Overlap Fix (`StopPanel.tsx`):**
+  - Resolved ugly collision/overlap between the absolute positioned close button (`✕`) and the favorite button (`⭐`/`☆`) next to the station title.
+  - Implemented unified, top-right flex row of **3 circular buttons** matching the close button format (`28px` diameter, `borderRadius: '50%'`, `var(--bg3)`, border, hover transitions):
+    1. **Compartir / Share (`📤` / SVG arrow):** Triggers `navigator.share` (if available on mobile/supported desktop) or copies direct link `?stop=<stopId>` to clipboard with temporary `✓` / `Enllaç copiat!` feedback.
+    2. **Estrella / Favorite (`⭐` / `☆` / SVG star):** Toggles favorite station in `useFavoriteStations` with sleek gold fill when active.
+    3. **Creu / Close (`✕`):** Neatly closes the station drawer (`onClose()`), rendered on desktop and where close action is enabled.
+- **Universal Deep-Link Sharing Across the App:**
+  - **Train Deep-Link Sharing (`DetailPanel.tsx`):** Added a matching circular share button in the top-right of `DetailPanel`, sharing `?train=<trainId>`.
+  - **Planned Route Sharing (`TripPlanner.tsx`):** Added a circular share button in the search divider between origin and destination when a route is selected, sharing `?from=<originCode>&to=<destCode>`.
+- **Localization (`i18n.tsx`):**
+  - Added trilingual translations (`shareStation`, `shareTrain`, `shareRoute`, `linkCopied`, `close`) in Catalan (`ca`), Spanish (`es`), and English (`en`).
+- **Live Trip HUD Wiring Fix (`TripPlanner.tsx`):**
+  - Identified that `onStartLiveTrip` was properly passed down through `App.tsx`, `Sidebar.tsx`, and `MobileLayout.tsx`, but was not destructured in `TripPlanner`'s parameters and was not forwarded into `<JourneyCard />`.
+  - Destructured `onStartLiveTrip` in `TripPlanner` and passed it down to `JourneyCard`, ensuring the `🧭 En ruta` / `🧭 Track live` button renders reliably on all journey cards.
+  - Replaced inline ternaries with centralized `t('trackLive')`, `t('showStops')`, `t('hideStops')` dictionary keys and optimized high-contrast button styling (`color: '#fff'`).
+- **Verification:**
+  - `cmd /c npx tsc --noEmit`: 0 errors.
+  - `cmd /c npm test`: 30/30 unit tests passed.
+  - `cmd /c npx next build`: Turbopack production build succeeded.
+  - STRICT ADHERENCE: Local repository only; no `git push` executed.
 
+### Session: 2026-10-05 (Station Favorites Bug Fix & Mobile Static Scrolling Space Reduction)
+- **Station Favorites Star Bug Fix (`src/lib/savedStations.ts`, `StopPanel.tsx`, `Sidebar.tsx`, `MobileLayout.tsx`):**
+  - **Identified Root Causes:**
+    1. *Re-entrant sync event dispatch:* Calling `window.dispatchEvent(new Event(SYNC_EVENT))` synchronously inside `setFavorites(prev => { ... write(next) ... })` fired the `SYNC_EVENT` listener immediately in the middle of React's state transition, invoking `setFavorites(read())` re-entrantly.
+    2. *Platform ID vs Station ID mismatch:* FGC stations frequently use platform-specific stop IDs (`VD1`, `PC2`, etc.) in live feeds, while station directories use base codes (`VD`, `PC`) or normalized names. The simple equality `f.stopId === stopId` failed to match, leading to desynced star icons and unexpected un-favoriting.
+  - **Resolution:**
+    - Added `getBaseStationCode()` and `normalizeStationName()` helper logic to `src/lib/savedStations.ts`.
+    - Added robust polymorphic matching `matchStation(fav, candidate)` that checks base codes, stop IDs, and normalized station names.
+    - Updated `isFavorite()` to accept polymorphic inputs: `Stop`, `SavedStation`, or string ID/name.
+    - Deferred `window.dispatchEvent` via `setTimeout(..., 0)` so cross-component synchronization never collides with ongoing React render phases.
+    - Updated `StopPanel`, `Sidebar`, and `MobileLayout` to pass station objects directly into `isFavorite(station)`.
+- **Mobile Static Scrolling Space Optimization (`MobileLayout.tsx`, `TripPlanner.tsx`):**
+  - **Problem:**
+    - On mobile in `Trens` and `Anar a…` tabs, the static UI pinned above the scrolling content consumed a disproportionate amount of screen space (often >60% of the half-sheet height), leaving tiny visible viewports for trains and trip results.
+    - In `Trens`, the line filter chips and segmented tabs were statically pinned above the sheet content.
+    - In `TripPlanner` (`Anar a…`), the form was locked (`flexShrink: 0` in an `overflow: hidden` container) while only the results container had `overflowY: auto`.
+  - **Fixes Applied:**
+    - **Unified Scroll in `TripPlanner`:** Set `overflowY: 'auto'` on the main container with compact padding (`12px 14px`, gap `9px`), allowing the search form and results to scroll together smoothly. As soon as the user scrolls through results, the search inputs scroll away naturally.
+    - **Compacted Sheet Header:** Reduced bottom sheet handle padding (`7px 0 5px`) and segmented tabs control (`margin: '0 10px 6px'`, button `padding: '6px 0'`).
+    - **Moved Filter Chips into Scrollable Trains View:** Moved line filter chips from the static sheet wrapper into the top of the scrollable `activeTab === 'trains'` view. When browsing trains, the filters scroll away naturally with the list. Removed the chips from `stations` where they were unnecessary.
+- **Verification:**
+  - `cmd /c npx tsc --noEmit`: 0 errors.
+  - `cmd /c npm test`: 30/30 unit tests passed.
+  - `cmd /c npx next build`: Turbopack production build succeeded.
+  - STRICT ADHERENCE: Local repository only; no `git push` executed.
+
+### Session: 2026-10-05 (Fix MapView "Cannot add layer before non-existing layer stops-circles")
+- **Root Cause:**
+  - In `src/components/MapView.tsx`, `<Source id="journey">` and its child layers (`journey-casing`, `journey-line`) had `beforeId="stops-circles"`.
+  - In the JSX element tree, `<Source id="journey">` was declared physically before `<Source id="stops">`.
+  - When `MapView` mounted with an active journey (e.g. via deep-link parameters, theme switch, or initial render), `react-map-gl` processed `<Source id="journey">` first and called `map.addLayer("journey-casing", "stops-circles")`. Because `stops-circles` was further down in the JSX tree, it had not yet been added to the MapLibre style layer order (`_order`), causing MapLibre to fire:
+    `Cannot add layer "journey-casing" before non-existing layer "stops-circles"` and `Cannot add layer "journey-line" before non-existing layer "stops-circles"`.
+- **Fix:**
+  - Reordered the JSX tree in `MapView.tsx`: placed `<Source id="stops">` (and layers `stops-circles`, `stops-labels`) immediately before `<Source id="journey">`.
+  - Now, when `journey-casing` and `journey-line` are mounted with `beforeId="stops-circles"`, `stops-circles` is already registered in the map style layer order, inserting the journey path directly beneath the station circles as intended without any console errors.
+- **Verification:**
+  - `cmd /c npx tsc --noEmit`: 0 errors.
+  - `cmd /c npm test`: 30/30 unit tests passed.
+  - `cmd /c npx next build`: Turbopack production build succeeded.
+  - STRICT ADHERENCE: Local repository only; no `git push` executed.
+
+### Session: 2026-10-05 (Cremallera de Montserrat M1/M2 Telemetry & Depot Detection Overhaul)
+- **Problem:**
+  - FGC's public feed keeps M1 and M2 (Cremallera de Montserrat) units published 24/7 even when parked overnight at sidings/depots in Monistrol-Vila, Monistrol d'Enllaç, or Montserrat with `estacionat_a`.
+  - M1 and M2 were classified under generic "Altres" (`Other`) rather than their own identity.
+  - Due to steep rocky gorges and tunnels (Foradada, Àngel), GPS positioning is often only refreshed at open-air stations, confusing users about why trains appear stationary.
+- **Improvements Implemented:**
+  1. **Dedicated `⛰️ Cremallera` Line Group:**
+     - Added `{ key: 'M-cremallera', labelKey: 'groupCremallera', prefix: /^(M\d?|MM)$/ }` to `Sidebar.tsx` and `MobileLayout.tsx`.
+     - Added official mountain green colors for `M1` (`#008542`), `M2` (`#006837`), and `MM` (`#008542`) in `constants.ts`.
+     - Line chips show `⛰️ Cremallera` with quick filtering, distinct from generic lines.
+  2. **Intelligent Operating Hours & Depot Detection (`src/lib/trains.ts`):**
+     - Added `isCremalleraOperatingHours()` checking current local time in Catalonia (commercial tourist hours: 08:20 to 20:15).
+     - When outside operating hours, M1/M2 units are automatically tagged with `operationalStatus: 'depot'` and `isDepot: true`.
+     - During operating hours, trains with `estacionat_a` are marked as `'stationed'`, and circulating units as `'moving'`.
+  3. **Visual Feedback on Cards, Lists & Map:**
+     - **TrainCard:** Parked units render with `opacity: 0.68`, muted left accent bar, and a `💤 Cotxeres` status badge.
+     - **Train List Prioritization:** Both desktop `Sidebar.tsx` and `MobileLayout.tsx` now sort trains so active/moving trains appear at the top, and depot units are placed at the bottom.
+     - **Map Marker:** On `MapView.tsx`, depot units render with a dashed outline `2px dashed rgba(255,255,255,0.7)`, lower opacity (`0.6`), and `(💤 Cotxeres)` in the title.
+  4. **Contextual Mountain Line & Depot Notes (`DetailPanel.tsx`):**
+     - Header displays `CREMALLERA DE MONTSERRAT`.
+     - If parked at depot/sidings, displays a card explaining: *"Aquest comboi està estacionat a cotxeres o vies d’apartador fora de l’horari de servei comercial del Cremallera."*
+     - Displays an informational mountain line notice: *"Línia de muntanya (Cremallera): servei turístic diürn. La cobertura GPS pot ser intermitent en trams de túnels i engorjats."*
+  5. **Localization (`i18n.tsx`):**
+     - Added `groupCremallera`, `groupCremalleraShort`, `cremalleraService`, `depot`, `depotShort`, `mountainLineNotice`, `depotNotice` in Catalan (`ca`), Spanish (`es`), and English (`en`).
+- **Verification:**
+  - `cmd /c npx tsc --noEmit`: 0 errors.
+  - `cmd /c npm test`: 30/30 unit tests passed.
+  - `cmd /c npx next build`: Turbopack production build succeeded.
+  - STRICT ADHERENCE: Local repository only; no `git push` executed.
+
+### Session: 2026-10-05 (Remove Cremallera Emoji & Drop Inactive Overnight Trains from Feed)
+- **Drop Sleeping/Inactive Trains Outside Service Hours (`src/lib/trains.ts`):**
+  - Updated `fetchTrains()`: when outside Cremallera commercial operating hours (`!inCremalleraHours`), M1/M2/MM trains left with transponders on at sidings/depots are dropped completely (`return []`).
+  - Ensures no inactive ghost trains appear as live/online trains in the app when the service is closed overnight.
+- **Clean Styling (Remove Emoji):**
+  - Removed `⛰️` emoji from `groupCremallera` ("M — Cremallera de Montserrat") and `groupCremalleraShort` ("Cremallera") in `src/lib/i18n.tsx`.
+  - Replaced emoji with clean `ℹ` indicator in `DetailPanel.tsx`.
+- **Verification:**
+  - `cmd /c npx tsc --noEmit`: 0 errors.
+  - `cmd /c npm test`: 30/30 unit tests passed.
+  - `cmd /c npx next build`: Turbopack production build succeeded.
+  - STRICT ADHERENCE: Local repository only; no `git push` executed.
+
+### Session: 2026-10-05 (Fix Fatal Renfe Interchange Station IDs in Footpaths)
+- **Critical Footpath Bug Found by User:**
+  - User noticed that planning a route from Pl. Catalunya to Sants showed a walk of only `4 min`, whereas walking between them takes ~35-45 min (3.5 km).
+- **Root Cause Analysis:**
+  - In `src/lib/footpaths.ts`, the transfer for Pl. Catalunya was erroneously mapped to Renfe code `71801` (`from: 'PC', to: '71801', durationSec: 240`).
+  - According to official Renfe GTFS/GeoJSON (`estaciones.geojson`) and `src/lib/constants.ts`:
+    - `71801` is **Barcelona-Sants**!
+    - `78805` is **Barcelona-Plaça de Catalunya**!
+  - As a result, the trip planner connected FGC Pl. Catalunya directly to Barcelona-Sants as a 4-minute underground passage!
+  - Further auditing revealed other misassigned Renfe codes in `footpaths.ts`:
+    - Terrassa Estació del Nord had `72207` (which is Sant Sadurní d'Anoia) instead of `78700` (Terrassa Estació del Nord).
+    - Sabadell Nord had `72205` (which is La Granada) instead of `78709` (Sabadell Nord).
+    - Martorell Central had `72304` instead of `72209`.
+    - Gornal had `72401` instead of `71708` (Bellvitge | Gornal).
+    - L'Hospitalet Av. Carrilet had `71701` (which is Sitges!) instead of `72305` (L'Hospitalet de Llobregat).
+- **Fix:**
+  - Corrected all interchange mappings in `src/lib/footpaths.ts` to their verified Renfe station IDs:
+    - Pl. Catalunya: `PC` ↔ `78805` (240s)
+    - Terrassa Estació del Nord: `EN` ↔ `78700` (90s)
+    - Sabadell Nord: `NO` ↔ `78709` (90s)
+    - Martorell Central: `MC` ↔ `72209` (120s)
+    - Gornal ↔ Bellvitge: `GO` ↔ `71708` (120s)
+    - Provença ↔ Passeig de Gràcia: `PR` ↔ `71802` (360s)
+    - L'Hospitalet Av. Carrilet ↔ L'Hospitalet: `LH` ↔ `72305` (300s)
+- **Verification:**
+  - `cmd /c npx tsc --noEmit`: 0 errors.
+  - `cmd /c npm test`: 30/30 unit tests passed.
+  - `scripts/test-renfe.mts`: all checks passed.
+  - `cmd /c npx next build`: Turbopack production build succeeded.
+### Session: 2026-10-05 (Accent-Insensitive Search, Night Rest Card, Last Train of the Day, and Direct Metro Connection Recommendations)
+- **Universal Accent- & Diacritic-Insensitive Search (`src/lib/searchUtils.ts`):**
+  - Built `normalizeSearchText(str)` decomposing Unicode accents (`\u0300-\u036f`), stripping cedillas/accents (`ç` -> `c`, `à/á` -> `a`, `è/é` -> `e`, `í/ï` -> `i`, `ò/ó` -> `o`, `ú/ü` -> `u`, `ñ` -> `n`), removing punctuation/punt volat, and expanding abbreviations (`pl.`, `st.`, `av.`).
+  - Added `matchesSearch()` and `startsWithSearch()` used across:
+    - Desktop `Sidebar.tsx` station directory search.
+    - Mobile `MobileLayout.tsx` station search and `majorHubs` lookup.
+    - `TripPlanner.tsx` origin/destination autocomplete input (`StationInput`).
+    - `savedStations.ts` station name normalization.
+  - Now searches like "rubi", "sarria", "gracia", "placa catalunya", or "sant cugat" match seamlessly without requiring manual accent marks.
+- **Friendly Contextual Night Rest Status Card (`NightRestCard.tsx`, `serviceTime.ts`):**
+  - Replaced the cold "Cap tren actiu." message during nighttime service closure (01:15 to 04:55 local time) with `<NightRestCard />`:
+    - Clean moon icon (`🌙`), bold title (`Xarxa en descans nocturn`), and clear guidance: *"El servei comercial està tancat durant la nit. Les primeres sortides habituals comencen a partir de les 05:00 h."*
+    - Fully wired into both desktop `Sidebar.tsx` and mobile `MobileLayout.tsx`.
+- **Last Train of the Day Detection («Últim servei») (`planner.ts`, `route.ts`, `TripPlanner.tsx`, `DeparturesBoard.tsx`):**
+  - Added `isLastService?: boolean` to `Journey` and `Departure` types.
+  - **In `planner.ts` (`planJourneys`):** Evaluates if the last trip of the search (departing $\ge 20:30$) has any viable later service before morning. If no later train exists, flags `journey.isLastService = true`.
+  - **In `TripPlanner.tsx` (`JourneyCard`):** Displays a `🌙 Últim servei del dia` amber badge next to departure/arrival times.
+  - **In `DeparturesBoard.tsx` & `/api/departures`:** Evaluates late-evening departures ($\ge 21:00$) against the timetable; flags the last departure of the day for that line/destination and renders `🌙 Últim servei` badge.
+- **Direct Metro/Tram Connection Suggestions & Renfe Codes Correction (`metroInterchanges.ts`, `TripPlanner.tsx`):**
+  - Audited and corrected official Renfe codes in `src/lib/metroInterchanges.ts` (Sants `71801`, Catalunya `78805`, Arc de Triomf `78804`, Clot `79009`, Sagrera `78806`, Sant Andreu `79004`, Aeroport `72400`, Bellvitge `71708`, L'Hospitalet `72305`, Badalona `79404`).
+  - Added `findDirectMetroConnections(originCode, destCode)` computing shared direct Metro/Tram lines between any two stations.
+  - When a journey search has no direct rail connection (e.g. Sants ↔ Pl. Espanya), `TripPlanner` displays an actionable recommendation card:
+    - *"Connexió recomanada amb Metro: Sense enllaç ferroviari directe entre Barcelona-Sants i Pl. Espanya. Pots connectar directament amb la xarxa de Metro TMB / Tram: [Metro L3]"*.
+- **Verification:**
+  - `cmd /c node --experimental-strip-types --no-warnings scripts/test-new-features.mts`: all checks passed.
+  - `cmd /c npm test`: 30/30 unit tests passed.
+  - `cmd /c npx tsc --noEmit`: 0 errors.
+  - `cmd /c npm run build`: 14/14 static & dynamic routes compiled cleanly with Turbopack.
+  - STRICT ADHERENCE: Local repository only; no `git push` executed.

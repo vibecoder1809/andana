@@ -8,6 +8,9 @@ import { TripPlanner } from './TripPlanner'
 import { isPlannerLink } from '@/lib/urlState'
 import { useI18n, type TransKey } from '@/lib/i18n'
 import { useFavoriteStations } from '@/lib/savedStations'
+import { matchesSearch, startsWithSearch } from '@/lib/searchUtils'
+import { NightRestCard } from './NightRestCard'
+import { isNightRestHours } from '@/lib/serviceTime'
 
 type Tab = 'trains' | 'stations' | 'plan'
 
@@ -24,18 +27,20 @@ interface SidebarProps {
   onSelectStop: (stop: Stop) => void
   selectedJourney: Journey | null
   onSelectJourney: (journey: Journey | null) => void
+  onStartLiveTrip?: (journey: Journey) => void
 }
 
 const LINE_GROUPS: { key: string; labelKey: TransKey; prefix: RegExp }[] = [
   { key: 'L',          labelKey: 'groupUrban',     prefix: /^L\d/ },
   { key: 'S',          labelKey: 'groupValles',    prefix: /^S\d/ },
   { key: 'R-fgc',      labelKey: 'groupRegional',  prefix: /^R(5|6|50|53|60|63)$/ },
-  { key: 'R-rodalies', labelKey: 'groupRodalies',  prefix: /^R([1-478]|2[NS]|2Nord|2Sud)$/ },
-  { key: 'R-regional', labelKey: 'groupRegionals', prefix: /^(R1[1-7]|R[LGT]\d+)$/ },
-  { key: 'Other',      labelKey: 'groupOther',     prefix: /^(?!L|S|R)/ },
+  { key: 'R-rodalies',   labelKey: 'groupRodalies',    prefix: /^R([1-478]|2[NS]|2Nord|2Sud)$/ },
+  { key: 'R-regional',   labelKey: 'groupRegionals',   prefix: /^(R1[1-7]|R[LGT]\d+)$/ },
+  { key: 'M-cremallera', labelKey: 'groupCremallera',  prefix: /^(M\d?|MM)$/ },
+  { key: 'Other',        labelKey: 'groupOther',       prefix: /^(?!L|S|R|M)/ },
 ]
 
-export function Sidebar({ trains, stops, lines, lineColors, activeLines, selectedTrain, selectedStop, onToggleLine, onSelectTrain, onSelectStop, selectedJourney, onSelectJourney }: SidebarProps) {
+export function Sidebar({ trains, stops, lines, lineColors, activeLines, selectedTrain, selectedStop, onToggleLine, onSelectTrain, onSelectStop, selectedJourney, onSelectJourney, onStartLiveTrip }: SidebarProps) {
   const { t } = useI18n()
   const { favorites, isFavorite, toggleFavorite } = useFavoriteStations()
   const [activeTab, setActiveTab]           = useState<Tab>('trains')
@@ -51,6 +56,14 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
       .filter(s => favSet.has(s.stopId) || favNameSet.has(s.name.toLowerCase()))
       .filter((s, idx, arr) => arr.findIndex(x => x.name.toLowerCase() === s.name.toLowerCase()) === idx)
   }, [stops, favorites])
+
+  const sortedTrains = useMemo(() => {
+    return [...trains].sort((a, b) => {
+      const aDepot = a.operationalStatus === 'depot' ? 1 : 0
+      const bDepot = b.operationalStatus === 'depot' ? 1 : 0
+      return aDepot - bDepot
+    })
+  }, [trains])
 
   // Open the Plan tab on load when arriving via a shared planner link. Done in
   // an effect (not the initial state) to avoid an SSR/hydration mismatch.
@@ -69,19 +82,19 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
     if (!stationQuery.trim()) {
       return all.sort((a, b) => a.name.localeCompare(b.name))
     }
-    const q = stationQuery.toLowerCase().trim()
+    const q = stationQuery.trim()
     return all
       .filter(s =>
-        s.name.toLowerCase().includes(q) ||
-        s.stopId.toLowerCase().includes(q) ||
-        (s.lines && s.lines.some(l => l.toLowerCase().includes(q)))
+        matchesSearch(s.name, q) ||
+        matchesSearch(s.stopId, q) ||
+        (s.lines && s.lines.some(l => matchesSearch(l, q)))
       )
       .sort((a, b) => {
-        const aStarts = a.name.toLowerCase().startsWith(q)
-        const bStarts = b.name.toLowerCase().startsWith(q)
+        const aStarts = startsWithSearch(a.name, q)
+        const bStarts = startsWithSearch(b.name, q)
         if (aStarts && !bStarts) return -1
         if (!aStarts && bStarts) return 1
-        return a.name.localeCompare(b.name)
+        return a.name.localeCompare(b.name, 'ca')
       })
   }, [stops, stationQuery])
 
@@ -119,7 +132,7 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
   return (
     <aside style={{ background: 'var(--bg2)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Tab buttons */}
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'rgba(0,0,0,0.05)' }}>
+      <div data-tour="tabs" style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'rgba(0,0,0,0.05)' }}>
         {(['trains', 'stations', 'plan'] as Tab[]).map(tab => (
           <button key={tab} style={tabStyle(tab)} onClick={() => setActiveTab(tab)}>
             {tab === 'trains' ? t('tabTrains') : tab === 'stations' ? t('tabStations') : t('tabPlan')}
@@ -185,9 +198,9 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
 
           {/* Train list */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '8px 8px 8px 4px' }}>
-            {trains.length === 0
-              ? <p style={{ textAlign: 'center', padding: 30, color: 'var(--muted)', fontSize: 12 }}>{t('noActiveTrains')}</p>
-              : trains.map(t => (
+            {sortedTrains.length === 0
+              ? (isNightRestHours() && activeLines.has('ALL') ? <NightRestCard /> : <p style={{ textAlign: 'center', padding: 30, color: 'var(--muted)', fontSize: 12 }}>{t('noActiveTrains')}</p>)
+              : sortedTrains.map(t => (
                   <TrainCard key={t.id} train={t} selected={selectedTrain?.id === t.id} onClick={() => onSelectTrain(t)} lineColors={lineColors} />
                 ))
             }
@@ -259,7 +272,7 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
                 {favoriteStops.map(s => {
                   const isSelected = selectedStop?.stopId === s.stopId || selectedStop?.name === s.name
                   const isRenfe = s.operator === 'renfe' || /^\d+$/.test(s.stopId)
-                  const favorited = isFavorite(s.stopId)
+                  const favorited = isFavorite(s)
                   return (
                     <div
                       key={`fav-${s.stopId}`}
@@ -359,7 +372,7 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
               displayStops.map(s => {
                 const isSelected = selectedStop?.stopId === s.stopId || selectedStop?.name === s.name
                 const isRenfe = s.operator === 'renfe' || /^\d+$/.test(s.stopId)
-                const favorited = isFavorite(s.stopId)
+                const favorited = isFavorite(s)
                 return (
                   <div
                     key={s.stopId}
@@ -464,6 +477,7 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
           selectedJourney={selectedJourney}
           onSelectJourney={onSelectJourney}
           stops={stops}
+          onStartLiveTrip={onStartLiveTrip}
         />
       )}
     </aside>

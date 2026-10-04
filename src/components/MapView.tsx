@@ -31,9 +31,11 @@ interface MapViewProps {
   // fitBounds padding for framing a journey; mobile passes a bottom-heavy
   // object so the path clears the bottom sheet.
   fitPadding?: number | { top: number; bottom: number; left: number; right: number }
+  focusedLine?: string | null
+  onClearFocusedLine?: () => void
 }
 
-export default function MapView({ trains, stops, routes, lineColors, selectedTrain, selectedStop, onSelectTrain, onSelectStop, onCloseStop, onBackgroundClick, journeyPath, theme, fitPadding }: MapViewProps) {
+export default function MapView({ trains, stops, routes, lineColors, selectedTrain, selectedStop, onSelectTrain, onSelectStop, onCloseStop, onBackgroundClick, journeyPath, theme, fitPadding, focusedLine, onClearFocusedLine }: MapViewProps) {
   const mapRef = useRef<MapRef>(null)
 
   // Fly in when a train is first selected (uses the position at click time).
@@ -91,8 +93,8 @@ export default function MapView({ trains, stops, routes, lineColors, selectedTra
       })),
   }
 
-  // The line of whatever is currently selected — its route is drawn bold.
-  const highlightedLine = selectedTrain?.line ?? null
+  // The line of whatever is currently selected or focused — its route is drawn bold.
+  const highlightedLine = focusedLine ?? selectedTrain?.line ?? null
 
   // Journey path: one colored LineString per leg (transfers => color changes).
   const journeyGeoJson = {
@@ -150,10 +152,10 @@ export default function MapView({ trains, stops, routes, lineColors, selectedTra
           paint={{
             'line-color': ['get', 'color'],
             'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.8, 13, 2.2],
-            'line-opacity': ['interpolate', ['linear'], ['zoom'], 8, 0.35, 13, 0.45],
+            'line-opacity': focusedLine ? 0.12 : ['interpolate', ['linear'], ['zoom'], 8, 0.35, 13, 0.45],
           }}
         />
-        {/* Highlighted line — the selected train's route, drawn bold on top */}
+        {/* Highlighted line — the focused/selected train's route, drawn bold on top */}
         <Layer
           id="routes-lines-highlight"
           type="line"
@@ -161,9 +163,39 @@ export default function MapView({ trains, stops, routes, lineColors, selectedTra
           filter={['==', ['get', 'line'], highlightedLine ?? ' ']}
           paint={{
             'line-color': ['get', 'color'],
-            'line-width': ['interpolate', ['linear'], ['zoom'], 8, 2, 13, 5],
-            'line-opacity': 0.95,
+            'line-width': ['interpolate', ['linear'], ['zoom'], 8, 2.5, 13, 6],
+            'line-opacity': 1,
           }}
+        />
+      </Source>
+
+      {/* Stop circles + code labels — rendered before journey so beforeId="stops-circles" exists */}
+      <Source id="stops" type="geojson" data={stopsGeoJson}>
+        <Layer
+          id="stops-circles"
+          type="circle"
+          paint={{
+            'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 3, 11, 7, 13, 11],
+            'circle-color': '#12122a',
+            'circle-stroke-width': 1.5,
+            'circle-stroke-color': '#bbbbbb',
+            // Fully opaque so the dots read as sitting on top of the drawn
+            // journey line rather than the line bleeding through them.
+            'circle-opacity': 1,
+          }}
+          minzoom={9}
+        />
+        <Layer
+          id="stops-labels"
+          type="symbol"
+          layout={{
+            'text-field': ['get', 'code'],
+            'text-size': ['interpolate', ['linear'], ['zoom'], 10, 6, 13, 9],
+            'text-font': ['Open Sans Bold', 'Noto Sans Regular'],
+            'text-allow-overlap': false,
+          }}
+          paint={{ 'text-color': '#ffffff' }}
+          minzoom={10}
         />
       </Source>
 
@@ -235,40 +267,13 @@ export default function MapView({ trains, stops, routes, lineColors, selectedTra
         )
       })}
 
-      {/* Stop circles + code labels */}
-      <Source id="stops" type="geojson" data={stopsGeoJson}>
-        <Layer
-          id="stops-circles"
-          type="circle"
-          paint={{
-            'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 3, 11, 7, 13, 11],
-            'circle-color': '#12122a',
-            'circle-stroke-width': 1.5,
-            'circle-stroke-color': '#bbbbbb',
-            // Fully opaque so the dots read as sitting on top of the drawn
-            // journey line rather than the line bleeding through them.
-            'circle-opacity': 1,
-          }}
-          minzoom={9}
-        />
-        <Layer
-          id="stops-labels"
-          type="symbol"
-          layout={{
-            'text-field': ['get', 'code'],
-            'text-size': ['interpolate', ['linear'], ['zoom'], 10, 6, 13, 9],
-            'text-font': ['Open Sans Bold', 'Noto Sans Regular'],
-            'text-allow-overlap': false,
-          }}
-          paint={{ 'text-color': '#ffffff' }}
-          minzoom={10}
-        />
-      </Source>
-
       {/* Train markers — rendered last so they float above lines and stops */}
       {trains.map(train => {
         const isSelected = selectedTrain?.id === train.id
+        const isFocused = focusedLine === train.line
+        const isDimmed = Boolean(focusedLine && !isFocused)
         const color = lineColors[train.line] || LINE_COLORS[train.line] || '#7a82a0'
+        const isDepot = train.operationalStatus === 'depot'
         return (
           <Marker
             key={train.id}
@@ -280,18 +285,22 @@ export default function MapView({ trains, stops, routes, lineColors, selectedTra
             }}
           >
             <div
-              title={`${train.line} → ${train.destination}${train.delayMinutes > 0 ? ` (+${train.delayMinutes}m)` : ''}`}
+              title={`${train.line} → ${train.destination}${train.delayMinutes > 0 ? ` (+${train.delayMinutes}m)` : ''}${isDepot ? ' (💤 Cotxeres)' : ''}`}
               style={{
-                width:          isSelected ? 32 : 24,
-                height:         isSelected ? 32 : 24,
+                width:          isSelected || isFocused ? 32 : 24,
+                height:         isSelected || isFocused ? 32 : 24,
                 borderRadius:   '50%',
                 background:     color,
-                border:         `2px solid ${isSelected ? '#fff' : 'rgba(255,255,255,0.3)'}`,
-                boxShadow:      `0 0 0 ${isSelected ? 6 : 3}px ${color}44`,
+                border:         isSelected || isFocused
+                  ? '2px solid #fff'
+                  : isDepot
+                  ? '2px dashed rgba(255,255,255,0.7)'
+                  : '2px solid rgba(255,255,255,0.3)',
+                boxShadow:      `0 0 0 ${isSelected || isFocused ? 6 : 3}px ${color}${isFocused ? '99' : isDepot ? '22' : '44'}`,
                 display:        'flex',
                 alignItems:     'center',
                 justifyContent: 'center',
-                fontSize:       isSelected ? 9 : 8,
+                fontSize:       isSelected || isFocused ? 9 : 8,
                 fontWeight:     700,
                 color:          'white',
                 cursor:         'pointer',
@@ -299,6 +308,7 @@ export default function MapView({ trains, stops, routes, lineColors, selectedTra
                 fontFamily:     'Space Grotesk, sans-serif',
                 letterSpacing:  '-0.3px',
                 userSelect:     'none',
+                opacity:        isDimmed ? 0.22 : isDepot ? 0.6 : 1,
               }}
             >
               {train.line}
@@ -306,6 +316,59 @@ export default function MapView({ trains, stops, routes, lineColors, selectedTra
           </Marker>
         )
       })}
+
+      {/* Floating active line filter pill */}
+      {focusedLine && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 14,
+            left: 14,
+            zIndex: 30,
+            background: 'var(--bg2)',
+            border: '1px solid var(--accent)',
+            borderRadius: 20,
+            padding: '5px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            boxShadow: '0 4px 15px rgba(0,0,0,0.35)',
+          }}
+        >
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>Filtre:</span>
+          <span
+            style={{
+              background: lineColors[focusedLine] || LINE_COLORS[focusedLine] || '#7a82a0',
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: 11,
+              padding: '2px 7px',
+              borderRadius: 5,
+              fontFamily: 'var(--font-space-grotesk)',
+            }}
+          >
+            {focusedLine}
+          </span>
+          {onClearFocusedLine && (
+            <button
+              onClick={onClearFocusedLine}
+              title="Treure filtre"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--muted)',
+                cursor: 'pointer',
+                fontSize: 13,
+                lineHeight: 1,
+                padding: 0,
+                marginLeft: 2,
+              }}
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      )}
     </Map>
   )
 }

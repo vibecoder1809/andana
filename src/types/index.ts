@@ -25,7 +25,8 @@ export interface Train {
   prevTrack?: string
   nextStop?: string
   nextTrack?: string
-  operationalStatus?: 'approaching' | 'stationed' | 'moving' | 'departing'
+  operationalStatus?: 'approaching' | 'stationed' | 'moving' | 'departing' | 'depot'
+  isDepot?: boolean
   accessible?: boolean
 }
 
@@ -56,6 +57,7 @@ export interface Departure {
   accessible?: boolean
   isSuspended?: boolean
   isCancelled?: boolean
+  isLastService?: boolean
 }
 
 export interface Alert {
@@ -115,6 +117,20 @@ export interface PlannerStation {
   lines?: string[]
 }
 
+export interface JourneyLegStop {
+  code: string
+  name: string
+  depTime: number
+  arrTime: number
+}
+
+export interface JourneyFare {
+  zones: number
+  singleTicket: number
+  tCasual: number
+  tUsual: number
+}
+
 export interface JourneyLeg {
   line: string
   headsign: string
@@ -126,6 +142,7 @@ export interface JourneyLeg {
   arrTime: number
   intermediateStops: number
   operator?: Operator | 'walk'
+  stops?: JourneyLegStop[]
 }
 
 export interface Journey {
@@ -140,4 +157,6 @@ export interface Journey {
       station on this journey has step-free access. False means it's the best
       available but still routes through an inaccessible change. */
   stepFree?: boolean
+  fare?: JourneyFare
+  isLastService?: boolean
 }

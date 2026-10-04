@@ -17,14 +17,23 @@ import { AlertModal } from './AlertModal'
 import { formatAlertDateTime } from '@/lib/alertTime'
 import { MobileSettingsModal } from './MobileSettingsModal'
 import { useFavoriteStations } from '@/lib/savedStations'
+import { NetworkStatusModal } from './NetworkStatusModal'
+import { LiveTripHud } from './LiveTripHud'
+import { OnboardingModal } from './OnboardingModal'
+import { DonationModal } from './DonationModal'
+import { useUserEngagement } from '@/lib/userEngagement'
+import { matchesSearch, startsWithSearch } from '@/lib/searchUtils'
+import { NightRestCard } from './NightRestCard'
+import { isNightRestHours } from '@/lib/serviceTime'
 
 const LINE_GROUPS: { key: string; labelKey: TransKey; prefix: RegExp }[] = [
   { key: 'L',          labelKey: 'groupUrbanShort',     prefix: /^L\d/ },
   { key: 'S',          labelKey: 'groupVallesShort',    prefix: /^S\d/ },
   { key: 'R-fgc',      labelKey: 'groupRegionalShort',  prefix: /^R(5|6|50|53|60|63)$/ },
-  { key: 'R-rodalies', labelKey: 'groupRodaliesShort',  prefix: /^R([1-478]|2[NS]|2Nord|2Sud)$/ },
-  { key: 'R-regional', labelKey: 'groupRegionalsShort', prefix: /^(R1[1-7]|R[LGT]\d+)$/ },
-  { key: 'Other',      labelKey: 'groupOther',          prefix: /^(?!L|S|R)/ },
+  { key: 'R-rodalies',   labelKey: 'groupRodaliesShort',  prefix: /^R([1-478]|2[NS]|2Nord|2Sud)$/ },
+  { key: 'R-regional',   labelKey: 'groupRegionalsShort', prefix: /^(R1[1-7]|R[LGT]\d+)$/ },
+  { key: 'M-cremallera', labelKey: 'groupCremalleraShort',prefix: /^(M\d?|MM)$/ },
+  { key: 'Other',        labelKey: 'groupOther',          prefix: /^(?!L|S|R|M)/ },
 ]
 
 const MapView = dynamic(() => import('./MapView'), { ssr: false })
@@ -210,89 +219,117 @@ function MobileAlertBanner({ alerts, onSelectAlert, top, networkMode }: { alerts
     >
       <div
         onClick={() => {
-          if (visible) onSelectAlert(visible)
+          if (count > 1) {
+            setExpanded(exp => !exp)
+          } else if (visible) {
+            onSelectAlert(visible)
+          }
         }}
         style={{
-          display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px',
-          fontSize: 11.5, fontWeight: 600,
-          opacity: fade ? 1 : 0, transition: 'opacity 0.25s',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 5,
+          padding: '8px 12px',
+          opacity: fade ? 1 : 0,
+          transition: 'opacity 0.25s',
           cursor: 'pointer',
         }}
       >
-        <span style={{ fontWeight: 800, flexShrink: 0, fontSize: 12 }}>⚠</span>
-        {networkMode === 'both' && visible?.operator && (
-          <span style={{
-            fontSize: 9,
-            fontWeight: 800,
-            padding: '1px 5px',
-            borderRadius: 4,
-            background: visible.operator === 'renfe' ? 'rgba(239, 68, 68, 0.25)' : 'rgba(234, 88, 12, 0.25)',
-            color: visible.operator === 'renfe' ? '#991b1b' : '#9a3412',
-            textTransform: 'uppercase',
-            letterSpacing: '0.4px',
-            flexShrink: 0,
-          }}>
-            {visible.operator === 'renfe' ? 'Rodalies' : 'FGC'}
-          </span>
-        )}
-        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 700 }}>
+        {/* Top row: tags, timestamp, action button, counter */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            <span style={{ fontWeight: 800, fontSize: 11, background: '#000', color: '#eab308', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>
+              ⚠
+            </span>
+            {networkMode === 'both' && visible?.operator && (
+              <span style={{
+                fontSize: 9,
+                fontWeight: 800,
+                padding: '1px 6px',
+                borderRadius: 4,
+                background: visible.operator === 'renfe' ? 'rgba(239, 68, 68, 0.25)' : 'rgba(234, 88, 12, 0.25)',
+                color: visible.operator === 'renfe' ? '#991b1b' : '#9a3412',
+                textTransform: 'uppercase',
+                letterSpacing: '0.4px',
+                flexShrink: 0,
+              }}>
+                {visible.operator === 'renfe' ? 'Rodalies' : 'FGC'}
+              </span>
+            )}
+            {visibleTime && (
+              <span style={{ fontSize: 9.5, opacity: 0.85, background: 'rgba(0,0,0,0.1)', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>
+                {visibleTime.compact}
+              </span>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+            <button
+              onClick={e => {
+                e.stopPropagation()
+                if (visible) onSelectAlert(visible)
+              }}
+              style={{
+                background: 'rgba(0,0,0,0.18)',
+                border: '1px solid rgba(0,0,0,0.2)',
+                color: '#000',
+                padding: '2.5px 7px',
+                borderRadius: 6,
+                fontSize: 10,
+                fontWeight: 800,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 3,
+              }}
+            >
+              + info ↗
+            </button>
+
+            {count > 1 && (
+              <button
+                onClick={e => {
+                  e.stopPropagation()
+                  setExpanded(exp => !exp)
+                }}
+                title={expanded ? t('collapseAlerts') : t('viewAlertsList', count)}
+                style={{
+                  background: expanded ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.14)',
+                  border: '1px solid rgba(0,0,0,0.22)',
+                  color: '#000',
+                  padding: '2.5px 7px',
+                  borderRadius: 6,
+                  fontSize: 10,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 3,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {expanded ? t('collapseAlerts') : t('viewAlertsList', count)}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Bottom row: Full alert headline */}
+        <div style={{
+          fontSize: 12.5,
+          fontWeight: 700,
+          color: '#000',
+          lineHeight: 1.35,
+          overflow: 'hidden',
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          wordBreak: 'break-word',
+        }}>
           {visible?.header}
-        </span>
-
-        {visibleTime && (
-          <span style={{ fontSize: 9.5, opacity: 0.9, background: 'rgba(0,0,0,0.12)', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>
-            🕒 {visibleTime.compact}
-          </span>
-        )}
-
-        {/* Clear, tappable + info action button */}
-        <button
-          onClick={e => {
-            e.stopPropagation()
-            if (visible) onSelectAlert(visible)
-          }}
-          style={{
-            background: 'rgba(0,0,0,0.18)',
-            border: '1px solid rgba(0,0,0,0.2)',
-            color: '#000',
-            padding: '2.5px 7px',
-            borderRadius: 6,
-            fontSize: 10,
-            fontWeight: 800,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 3,
-          }}
-        >
-          + info ↗
-        </button>
-
-        {count > 1 && (
-          <button
-            onClick={e => {
-              e.stopPropagation()
-              setExpanded(exp => !exp)
-            }}
-            title={expanded ? 'Amagar llista' : 'Desplegar avisos'}
-            style={{
-              background: 'rgba(0,0,0,0.12)',
-              border: '1px solid rgba(0,0,0,0.15)',
-              color: '#000',
-              padding: '2.5px 6px',
-              borderRadius: 6,
-              fontSize: 10,
-              fontWeight: 800,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              flexShrink: 0,
-            }}
-          >
-            {(idx % count) + 1}/{count} {expanded ? '▲' : '▼'}
-          </button>
-        )}
+        </div>
       </div>
 
       {expanded && (
@@ -359,7 +396,7 @@ function MobileAlertBanner({ alerts, onSelectAlert, top, networkMode }: { alerts
                       flexShrink: 0,
                       whiteSpace: 'nowrap',
                     }}>
-                      🕒 {aTime.compact}
+                      {aTime.compact}
                     </span>
                   )}
                 </div>
@@ -415,6 +452,19 @@ export function MobileLayout({
   const [selectedJourney, setSelectedJourney] = useState<Journey | null>(null)
   const [selectedAlert, setSelectedAlert]     = useState<Alert | null>(null)
   const [settingsOpen, setSettingsOpen]       = useState(false)
+  const [focusedLine, setFocusedLine]         = useState<string | null>(null)
+  const [activeTrip, setActiveTrip]           = useState<Journey | null>(null)
+  const [networkStatusOpen, setNetworkStatusOpen] = useState(false)
+
+  const {
+    showTutorial,
+    openTutorial,
+    dismissTutorial,
+    showDonationPrompt,
+    openDonation,
+    snoozeDonation,
+    SUPPORT_SNOOZE_DAYS,
+  } = useUserEngagement()
 
   const journeyPath = useMemo(
     () => selectedJourney && stops.length > 0
@@ -465,11 +515,26 @@ export function MobileLayout({
     ? trains
     : trains.filter(t => activeLines.has(t.line))
 
-  const filteredStops = stationQuery
+  const sortedTrains = useMemo(() => {
+    return [...filteredTrains].sort((a, b) => {
+      const aDepot = a.operationalStatus === 'depot' ? 1 : 0
+      const bDepot = b.operationalStatus === 'depot' ? 1 : 0
+      return aDepot - bDepot
+    })
+  }, [filteredTrains])
+
+  const filteredStops = stationQuery.trim()
     ? Array.from(
         new Map(
           stops
-            .filter(s => s.name.toLowerCase().includes(stationQuery.toLowerCase()))
+            .filter(s => matchesSearch(s.name, stationQuery) || matchesSearch(s.stopId, stationQuery))
+            .sort((a, b) => {
+              const aStarts = startsWithSearch(a.name, stationQuery)
+              const bStarts = startsWithSearch(b.name, stationQuery)
+              if (aStarts && !bStarts) return -1
+              if (!aStarts && bStarts) return 1
+              return a.name.localeCompare(b.name, 'ca')
+            })
             .map(s => [s.name, s]),
         ).values(),
       ).slice(0, 15)
@@ -486,7 +551,7 @@ export function MobileLayout({
     const found: Stop[] = []
     const seen = new Set<string>()
     for (const name of hubNames) {
-      const match = stops.find(s => s.name.toLowerCase() === name.toLowerCase() || s.name.toLowerCase().includes(name.toLowerCase()))
+      const match = stops.find(s => matchesSearch(s.name, name))
       if (match && !seen.has(match.name)) {
         seen.add(match.name)
         found.push(match)
@@ -600,9 +665,30 @@ export function MobileLayout({
           <NetworkSwitch compact mode={networkMode} onChange={onNetworkChange} />
         </div>
 
-        {/* Right utility buttons: NearMe, Refresh, Settings */}
+        {/* Right utility buttons: NetworkStatus, Refresh, Settings */}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 7, pointerEvents: 'auto' }}>
-          <NearMeButton stops={stops} onPick={s => handleSelectStop(s)} compact />
+          <button
+            data-tour="network-status"
+            onClick={() => setNetworkStatusOpen(true)}
+            aria-label={t('networkStatus')}
+            title={t('networkStatus')}
+            style={{
+              background: alerts.length > 0 ? 'rgba(234,179,8,0.2)' : 'var(--bg2)',
+              border: alerts.length > 0 ? '1px solid rgba(234,179,8,0.4)' : '1px solid var(--border)',
+              color: alerts.length > 0 ? 'var(--yellow)' : 'var(--green)',
+              width: 38,
+              height: 38,
+              borderRadius: 12,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+              fontFamily: 'inherit',
+            }}
+          >
+            <span style={{ fontSize: 16 }}>🚦</span>
+          </button>
 
           <button
             onClick={onRefresh}
@@ -689,7 +775,24 @@ export function MobileLayout({
           journeyPath={journeyPath}
           theme={theme}
           fitPadding={fitPadding}
+          focusedLine={focusedLine}
+          onClearFocusedLine={() => setFocusedLine(null)}
         />
+
+        {/* Floating location shortcut: sits above sheet peek on map, fades away smoothly when sheet is raised */}
+        <div
+          style={{
+            position: 'absolute',
+            right: 14,
+            bottom: `calc(${sheetHeight} + 12px)`,
+            zIndex: 25,
+            opacity: sheetRatio > 0.32 ? 0 : 1,
+            pointerEvents: sheetRatio > 0.32 ? 'none' : 'auto',
+            transition: sheetDragging ? 'opacity 0.15s' : 'bottom 0.32s cubic-bezier(0.32,1.2,0.5,1), opacity 0.22s',
+          }}
+        >
+          <NearMeButton stops={stops} onPick={handleSelectStop} compact />
+        </div>
       </div>
 
       {/* ── Unified Bottom Sheet (One-Sheet Architecture) ── */}
@@ -718,7 +821,7 @@ export function MobileLayout({
           onTouchStart={e => startSheetDrag(e.touches[0].clientY)}
         >
           {/* Grabbable handle */}
-          <div onClick={toggleSheet} style={{ padding: '10px 0 8px' }}>
+          <div onClick={toggleSheet} style={{ padding: '7px 0 5px' }}>
             <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--border2)', margin: '0 auto' }} />
           </div>
 
@@ -799,7 +902,7 @@ export function MobileLayout({
             </div>
           ) : (
             /* Segmented Tabs Control */
-            <div style={{ display: 'flex', gap: 4, margin: '0 12px 8px', padding: 3, background: 'var(--bg3)', borderRadius: 12 }}>
+            <div data-tour="tabs" style={{ display: 'flex', gap: 4, margin: '0 10px 6px', padding: 2.5, background: 'var(--bg3)', borderRadius: 12 }}>
               {TABS.map(tab => {
                 const active = activeTab === tab.key
                 return (
@@ -809,7 +912,7 @@ export function MobileLayout({
                     onTouchStart={e => e.stopPropagation()}
                     onClick={() => { setActiveTab(tab.key); expandSheet(); if (tab.key === 'trains') setStationQuery('') }}
                     style={{
-                      flex: 1, padding: '8px 0', border: 'none', borderRadius: 9, cursor: 'pointer',
+                      flex: 1, padding: '6px 0', border: 'none', borderRadius: 9, cursor: 'pointer',
                       background: active ? 'var(--accent)' : 'transparent',
                       color: active ? '#fff' : 'var(--muted)',
                       fontWeight: 700, fontSize: 12, fontFamily: 'inherit',
@@ -830,50 +933,6 @@ export function MobileLayout({
             </div>
           )}
         </div>
-
-        {/* Line filter chips (hidden on Plan tab or when an item is selected) */}
-        {activeTab !== 'plan' && !isItemSelected && (
-          <div style={{ padding: '2px 12px 6px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
-            <div style={{ overflowX: 'auto', display: 'flex', gap: 6, paddingBottom: expandedGroups.size ? 6 : 0, scrollbarWidth: 'none' }}>
-              <span
-                onClick={() => onToggleLine('ALL')}
-                style={{ flexShrink: 0, padding: '5px 13px', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: `1.5px solid ${activeLines.has('ALL') ? 'var(--text)' : 'transparent'}`, background: 'var(--bg3)', color: 'var(--text)', opacity: activeLines.has('ALL') ? 1 : 0.5, fontFamily: 'var(--font-space-grotesk), sans-serif' }}
-              >
-                {t('all')}
-              </span>
-              {lineGroups.map(g => {
-                const expanded = expandedGroups.has(g.key)
-                const anyActive = !activeLines.has('ALL') && g.members.some(l => activeLines.has(l))
-                return (
-                  <span
-                    key={g.key}
-                    onClick={() => toggleGroup(g.key)}
-                    style={{ flexShrink: 0, padding: '5px 11px', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: `1.5px solid ${anyActive ? 'var(--accent)' : expanded ? 'var(--border2)' : 'transparent'}`, background: anyActive ? 'rgba(59,130,246,0.14)' : 'var(--bg3)', color: anyActive ? 'var(--accent)' : 'var(--muted)', fontFamily: 'var(--font-space-grotesk), sans-serif' }}
-                  >
-                    {t(g.labelKey)} {expanded ? '▲' : '▼'}
-                  </span>
-                )
-              })}
-            </div>
-            {lineGroups.filter(g => expandedGroups.has(g.key)).map(g => (
-              <div key={g.key} style={{ display: 'flex', flexWrap: 'wrap', gap: 5, paddingTop: 4, paddingBottom: 4 }}>
-                {g.members.map(l => {
-                  const active = activeLines.has(l)
-                  const color = lineColors[l] || LINE_COLORS[l] || '#7a82a0'
-                  return (
-                    <span
-                      key={l}
-                      onClick={() => onToggleLine(l)}
-                      style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: `1.5px solid ${active ? color : 'transparent'}`, background: `${color}20`, color, opacity: active ? 1 : 0.5, fontFamily: 'var(--font-space-grotesk), sans-serif' }}
-                    >
-                      {l}
-                    </span>
-                  )
-                })}
-              </div>
-            ))}
-          </div>
-        )}
 
         {/* Scrollable sheet content */}
         <div style={{
@@ -898,19 +957,68 @@ export function MobileLayout({
               selectedJourney={selectedJourney}
               onSelectJourney={handleSelectJourney}
               stops={stops}
+              onStartLiveTrip={(j) => {
+                setActiveTrip(j)
+                setSelectedJourney(j)
+                setSheetRatio(SNAP_PEEK)
+              }}
             />
           ) : activeTab === 'trains' ? (
-            filteredTrains.length === 0
-              ? <p style={{ textAlign: 'center', padding: 30, color: 'var(--muted)', fontSize: 12 }}>{t('noActiveTrains')}</p>
-              : filteredTrains.map(t => (
-                  <TrainCard
-                    key={t.id}
-                    train={t}
-                    selected={false}
-                    onClick={() => { handleSelectTrain(t); setStationQuery('') }}
-                    lineColors={lineColors}
-                  />
-                ))
+            <div>
+              {/* Line filter chips (scrolls away naturally with trains list) */}
+              <div style={{ padding: '0 0 8px', borderBottom: '1px solid var(--border)', marginBottom: 8 }}>
+                <div style={{ overflowX: 'auto', display: 'flex', gap: 6, paddingBottom: expandedGroups.size ? 6 : 0, scrollbarWidth: 'none' }}>
+                  <span
+                    onClick={() => onToggleLine('ALL')}
+                    style={{ flexShrink: 0, padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: `1.5px solid ${activeLines.has('ALL') ? 'var(--text)' : 'transparent'}`, background: 'var(--bg3)', color: 'var(--text)', opacity: activeLines.has('ALL') ? 1 : 0.5, fontFamily: 'var(--font-space-grotesk), sans-serif' }}
+                  >
+                    {t('all')}
+                  </span>
+                  {lineGroups.map(g => {
+                    const expanded = expandedGroups.has(g.key)
+                    const anyActive = !activeLines.has('ALL') && g.members.some(l => activeLines.has(l))
+                    return (
+                      <span
+                        key={g.key}
+                        onClick={() => toggleGroup(g.key)}
+                        style={{ flexShrink: 0, padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: `1.5px solid ${anyActive ? 'var(--accent)' : expanded ? 'var(--border2)' : 'transparent'}`, background: anyActive ? 'rgba(59,130,246,0.14)' : 'var(--bg3)', color: anyActive ? 'var(--accent)' : 'var(--muted)', fontFamily: 'var(--font-space-grotesk), sans-serif' }}
+                      >
+                        {t(g.labelKey)} {expanded ? '▲' : '▼'}
+                      </span>
+                    )
+                  })}
+                </div>
+                {lineGroups.filter(g => expandedGroups.has(g.key)).map(g => (
+                  <div key={g.key} style={{ display: 'flex', flexWrap: 'wrap', gap: 5, paddingTop: 6, paddingBottom: 4 }}>
+                    {g.members.map(l => {
+                      const active = activeLines.has(l)
+                      const color = lineColors[l] || LINE_COLORS[l] || '#7a82a0'
+                      return (
+                        <span
+                          key={l}
+                          onClick={() => onToggleLine(l)}
+                          style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: `1.5px solid ${active ? color : 'transparent'}`, background: `${color}20`, color, opacity: active ? 1 : 0.5, fontFamily: 'var(--font-space-grotesk), sans-serif' }}
+                        >
+                          {l}
+                        </span>
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+
+              {sortedTrains.length === 0
+                ? (isNightRestHours() && activeLines.has('ALL') ? <NightRestCard /> : <p style={{ textAlign: 'center', padding: 30, color: 'var(--muted)', fontSize: 12 }}>{t('noActiveTrains')}</p>)
+                : sortedTrains.map(t => (
+                    <TrainCard
+                      key={t.id}
+                      train={t}
+                      selected={false}
+                      onClick={() => { handleSelectTrain(t); setStationQuery('') }}
+                      lineColors={lineColors}
+                    />
+                  ))}
+            </div>
           ) : (
             /* Estacions Tab with instant major hubs */
             <div>
@@ -956,7 +1064,7 @@ export function MobileLayout({
               {stationQuery ? (
                 <>
                   {filteredStops.map(s => {
-                    const favorited = isFavorite(s.stopId)
+                    const favorited = isFavorite(s)
                     return (
                       <div
                         key={s.stopId}
@@ -1096,7 +1204,7 @@ export function MobileLayout({
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {majorHubs.map(s => {
-                        const favorited = isFavorite(s.stopId)
+                        const favorited = isFavorite(s)
                         return (
                           <div
                             key={s.stopId}
@@ -1168,10 +1276,49 @@ export function MobileLayout({
         onRefresh={onRefresh}
         networkMode={networkMode}
         onNetworkChange={onNetworkChange}
+        onOpenTutorial={openTutorial}
+        onOpenDonation={openDonation}
+      />
+
+      {/* ── Live Trip HUD ── */}
+      {activeTrip && (
+        <LiveTripHud
+          journey={activeTrip}
+          trains={trains}
+          lineColors={lineColors}
+          onClose={() => setActiveTrip(null)}
+        />
+      )}
+
+      {/* ── Network Status Modal ── */}
+      <NetworkStatusModal
+        open={networkStatusOpen}
+        onClose={() => setNetworkStatusOpen(false)}
+        alerts={alerts}
+        trains={trains}
+        lineColors={lineColors}
+        onSelectLine={(line) => {
+          setFocusedLine(line)
+          setNetworkStatusOpen(false)
+        }}
       />
 
       {/* ── Alert Detail Modal ── */}
       <AlertModal alert={selectedAlert} onClose={() => setSelectedAlert(null)} lineColors={lineColors} />
+
+      {/* ── Onboarding / Tutorial Modal ── */}
+      <OnboardingModal
+        open={showTutorial}
+        onClose={dismissTutorial}
+      />
+
+      {/* ── Donation / Support Modal ── */}
+      <DonationModal
+        open={showDonationPrompt}
+        onClose={() => snoozeDonation(14)}
+        onSnooze={snoozeDonation}
+        onSupport={() => snoozeDonation(SUPPORT_SNOOZE_DAYS)}
+      />
     </div>
   )
 }
