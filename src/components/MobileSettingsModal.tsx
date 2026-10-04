@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import type { Theme, NetworkMode } from '@/types'
 import { useI18n, LANGS, type Lang } from '@/lib/i18n'
 
@@ -32,6 +32,21 @@ export function MobileSettingsModal({
   onNetworkChange,
 }: MobileSettingsModalProps) {
   const { t, lang, setLang } = useI18n()
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
+  const [isStandalone, setIsStandalone] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true
+    setIsStandalone(isStandaloneMode)
+
+    const handler = (e: Event) => {
+      e.preventDefault()
+      setDeferredPrompt(e)
+    }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -282,7 +297,67 @@ export function MobileSettingsModal({
             </div>
           </div>
 
-          {/* 5. About Andana */}
+          {/* 5. PWA Installation */}
+          <div style={{
+            background: 'rgba(59,130,246,0.1)',
+            border: '1px solid rgba(59,130,246,0.25)',
+            borderRadius: 12,
+            padding: '12px 14px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 700, fontSize: 13, color: 'var(--accent)', marginBottom: 4 }}>
+              <span>📲</span>
+              <span>{t('installApp')}</span>
+              {isStandalone && (
+                <span style={{ marginLeft: 'auto', background: 'var(--accent)', color: '#fff', fontSize: 10, padding: '2px 7px', borderRadius: 10 }}>
+                  ✓ PWA
+                </span>
+              )}
+            </div>
+            <p style={{ margin: '0 0 8px 0', fontSize: 12, color: 'var(--text)', opacity: 0.85, lineHeight: 1.4 }}>
+              {t('installAppDesc')}
+            </p>
+            {!isStandalone && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 11.5, color: 'var(--text)', opacity: 0.9 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                  <span>🍏</span>
+                  <span>{t('installInstructionsIos')}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                  <span>🤖</span>
+                  <span>{t('installInstructionsAndroid')}</span>
+                </div>
+                {deferredPrompt && (
+                  <button
+                    onClick={async () => {
+                      deferredPrompt.prompt()
+                      const { outcome } = await deferredPrompt.userChoice
+                      if (outcome === 'accepted') setDeferredPrompt(null)
+                    }}
+                    style={{
+                      marginTop: 6,
+                      background: 'var(--accent)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '8px 14px',
+                      fontWeight: 700,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <span>⬇</span>
+                    <span>{t('installButton')}</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 6. About Andana */}
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 4 }}>
               {t('aboutApp')}

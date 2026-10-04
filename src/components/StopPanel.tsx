@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import type { Stop, StopDetail, Train } from '@/types'
 import { LINE_COLORS, STATION_CODES } from '@/lib/constants'
 import { useI18n, type TransKey } from '@/lib/i18n'
+import { useFavoriteStations } from '@/lib/savedStations'
 import { DeparturesBoard } from './DeparturesBoard'
 
 interface StopPanelProps {
@@ -58,6 +59,8 @@ function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColo
   onSelectTrain?: (train: Train) => void
 }) {
   const { t } = useI18n()
+  const { isFavorite, toggleFavorite } = useFavoriteStations()
+  const favorited = isFavorite(stop.stopId)
   const air     = detail?.air ?? null
   const weather = detail?.weather ?? null
   const iqam    = air?.iqam ? IQAM_CONFIG[air.iqam] : null
@@ -94,9 +97,32 @@ function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColo
       <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 4 }}>
         {isRenfe ? t('stationRenfe') : t('stationFgc')}
       </div>
-      <h2 style={{ fontFamily: 'var(--font-space-grotesk)', fontSize: 20, marginBottom: 2 }}>
-        {stop.name}
-      </h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+        <h2 style={{ fontFamily: 'var(--font-space-grotesk)', fontSize: 20, margin: 0 }}>
+          {stop.name}
+        </h2>
+        <button
+          onClick={() => toggleFavorite(stop)}
+          aria-label={favorited ? t('removeFavorite') : t('addFavorite')}
+          title={favorited ? t('removeFavorite') : t('addFavorite')}
+          style={{
+            background: favorited ? 'rgba(234,179,8,0.2)' : 'var(--bg3)',
+            border: `1px solid ${favorited ? 'rgba(234,179,8,0.45)' : 'var(--border2)'}`,
+            borderRadius: 8,
+            width: 32,
+            height: 32,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            fontSize: 16,
+            flexShrink: 0,
+            transition: 'all 0.15s ease',
+          }}
+        >
+          {favorited ? '⭐' : '☆'}
+        </button>
+      </div>
       <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 16, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <span>{stop.stopId}</span>
         {stop.wheelchairBoarding && <span style={{ color: 'var(--accent)' }}>♿ {t('accessible')}</span>}

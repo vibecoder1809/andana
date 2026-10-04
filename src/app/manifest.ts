@@ -4,9 +4,9 @@ import type { MetadataRoute } from 'next'
 // the dark theme's --bg (#0a0e1a) so the splash and status bar blend in.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Andana — FGC en directe',
+    name: 'Andana — FGC i Rodalies en directe',
     short_name: 'Andana',
-    description: 'Mapa en directe dels trens FGC amb planificador de viatges, properes sortides i ocupació per cotxe.',
+    description: 'Mapa en directe dels trens FGC i Rodalies amb planificador de viatges, properes sortides i retards en temps real.',
     start_url: '/',
     display: 'standalone',
     background_color: '#0a0e1a',

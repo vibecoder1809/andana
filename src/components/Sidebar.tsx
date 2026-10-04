@@ -7,6 +7,7 @@ import { TrainCard } from './TrainCard'
 import { TripPlanner } from './TripPlanner'
 import { isPlannerLink } from '@/lib/urlState'
 import { useI18n, type TransKey } from '@/lib/i18n'
+import { useFavoriteStations } from '@/lib/savedStations'
 
 type Tab = 'trains' | 'stations' | 'plan'
 
@@ -36,10 +37,20 @@ const LINE_GROUPS: { key: string; labelKey: TransKey; prefix: RegExp }[] = [
 
 export function Sidebar({ trains, stops, lines, lineColors, activeLines, selectedTrain, selectedStop, onToggleLine, onSelectTrain, onSelectStop, selectedJourney, onSelectJourney }: SidebarProps) {
   const { t } = useI18n()
+  const { favorites, isFavorite, toggleFavorite } = useFavoriteStations()
   const [activeTab, setActiveTab]           = useState<Tab>('trains')
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [filterOpen, setFilterOpen]         = useState(true)
   const [stationQuery, setStationQuery]     = useState('')
+
+  const favoriteStops = useMemo(() => {
+    if (favorites.length === 0) return []
+    const favSet = new Set(favorites.map(f => f.stopId))
+    const favNameSet = new Set(favorites.map(f => f.name.toLowerCase()))
+    return stops
+      .filter(s => favSet.has(s.stopId) || favNameSet.has(s.name.toLowerCase()))
+      .filter((s, idx, arr) => arr.findIndex(x => x.name.toLowerCase() === s.name.toLowerCase()) === idx)
+  }, [stops, favorites])
 
   // Open the Plan tab on load when arriving via a shared planner link. Done in
   // an effect (not the initial state) to avoid an SSR/hydration mismatch.
@@ -236,6 +247,110 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
 
           {/* Stations directory list */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px' }}>
+            {!stationQuery.trim() && favoriteStops.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--yellow)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>⭐</span>
+                  <span>{t('favoriteStations')}</span>
+                  <span style={{ fontSize: 9, background: 'rgba(234,179,8,0.2)', padding: '1px 5px', borderRadius: 4 }}>
+                    {favoriteStops.length}
+                  </span>
+                </div>
+                {favoriteStops.map(s => {
+                  const isSelected = selectedStop?.stopId === s.stopId || selectedStop?.name === s.name
+                  const isRenfe = s.operator === 'renfe' || /^\d+$/.test(s.stopId)
+                  const favorited = isFavorite(s.stopId)
+                  return (
+                    <div
+                      key={`fav-${s.stopId}`}
+                      onClick={() => onSelectStop(s)}
+                      style={{
+                        padding: '10px 12px',
+                        marginBottom: 6,
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        background: isSelected ? 'var(--accent)18' : 'var(--bg3)',
+                        border: `1px solid ${isSelected ? 'var(--accent)' : 'rgba(234,179,8,0.25)'}`,
+                        transition: 'background 0.15s, border-color 0.15s',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
+                        <span style={{
+                          fontFamily: 'var(--font-space-grotesk)',
+                          fontWeight: isSelected ? 700 : 600,
+                          fontSize: 13,
+                          color: isSelected ? 'var(--accent)' : 'var(--text)',
+                        }}>
+                          {s.name}
+                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                          {s.wheelchairBoarding && (
+                            <span style={{ fontSize: 11, color: 'var(--accent)' }} title={t('accessible')}>♿</span>
+                          )}
+                          <span style={{
+                            fontSize: 9,
+                            fontWeight: 700,
+                            padding: '2px 5px',
+                            borderRadius: 4,
+                            background: isRenfe ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255, 140, 0, 0.15)',
+                            color: isRenfe ? '#ef4444' : '#ff8c00',
+                            letterSpacing: '0.4px',
+                          }}>
+                            {isRenfe ? 'Rodalies' : 'FGC'}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              toggleFavorite(s)
+                            }}
+                            aria-label={favorited ? t('removeFavorite') : t('addFavorite')}
+                            title={favorited ? t('removeFavorite') : t('addFavorite')}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              fontSize: 13,
+                              padding: '0 2px',
+                              color: favorited ? '#eab308' : 'var(--muted)',
+                              opacity: favorited ? 1 : 0.4,
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            {favorited ? '⭐' : '☆'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {s.lines && s.lines.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                          {s.lines.slice(0, 8).map(l => {
+                            const c = lineColors[l] || LINE_COLORS[l] || '#7a82a0'
+                            return (
+                              <span
+                                key={l}
+                                style={{
+                                  fontSize: 9,
+                                  fontWeight: 700,
+                                  padding: '1px 5px',
+                                  borderRadius: 3,
+                                  background: `${c}20`,
+                                  color: c,
+                                  fontFamily: 'var(--font-space-grotesk)',
+                                }}
+                              >
+                                {l}
+                              </span>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+                <div style={{ borderBottom: '1px solid var(--border)', margin: '14px 0 10px' }} />
+              </div>
+            )}
+
             {displayStops.length === 0 ? (
               <div style={{ textAlign: 'center', padding: 30, color: 'var(--muted)', fontSize: 13 }}>
                 {t('noStationFound')}
@@ -244,6 +359,7 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
               displayStops.map(s => {
                 const isSelected = selectedStop?.stopId === s.stopId || selectedStop?.name === s.name
                 const isRenfe = s.operator === 'renfe' || /^\d+$/.test(s.stopId)
+                const favorited = isFavorite(s.stopId)
                 return (
                   <div
                     key={s.stopId}
@@ -282,6 +398,26 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
                         }}>
                           {isRenfe ? 'Rodalies' : 'FGC'}
                         </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleFavorite(s)
+                          }}
+                          aria-label={favorited ? t('removeFavorite') : t('addFavorite')}
+                          title={favorited ? t('removeFavorite') : t('addFavorite')}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontSize: 13,
+                            padding: '0 2px',
+                            color: favorited ? '#eab308' : 'var(--muted)',
+                            opacity: favorited ? 1 : 0.4,
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {favorited ? '⭐' : '☆'}
+                        </button>
                       </div>
                     </div>
 

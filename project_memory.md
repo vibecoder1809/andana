@@ -295,9 +295,27 @@ Before committing any changes or concluding a session, verify:
     - Injected Schema.org `WebApplication` structured data (`JSON-LD`) for authoritative search engine & AI extraction.
 - **Documentation:**
   - Completely updated `README.md` to reflect the current state of the application: dual-network intelligence, 60fps interpolation, CSA timetable routing, departures board with delay countdowns, corridor service alerts, and installable PWA.
+### Session: 2026-10-04 (Favorite Stations, Departures Line Filtering & PWA Installation)
+- **Favorite Stations Subsystem (`src/lib/savedStations.ts`):**
+  - Created `useFavoriteStations()` hook persisting favorite stations in `localStorage` (`andana-fav-stations`, fallback to `geotren-fav-stations`).
+  - Added cross-component and cross-tab reactive synchronization via `andana:fav-stations-change` window events.
+  - Added star toggle buttons (`⭐` / `☆`) to `StopPanel.tsx` (next to station title), desktop `Sidebar.tsx` station directory, and mobile `MobileLayout.tsx` search results and major hubs.
+  - Dedicated "⭐️ Estacions preferides" section rendered at the top of station directory in both `Sidebar.tsx` and `MobileLayout.tsx` when query is empty.
+- **Departures Board Line Filtering (`src/components/DeparturesBoard.tsx`):**
+  - Added dynamic line filter pill chips (`[Totes]`, `[Line 1]`, `[Line 2]`, ...) at the top of the departures board.
+  - Automatically derived from current departures; tapping a line filters departures to only that line, enabling commuters at busy interchange hubs (Sants, Catalunya, Sarrià, etc.) to immediately isolate their upcoming train.
+- **PWA Experience & Direct Installation:**
+  - Updated `src/app/manifest.ts` metadata to reflect dual-network coverage (FGC & Rodalies de Catalunya).
+  - Added dedicated PWA installation card in `src/components/MobileSettingsModal.tsx` with:
+    - Native step-by-step guidance for iOS Safari (Share ⬆ -> "Afegeix a la pantalla d'inici") and Android Chrome (Menu ⋮ -> "Instal·la l'aplicació").
+    - Standalone mode detection (`isStandalone`).
+    - Direct 1-tap `beforeinstallprompt` installation button ("Instal·lar ara") when supported by browser.
+- **Localization:**
+  - Added trilingual entries (`favoriteStations`, `addFavorite`, `removeFavorite`, `noFavoritesYet`, `filterDepartures`, `allLines`, `installApp`, `installAppDesc`, `installInstructionsIos`, `installInstructionsAndroid`, `installButton`) in Catalan, Spanish, and English in `src/lib/i18n.tsx`.
 - **Verification:**
   - `cmd /c npm test`: 30/30 checks passed.
+  - `cmd /c node --experimental-strip-types --no-warnings scripts/test-renfe.mts`: passed.
   - `cmd /c npx tsc --noEmit`: 0 errors.
-  - `cmd /c npm run build`: Next.js Turbopack production build succeeded cleanly (including static generation of `/robots.txt` and `/manifest.webmanifest`).
+  - `cmd /c npm run build`: Next.js Turbopack production build succeeded cleanly.
 
 

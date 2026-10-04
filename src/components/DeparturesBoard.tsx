@@ -28,10 +28,12 @@ export function DeparturesBoard({ stationCode, lineColors }: { stationCode: stri
   const { t } = useI18n()
   const [departures, setDepartures] = useState<Departure[] | null>(null)
   const [now, setNow]               = useState(nowSecondsOfDay())
+  const [lineFilter, setLineFilter] = useState<string>('ALL')
 
   // Fetch + periodically refresh the departures for this station.
   useEffect(() => {
     if (!stationCode) return
+    setLineFilter('ALL')
     let active = true
     const load = () => {
       fetch(`/api/departures?station=${encodeURIComponent(stationCode)}`)
@@ -51,17 +53,71 @@ export function DeparturesBoard({ stationCode, lineColors }: { stationCode: stri
     return () => clearInterval(id)
   }, [])
 
+  // Unique lines available in departures for this station
+  const availableLines = (departures ?? []).reduce<string[]>((acc, d) => {
+    if (d.line && !acc.includes(d.line)) acc.push(d.line)
+    return acc
+  }, []).sort()
+
   // Effective departure = schedule + live delay; keep those still upcoming
   // (allow a 30s grace so a train "at the platform" doesn't vanish instantly).
   const upcoming = (departures ?? [])
+    .filter(d => lineFilter === 'ALL' || d.line === lineFilter)
     .map(d => ({ ...d, eff: d.depTime + (d.delayMin > 0 ? d.delayMin * 60 : 0) }))
     .filter(d => d.eff - now >= -IMMINENT_S)
     .slice(0, MAX_SHOWN)
 
   return (
     <div style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8 }}>
-        {t('departures')}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+          {t('departures')}
+        </div>
+        {availableLines.length > 1 && (
+          <div style={{ display: 'flex', gap: 4, overflowX: 'auto', maxWidth: '75%', scrollbarWidth: 'none' }}>
+            <span
+              onClick={() => setLineFilter('ALL')}
+              style={{
+                padding: '2px 7px',
+                borderRadius: 10,
+                fontSize: 9.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                background: lineFilter === 'ALL' ? 'var(--text)' : 'var(--bg3)',
+                color: lineFilter === 'ALL' ? 'var(--bg)' : 'var(--muted)',
+                border: '1px solid var(--border2)',
+                fontFamily: 'var(--font-space-grotesk), sans-serif',
+                flexShrink: 0,
+              }}
+            >
+              {t('allLines')}
+            </span>
+            {availableLines.map(l => {
+              const active = lineFilter === l
+              const color = lineColors[l] || LINE_COLORS[l] || '#7a82a0'
+              return (
+                <span
+                  key={l}
+                  onClick={() => setLineFilter(active ? 'ALL' : l)}
+                  style={{
+                    padding: '2px 7px',
+                    borderRadius: 10,
+                    fontSize: 9.5,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    background: active ? color : `${color}20`,
+                    color: active ? '#fff' : color,
+                    border: `1px solid ${active ? color : `${color}50`}`,
+                    fontFamily: 'var(--font-space-grotesk), sans-serif',
+                    flexShrink: 0,
+                  }}
+                >
+                  {l}
+                </span>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {departures === null ? (

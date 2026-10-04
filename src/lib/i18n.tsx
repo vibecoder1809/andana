@@ -206,6 +206,23 @@ const DICT = {
   appearance:      { ca: 'Aparença',   es: 'Apariencia',  en: 'Appearance' },
   activeAlertsCount: { ca: (n: number) => `${n} ${n === 1 ? 'avís actiu' : 'avisos actius'}`, es: (n: number) => `${n} ${n === 1 ? 'aviso activo' : 'avisos activos'}`, en: (n: number) => `${n} active ${n === 1 ? 'alert' : 'alerts'}` },
 
+  // ── Favorite Stations ──
+  favoriteStations:     { ca: 'Estacions preferides', es: 'Estaciones favoritas', en: 'Favorite stations' },
+  addFavorite:          { ca: 'Afegir a preferides', es: 'Añadir a favoritas', en: 'Add to favorites' },
+  removeFavorite:       { ca: 'Treure de preferides', es: 'Quitar de favoritas', en: 'Remove from favorites' },
+  noFavoritesYet:       { ca: 'Prem l’estrella ⭐️ a qualsevol estació per tenir-la sempre a mà.', es: 'Pulsa la estrella ⭐️ en cualquier estación para tenerla siempre a mano.', en: 'Tap the star ⭐️ on any station to keep it handy.' },
+
+  // ── Departures filtering ──
+  filterDepartures:     { ca: 'Filtra per línia', es: 'Filtrar por línea', en: 'Filter by line' },
+  allLines:             { ca: 'Totes', es: 'Todas', en: 'All' },
+
+  // ── PWA Installation ──
+  installApp:           { ca: 'Instal·la Andana al mòbil', es: 'Instala Andana en el móvil', en: 'Install Andana on mobile' },
+  installAppDesc:       { ca: 'Fes-la servir a pantalla completa com una app nativa, sense barra del navegador.', es: 'Úsala a pantalla completa como una app nativa, sin barra del navegador.', en: 'Use it full-screen like a native app, with no browser bar.' },
+  installInstructionsIos:{ ca: "A Safari, prem Compartir (⬆) i després 'Afegeix a la pantalla d'inici'.", es: "En Safari, pulsa Compartir (⬆) y luego 'Añadir a pantalla de inicio'.", en: "In Safari, tap Share (⬆) and then 'Add to Home Screen'." },
+  installInstructionsAndroid:{ ca: "A Chrome, prem el menú (⋮) i 'Instal·la l'aplicació'.", es: "En Chrome, pulsa el menú (⋮) e 'Instalar aplicación'.", en: "In Chrome, tap menu (⋮) and 'Install app'." },
+  installButton:        { ca: 'Instal·lar ara', es: 'Instalar ahora', en: 'Install now' },
+
   // ── App-level errors ──
   apiConnectError: { ca: "No es pot connectar amb l'API de trens", es: 'No se puede conectar con la API de trenes', en: 'Cannot connect to the trains API' },
 } as const

@@ -16,6 +16,7 @@ import { useI18n, type TransKey } from '@/lib/i18n'
 import { AlertModal } from './AlertModal'
 import { formatAlertDateTime } from '@/lib/alertTime'
 import { MobileSettingsModal } from './MobileSettingsModal'
+import { useFavoriteStations } from '@/lib/savedStations'
 
 const LINE_GROUPS: { key: string; labelKey: TransKey; prefix: RegExp }[] = [
   { key: 'L',          labelKey: 'groupUrbanShort',     prefix: /^L\d/ },
@@ -337,9 +338,19 @@ export function MobileLayout({
     if (j) setSheetRatio(SNAP_HALF)
   }, [])
 
+  const { favorites, isFavorite, toggleFavorite } = useFavoriteStations()
   const [stationQuery, setStationQuery] = useState('')
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const dragBase = useRef(SNAP_PEEK)
+
+  const favoriteStops = useMemo(() => {
+    if (favorites.length === 0) return []
+    const favSet = new Set(favorites.map(f => f.stopId))
+    const favNameSet = new Set(favorites.map(f => f.name.toLowerCase()))
+    return stops
+      .filter(s => favSet.has(s.stopId) || favNameSet.has(s.name.toLowerCase()))
+      .filter((s, idx, arr) => arr.findIndex(x => x.name.toLowerCase() === s.name.toLowerCase()) === idx)
+  }, [stops, favorites])
 
   // Arriving via shared planner link
   useEffect(() => {
@@ -854,34 +865,57 @@ export function MobileLayout({
 
               {stationQuery ? (
                 <>
-                  {filteredStops.map(s => (
-                    <div
-                      key={s.stopId}
-                      onClick={() => { handleSelectStop(s); setStationQuery('') }}
-                      style={{
-                        padding: '12px 14px',
-                        borderRadius: 10,
-                        marginBottom: 6,
-                        cursor: 'pointer',
-                        background: 'var(--bg3)',
-                        fontSize: 14,
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        transition: 'background 0.15s',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontWeight: 600 }}>{s.name}</span>
-                        {s.code && (
-                          <span style={{ fontSize: 10, opacity: 0.6, background: 'var(--bg2)', padding: '1px 5px', borderRadius: 4 }}>
-                            {s.code}
-                          </span>
-                        )}
+                  {filteredStops.map(s => {
+                    const favorited = isFavorite(s.stopId)
+                    return (
+                      <div
+                        key={s.stopId}
+                        onClick={() => { handleSelectStop(s); setStationQuery('') }}
+                        style={{
+                          padding: '12px 14px',
+                          borderRadius: 10,
+                          marginBottom: 6,
+                          cursor: 'pointer',
+                          background: 'var(--bg3)',
+                          fontSize: 14,
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          transition: 'background 0.15s',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+                          <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                          {s.code && (
+                            <span style={{ fontSize: 10, opacity: 0.6, background: 'var(--bg2)', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>
+                              {s.code}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                          {s.wheelchairBoarding && <span style={{ fontSize: 13, color: 'var(--accent)' }}>♿</span>}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              toggleFavorite(s)
+                            }}
+                            aria-label={favorited ? t('removeFavorite') : t('addFavorite')}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              fontSize: 14,
+                              padding: '2px 4px',
+                              color: favorited ? '#eab308' : 'var(--muted)',
+                              opacity: favorited ? 1 : 0.4,
+                            }}
+                          >
+                            {favorited ? '⭐' : '☆'}
+                          </button>
+                        </div>
                       </div>
-                      {s.wheelchairBoarding && <span style={{ fontSize: 13, color: 'var(--accent)' }}>♿</span>}
-                    </div>
-                  ))}
+                    )
+                  })}
                   {filteredStops.length === 0 && (
                     <p style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 2px', textAlign: 'center' }}>
                       {t('noStationFound')}
@@ -890,42 +924,139 @@ export function MobileLayout({
                 </>
               ) : (
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span>⭐</span>
-                    <span>{t('majorHubs')}</span>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {majorHubs.map(s => (
-                      <div
-                        key={s.stopId}
-                        onClick={() => handleSelectStop(s)}
-                        style={{
-                          padding: '11px 14px',
-                          borderRadius: 10,
-                          cursor: 'pointer',
-                          background: 'var(--bg3)',
-                          border: '1px solid var(--border)',
-                          fontSize: 13.5,
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          transition: 'background 0.15s',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontWeight: 600 }}>{s.name}</span>
-                          {s.code && (
-                            <span style={{ fontSize: 10, opacity: 0.6, background: 'var(--bg2)', padding: '1px 5px', borderRadius: 4 }}>
-                              {s.code}
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          {s.wheelchairBoarding && <span style={{ fontSize: 12, color: 'var(--accent)' }}>♿</span>}
-                          <span style={{ fontSize: 11, color: 'var(--muted)' }}>↗</span>
-                        </div>
+                  {/* Favorite Stations Section */}
+                  {favoriteStops.length > 0 && (
+                    <div style={{ marginBottom: 18 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--yellow)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>⭐</span>
+                        <span>{t('favoriteStations')}</span>
+                        <span style={{ fontSize: 9.5, background: 'rgba(234,179,8,0.2)', padding: '1px 6px', borderRadius: 4 }}>{favoriteStops.length}</span>
                       </div>
-                    ))}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {favoriteStops.map(s => {
+                          const isRenfe = s.operator === 'renfe' || /^\d+$/.test(s.stopId)
+                          return (
+                            <div
+                              key={`fav-${s.stopId}`}
+                              onClick={() => handleSelectStop(s)}
+                              style={{
+                                padding: '11px 14px',
+                                borderRadius: 10,
+                                cursor: 'pointer',
+                                background: 'var(--bg3)',
+                                border: '1px solid rgba(234,179,8,0.3)',
+                                fontSize: 13.5,
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                transition: 'background 0.15s',
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+                                <span style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                                {s.code && (
+                                  <span style={{ fontSize: 10, opacity: 0.7, background: 'var(--bg2)', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>
+                                    {s.code}
+                                  </span>
+                                )}
+                                <span style={{
+                                  fontSize: 8.5,
+                                  fontWeight: 700,
+                                  padding: '1px 5px',
+                                  borderRadius: 4,
+                                  background: isRenfe ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255, 140, 0, 0.15)',
+                                  color: isRenfe ? '#ef4444' : '#ff8c00',
+                                  flexShrink: 0,
+                                }}>
+                                  {isRenfe ? 'Rodalies' : 'FGC'}
+                                </span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                                {s.wheelchairBoarding && <span style={{ fontSize: 12, color: 'var(--accent)' }}>♿</span>}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    toggleFavorite(s)
+                                  }}
+                                  aria-label={t('removeFavorite')}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    fontSize: 14,
+                                    padding: '2px 4px',
+                                    color: '#eab308',
+                                  }}
+                                >
+                                  ⭐
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Major Hubs Section */}
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span>📍</span>
+                      <span>{t('majorHubs')}</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {majorHubs.map(s => {
+                        const favorited = isFavorite(s.stopId)
+                        return (
+                          <div
+                            key={s.stopId}
+                            onClick={() => handleSelectStop(s)}
+                            style={{
+                              padding: '11px 14px',
+                              borderRadius: 10,
+                              cursor: 'pointer',
+                              background: 'var(--bg3)',
+                              border: '1px solid var(--border)',
+                              fontSize: 13.5,
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              transition: 'background 0.15s',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+                              <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                              {s.code && (
+                                <span style={{ fontSize: 10, opacity: 0.6, background: 'var(--bg2)', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>
+                                  {s.code}
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                              {s.wheelchairBoarding && <span style={{ fontSize: 12, color: 'var(--accent)' }}>♿</span>}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  toggleFavorite(s)
+                                }}
+                                aria-label={favorited ? t('removeFavorite') : t('addFavorite')}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  fontSize: 14,
+                                  padding: '2px 4px',
+                                  color: favorited ? '#eab308' : 'var(--muted)',
+                                  opacity: favorited ? 1 : 0.4,
+                                }}
+                              >
+                                {favorited ? '⭐' : '☆'}
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
               )}
