@@ -1,11 +1,12 @@
 import { cached } from './cache.ts'
 import { getStationCode } from './constants.ts'
-import type { Train, Stop, Route, Departure } from '@/types'
+import type { Train, Stop, Route, Departure, Alert } from '@/types'
 
 const FLOTA_URL = 'https://tiempo-real.renfe.com/renfe-visor/flota.json'
 const ESTACIONES_URL = 'https://tiempo-real.renfe.com/data/estaciones.geojson'
 const LINEAS_URL = 'https://tiempo-real.renfe.com/renfe-visor/lineas.geojson'
 const SALIDAS_URL = 'https://tiempo-real.renfe.com/renfe-json-cutter/write/salidas/estacion'
+const INCIDENCIAS_RSS_URL = 'https://www.gencat.cat/rodalies/incidencies_rodalies_rss_ca_ES.xml'
 
 // Rodalies de Catalunya is nucleus 50 in Renfe's internal systems.
 const NUCLEO_CATALUNYA = 50
@@ -317,4 +318,117 @@ async function loadRenfeDepartures(stationCode: string): Promise<Departure[]> {
 
 export async function fetchRenfeDepartures(stationCode: string): Promise<Departure[]> {
   return cached(`renfe:salidas:${stationCode}`, 30_000, () => loadRenfeDepartures(stationCode))
+}
+
+// ── 5. Real-Time Service Alerts (Gencat RSS) ────────────────────────────────
+
+async function loadRenfeAlerts(): Promise<Alert[]> {
+  try {
+    const [stations, res] = await Promise.all([
+      fetchRenfeStations().catch(() => []),
+      fetch(INCIDENCIAS_RSS_URL, {
+        headers: { 'User-Agent': 'Andana/1.0 (https://andana.cat)' },
+        cache: 'no-store',
+      }),
+    ])
+
+    if (!res.ok) {
+      console.error(`Rodalies RSS fetch returned ${res.status}`)
+      return []
+    }
+
+    const xml = await res.text()
+    const itemRegex = /<item>([\s\S]*?)<\/item>/g
+    const alerts: Alert[] = []
+    let match: RegExpExecArray | null
+
+    while ((match = itemRegex.exec(xml)) !== null) {
+      const itemContent = match[1]
+      const rawTitle = (itemContent.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || ''
+      const rawDesc = (itemContent.match(/<description>([\s\S]*?)<\/description>/) || [])[1] || ''
+      const rawDate = (itemContent.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || ''
+
+      const title = rawTitle.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').trim()
+      const desc = rawDesc.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').trim()
+      if (!desc && !title) continue
+
+      // 1. Line routes extraction
+      const lineMatch = title.match(/^Líni[ea]s?\s+([^.]+)\./i)
+      let routes: string[] = []
+      if (lineMatch) {
+        routes = lineMatch[1]
+          .split(/[,\s/]+/)
+          .map(s => s.trim().replace('R2_NORD', 'R2N').replace('R2_SUD', 'R2S'))
+          .filter(Boolean)
+      } else {
+        const lineMatches = (title + ' ' + desc).match(/\b(R[1-8]|R1[1-7]|RL[34]|RT[12]|RG1|R2N|R2S)\b/g)
+        if (lineMatches) routes = Array.from(new Set(lineMatches))
+      }
+
+      // 2. Publication date
+      let startEpoch: number | undefined
+      if (rawDate) {
+        const parsed = Date.parse(rawDate)
+        if (!isNaN(parsed)) startEpoch = Math.floor(parsed / 1000)
+      }
+
+      // 3. Header & description
+      // Gencat often truncates <title> at 140 chars; <description> has full text
+      const firstSentence = desc.split(/\.\s+/)[0]?.trim()
+      let header = firstSentence && firstSentence.length > 20
+        ? firstSentence + (firstSentence.endsWith('.') ? '' : '.')
+        : title.replace(/^Líni[ea]s?\s+[^.]+\.\s*/i, '').trim() || desc
+
+      if (header.length > 140) {
+        header = header.slice(0, 137).trim() + '…'
+      }
+
+      // Strip redundant leading header or first sentence from description so it doesn't repeat
+      let cleanDesc = desc.trim()
+      const headerPrefix = header.replace(/[.…]+$/, '').trim()
+      if (cleanDesc.toLowerCase().startsWith(headerPrefix.toLowerCase())) {
+        cleanDesc = cleanDesc.slice(headerPrefix.length).replace(/^[.,;: ]+/, '').trim()
+      }
+
+      // 4. Affected stations
+      const matchedStops: string[] = []
+      const lowerDesc = desc.toLowerCase()
+      for (const s of stations) {
+        if (s.name.length >= 4 && lowerDesc.includes(s.name.toLowerCase())) {
+          matchedStops.push(s.name)
+        }
+      }
+
+      // 5. Plain language contextual explanation
+      let explanation: string | undefined
+      if (lowerDesc.includes('carretera') || lowerDesc.includes('autobús') || lowerDesc.includes('autobus') || lowerDesc.includes('transport alternatiu')) {
+        explanation = 'Servei alternatiu per carretera en el tram indicat degut a incidències o obres.'
+      } else if (lowerDesc.includes('inuncat') || lowerDesc.includes('meteorol') || lowerDesc.includes('pluges') || lowerDesc.includes('vent')) {
+        explanation = "Afectació derivada de condicions meteorològiques adverses i alertes de Protecció Civil."
+      } else if (lowerDesc.includes('restableix') || lowerDesc.includes('restablert')) {
+        explanation = 'Servei en procés de normalització o restabliment gradual.'
+      }
+
+      alerts.push({
+        id: `renfe-alert-${startEpoch || Date.now()}-${routes.slice(0, 3).join('-') || alerts.length}`,
+        header,
+        description: cleanDesc || undefined,
+        explanation,
+        routes,
+        stops: matchedStops.length > 0 ? matchedStops : undefined,
+        start: startEpoch,
+        operator: 'renfe',
+        url: 'https://rodalies.gencat.cat/ca/alteracions_del_servei/',
+      })
+    }
+
+    return alerts
+  } catch (err) {
+    console.error('Rodalies alerts RSS failed:', err)
+    return []
+  }
+}
+
+export async function fetchRenfeAlerts(): Promise<Alert[]> {
+  return cached('renfe:alerts', 60_000, loadRenfeAlerts)
 }

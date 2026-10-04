@@ -364,6 +364,7 @@ export function getStationCode(stopId: string, name?: string): string {
 }
 
 export const LINE_COLORS: Record<string, string> = {
+  // FGC lines
   L6:  '#797FBC',
   L7:  '#B2600B',
   L8:  '#E274AA',
@@ -385,6 +386,29 @@ export const LINE_COLORS: Record<string, string> = {
   FV:  '#0A57A3',
   MM:  '#000000',
   L1:  '#000000',
+
+  // Rodalies de Catalunya
+  R1:  '#45a1d7',
+  R2:  '#00824b',
+  R2N: '#91b822',
+  R2S: '#00824b',
+  R3:  '#e31b23',
+  R4:  '#e87722',
+  R7:  '#702283',
+  R8:  '#88549e',
+  R11: '#004899',
+  R12: '#00788a',
+  R13: '#a4005b',
+  R14: '#5c2483',
+  R15: '#83786f',
+  R16: '#d50032',
+  R17: '#f4633a',
+  RG1: '#45a1d7',
+  RT1: '#5c2483',
+  RT2: '#d50032',
+
+  // Walk connection
+  WALK: '#f59e0b',
 }
 
 // Car codes of an FGC 4-car unit in physical composition order — M1 (cab

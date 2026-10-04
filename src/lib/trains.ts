@@ -91,6 +91,7 @@ export async function fetchTrains(): Promise<Train[]> {
         wagons:           perCarReal ? wagons : undefined,
         upcomingStops:    parseUpcomingStops(r.properes_parades),
         currentStop:      r.estacionat_a ? resolveStop(r.estacionat_a) : undefined,
+        operator:         'fgc',
       }]
     })
 }

@@ -15,13 +15,15 @@ export interface JourneyPath {
 }
 
 // Resolve a planner station code to a coordinate using the live stops list.
-// Stop ids look like `<CODE><n>` (e.g. `BV1`), so we match by code prefix and
-// fall back to a case-insensitive name match.
+// Handles both FGC prefix codes (e.g. `PC` -> `PC1`) and Rodalies numeric IDs (e.g. `71801`),
+// falling back to a case-insensitive name match.
 function findCoord(
   code: string,
   name: string,
   stops: Stop[],
 ): [number, number] | null {
+  const byExact = stops.find(s => s.stopId === code)
+  if (byExact) return [byExact.lng, byExact.lat]
   const byCode = stops.find(s => s.stopId.replace(/\d+$/, '') === code)
   if (byCode) return [byCode.lng, byCode.lat]
   const byName = stops.find(s => s.name.toLowerCase() === name.toLowerCase())
@@ -33,7 +35,7 @@ function findCoord(
  * Build the drawable path for a journey. For each leg we take that line's route
  * geometry and clip it to the portion between the leg's boarding and alighting
  * stations, so the drawn path follows the real track. If a leg's geometry is
- * missing we fall back to a straight segment between the two stations.
+ * missing (or it's a walking transfer) we fall back to a straight segment between the two stations.
  */
 export function buildJourneyPath(
   journey: Journey,
@@ -60,10 +62,11 @@ export function buildJourneyPath(
     if (i === 0 && from) pathStops.push({ name: leg.fromName, lng: from[0], lat: from[1] })
     if (to) pathStops.push({ name: leg.toName, lng: to[0], lat: to[1] })
 
-    const color = lineColors[leg.line] || LINE_COLORS[leg.line] || '#7a82a0'
+    const isWalk = leg.operator === 'walk'
+    const color = isWalk ? '#f59e0b' : (lineColors[leg.line] || LINE_COLORS[leg.line] || '#7a82a0')
     if (!from || !to) return
 
-    const pl = getPolyline(leg.line)
+    const pl = isWalk ? null : getPolyline(leg.line)
     const coords = pl ? clipPolyline(pl, from, to) : [from, to]
     legs.push({ line: leg.line, color, coords })
   })

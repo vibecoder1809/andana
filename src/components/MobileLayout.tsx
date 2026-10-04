@@ -162,37 +162,37 @@ function useVerticalDrag(onMove: (deltaY: number) => void, onEnd: (deltaY: numbe
   return begin
 }
 
-const ROTATION_MS   = 7_000
-const PREVIEW_COUNT = 5
-const EXPANDED_COUNT = 10
+const ROTATION_MS   = 10_000
 
 // ── Floating Alert Pill ───────────────────────────────────────────────────
-function MobileAlertBanner({ alerts, onSelectAlert, top }: { alerts: Alert[]; onSelectAlert: (a: Alert) => void; top: string }) {
+function MobileAlertBanner({ alerts, onSelectAlert, top, networkMode }: { alerts: Alert[]; onSelectAlert: (a: Alert) => void; top: string; networkMode?: NetworkMode }) {
   const { t, lang } = useI18n()
-  const preview = alerts.slice(0, PREVIEW_COUNT)
   const [idx, setIdx]           = useState(0)
   const [expanded, setExpanded] = useState(false)
   const [fade, setFade]         = useState(true)
   const timerRef                = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const count = alerts.length
+
   const rotate = useCallback(() => {
+    if (count <= 1) return
     setFade(false)
     setTimeout(() => {
-      setIdx(i => (i + 1) % preview.length)
+      setIdx(i => (i + 1) % count)
       setFade(true)
     }, 250)
-  }, [preview.length])
+  }, [count])
 
   useEffect(() => {
-    if (expanded || preview.length <= 1) return
+    if (expanded || count <= 1) return
     timerRef.current = setInterval(rotate, ROTATION_MS)
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
-  }, [expanded, preview.length, rotate])
+  }, [expanded, count, rotate])
 
-  const fingerprint = preview.map(a => a.header).join('|')
-  useLayoutEffect(() => { setIdx(0) }, [fingerprint])
+  const fingerprint = alerts.map(a => a.header).join('|')
+  useLayoutEffect(() => { setIdx(0) }, [fingerprint, networkMode])
 
-  const visible = preview[idx % preview.length]
+  const visible = alerts[idx % (count || 1)]
   const visibleTime = formatAlertDateTime(visible?.start, lang, t)
 
   return (
@@ -201,7 +201,7 @@ function MobileAlertBanner({ alerts, onSelectAlert, top }: { alerts: Alert[]; on
         position: 'absolute', top, left: 12, right: 12, zIndex: 20,
         background: 'rgba(234,179,8,0.96)',
         color: '#000',
-        borderRadius: expanded ? 16 : 20,
+        borderRadius: expanded ? 16 : 22,
         boxShadow: '0 4px 18px rgba(0,0,0,0.28)',
         userSelect: 'none',
         backdropFilter: 'blur(10px)',
@@ -209,16 +209,33 @@ function MobileAlertBanner({ alerts, onSelectAlert, top }: { alerts: Alert[]; on
       }}
     >
       <div
-        onClick={() => setExpanded(e => !e)}
+        onClick={() => {
+          if (visible) onSelectAlert(visible)
+        }}
         style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px',
+          display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px',
           fontSize: 11.5, fontWeight: 600,
           opacity: fade ? 1 : 0, transition: 'opacity 0.25s',
           cursor: 'pointer',
         }}
       >
-        <span style={{ fontWeight: 800, flexShrink: 0, fontSize: 11 }}>⚠</span>
-        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 700 }}>
+        <span style={{ fontWeight: 800, flexShrink: 0, fontSize: 12 }}>⚠</span>
+        {networkMode === 'both' && visible?.operator && (
+          <span style={{
+            fontSize: 9,
+            fontWeight: 800,
+            padding: '1px 5px',
+            borderRadius: 4,
+            background: visible.operator === 'renfe' ? 'rgba(239, 68, 68, 0.25)' : 'rgba(234, 88, 12, 0.25)',
+            color: visible.operator === 'renfe' ? '#991b1b' : '#9a3412',
+            textTransform: 'uppercase',
+            letterSpacing: '0.4px',
+            flexShrink: 0,
+          }}>
+            {visible.operator === 'renfe' ? 'Rodalies' : 'FGC'}
+          </span>
+        )}
+        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 700 }}>
           {visible?.header}
         </span>
 
@@ -228,75 +245,148 @@ function MobileAlertBanner({ alerts, onSelectAlert, top }: { alerts: Alert[]; on
           </span>
         )}
 
+        {/* Clear, tappable + info action button */}
         <button
           onClick={e => {
             e.stopPropagation()
             if (visible) onSelectAlert(visible)
           }}
           style={{
-            background: 'rgba(0,0,0,0.15)',
-            border: 'none',
+            background: 'rgba(0,0,0,0.18)',
+            border: '1px solid rgba(0,0,0,0.2)',
             color: '#000',
-            padding: '2px 7px',
+            padding: '2.5px 7px',
             borderRadius: 6,
             fontSize: 10,
-            fontWeight: 700,
+            fontWeight: 800,
             cursor: 'pointer',
             fontFamily: 'inherit',
             flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 3,
           }}
         >
-          ℹ️ {t('viewMoreInfo')}
+          + info ↗
         </button>
 
-        {preview.length > 1 && (
-          <span style={{ fontSize: 10, flexShrink: 0, opacity: 0.7 }}>
-            {idx + 1}/{preview.length} {expanded ? '▲' : '▼'}
-          </span>
+        {count > 1 && (
+          <button
+            onClick={e => {
+              e.stopPropagation()
+              setExpanded(exp => !exp)
+            }}
+            title={expanded ? 'Amagar llista' : 'Desplegar avisos'}
+            style={{
+              background: 'rgba(0,0,0,0.12)',
+              border: '1px solid rgba(0,0,0,0.15)',
+              color: '#000',
+              padding: '2.5px 6px',
+              borderRadius: 6,
+              fontSize: 10,
+              fontWeight: 800,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              flexShrink: 0,
+            }}
+          >
+            {(idx % count) + 1}/{count} {expanded ? '▲' : '▼'}
+          </button>
         )}
       </div>
 
       {expanded && (
-        <div style={{ borderTop: '1px solid rgba(0,0,0,0.15)', padding: '4px 12px 10px', maxHeight: 220, overflowY: 'auto' }}>
-          {alerts.slice(0, EXPANDED_COUNT).map((a, i) => {
+        <div style={{
+          borderTop: '1px solid rgba(0,0,0,0.15)',
+          padding: '6px 8px 10px',
+          maxHeight: 220,
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 3,
+        }}>
+          {alerts.map((a, i) => {
             const aTime = formatAlertDateTime(a.start, lang, t)
             return (
               <div
                 key={a.id || i}
                 onClick={() => onSelectAlert(a)}
                 style={{
-                  padding: '7px 6px',
-                  borderBottom: i < Math.min(alerts.length, EXPANDED_COUNT) - 1 ? '1px solid rgba(0,0,0,0.12)' : 'none',
+                  padding: '7px 8px',
+                  borderRadius: 8,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: 8,
+                  background: 'rgba(0,0,0,0.06)',
                 }}
               >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                    <span>{a.header}</span>
-                    {aTime && (
-                      <span style={{ fontSize: 9.5, opacity: 0.85, fontWeight: 600, background: 'rgba(0,0,0,0.1)', padding: '1px 5px', borderRadius: 4 }}>
-                        🕒 {aTime.full}
-                      </span>
-                    )}
-                  </div>
-                  {a.explanation && (
-                    <div style={{ opacity: 0.8, marginTop: 2, fontWeight: 400, fontSize: 10.5, lineHeight: 1.3 }}>
-                      {a.explanation}
-                    </div>
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  {networkMode === 'both' && a.operator && (
+                    <span style={{
+                      fontSize: 8.5,
+                      fontWeight: 800,
+                      padding: '1px 4px',
+                      borderRadius: 3,
+                      background: a.operator === 'renfe' ? 'rgba(239, 68, 68, 0.25)' : 'rgba(234, 88, 12, 0.25)',
+                      color: a.operator === 'renfe' ? '#991b1b' : '#9a3412',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.3px',
+                      flexShrink: 0,
+                    }}>
+                      {a.operator === 'renfe' ? 'Rodalies' : 'FGC'}
+                    </span>
                   )}
-                  {a.stops && a.stops.length > 0 && (
-                    <div style={{ fontSize: 9.5, opacity: 0.7, marginTop: 3 }}>
-                      📍 {t('allStationsAffected', a.stops.length)}
-                    </div>
+                  <span style={{
+                    fontWeight: 700,
+                    fontSize: 11.5,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    flex: '1 1 120px',
+                  }}>
+                    {a.header}
+                  </span>
+                  {aTime && (
+                    <span style={{
+                      fontSize: 9.5,
+                      opacity: 0.85,
+                      fontWeight: 600,
+                      background: 'rgba(0,0,0,0.1)',
+                      padding: '1px 5px',
+                      borderRadius: 4,
+                      flexShrink: 0,
+                      whiteSpace: 'nowrap',
+                    }}>
+                      🕒 {aTime.compact}
+                    </span>
                   )}
                 </div>
-                <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(0,0,0,0.7)', flexShrink: 0 }}>
-                  ℹ️ ↗
-                </span>
+
+                <button
+                  onClick={e => {
+                    e.stopPropagation()
+                    onSelectAlert(a)
+                  }}
+                  style={{
+                    background: 'rgba(0,0,0,0.18)',
+                    border: '1px solid rgba(0,0,0,0.15)',
+                    color: '#000',
+                    padding: '3px 8px',
+                    borderRadius: 6,
+                    fontSize: 10,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    flexShrink: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 3,
+                  }}
+                >
+                  + info ↗
+                </button>
               </div>
             )
           })}
@@ -579,7 +669,7 @@ export function MobileLayout({
           </div>
         )}
         {!apiError && alerts.length > 0 && (
-          <MobileAlertBanner alerts={alerts} onSelectAlert={setSelectedAlert} top="calc(env(safe-area-inset-top, 0px) + 56px)" />
+          <MobileAlertBanner alerts={alerts} onSelectAlert={setSelectedAlert} top="calc(env(safe-area-inset-top, 0px) + 56px)" networkMode={networkMode} />
         )}
       </div>
 

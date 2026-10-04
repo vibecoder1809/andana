@@ -20,36 +20,36 @@ import { formatAlertDateTime } from '@/lib/alertTime'
 
 const MapView = dynamic(() => import('./MapView'), { ssr: false })
 
-const ROTATION_MS = 7_000
-const PREVIEW_COUNT = 5
-const EXPANDED_COUNT = 10
+const ROTATION_MS = 10_000
 
-function AlertBanner({ alerts, onSelectAlert }: { alerts: Alert[]; onSelectAlert: (a: Alert) => void }) {
+function AlertBanner({ alerts, onSelectAlert, networkMode }: { alerts: Alert[]; onSelectAlert: (a: Alert) => void; networkMode?: NetworkMode }) {
   const { t, lang } = useI18n()
-  const preview = alerts.slice(0, PREVIEW_COUNT)
   const [idx, setIdx]           = useState(0)
   const [expanded, setExpanded] = useState(false)
   const [fade, setFade]         = useState(true)
   const timerRef                = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const count = alerts.length
+
   const rotate = useCallback(() => {
+    if (count <= 1) return
     setFade(false)
     setTimeout(() => {
-      setIdx(i => (i + 1) % preview.length)
+      setIdx(i => (i + 1) % count)
       setFade(true)
     }, 250)
-  }, [preview.length])
+  }, [count])
 
   useEffect(() => {
-    if (expanded || preview.length <= 1) return
+    if (expanded || count <= 1) return
     timerRef.current = setInterval(rotate, ROTATION_MS)
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
-  }, [expanded, preview.length, rotate])
+  }, [expanded, count, rotate])
 
-  // reset index when alerts change
-  useLayoutEffect(() => { setIdx(0) }, [alerts])
+  // reset index when alerts count or network mode changes
+  useLayoutEffect(() => { setIdx(0) }, [alerts.length, networkMode])
 
-  const visible = preview[idx]
+  const visible = alerts[idx % (count || 1)]
   const visibleTime = formatAlertDateTime(visible?.start, lang, t)
 
   return (
@@ -66,22 +66,38 @@ function AlertBanner({ alerts, onSelectAlert }: { alerts: Alert[]; onSelectAlert
     >
       {/* rotating single-line preview */}
       <div
-        onClick={() => setExpanded(e => !e)}
+        onClick={() => {
+          if (visible) onSelectAlert(visible)
+        }}
         style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '7px 20px',
           opacity: fade ? 1 : 0, transition: 'opacity 0.25s', cursor: 'pointer',
         }}
       >
-        <span style={{ background: 'var(--yellow)', color: '#000', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{t('alert')}</span>
-        <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{visible?.header}</span>
+        <span style={{ background: 'var(--yellow)', color: '#000', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+          {t('alert')}
+        </span>
+        {networkMode === 'both' && visible?.operator && (
+          <span style={{
+            fontSize: 9.5,
+            fontWeight: 700,
+            padding: '1px 6px',
+            borderRadius: 4,
+            background: visible.operator === 'renfe' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 140, 0, 0.2)',
+            color: visible.operator === 'renfe' ? '#ef4444' : '#ff8c00',
+            textTransform: 'uppercase',
+            letterSpacing: '0.3px',
+            flexShrink: 0,
+          }}>
+            {visible.operator === 'renfe' ? 'Rodalies' : 'FGC'}
+          </span>
+        )}
+        <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {visible?.header}
+        </span>
         {visibleTime && (
           <span style={{ fontSize: 10, opacity: 0.9, flexShrink: 0, background: 'rgba(234,179,8,0.18)', padding: '1px 6px', borderRadius: 4, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
             🕒 {visibleTime.compact}
-          </span>
-        )}
-        {visible?.stops && visible.stops.length > 0 && (
-          <span style={{ fontSize: 10, opacity: 0.8, flexShrink: 0, background: 'rgba(234,179,8,0.15)', padding: '1px 6px', borderRadius: 4 }}>
-            {t('allStationsAffected', visible.stops.length)}
           </span>
         )}
 
@@ -110,26 +126,52 @@ function AlertBanner({ alerts, onSelectAlert }: { alerts: Alert[]; onSelectAlert
           {t('viewMoreInfo')}
         </button>
 
-        {preview.length > 1 && (
-          <span style={{ color: 'var(--muted)', fontSize: 10, flexShrink: 0, marginLeft: 4 }}>
-            {idx + 1}/{preview.length} {expanded ? '▲' : '▼'}
-          </span>
+        {count > 1 && (
+          <button
+            onClick={e => {
+              e.stopPropagation()
+              setExpanded(exp => !exp)
+            }}
+            title={expanded ? 'Amagar llista' : 'Desplegar avisos'}
+            style={{
+              background: 'rgba(234,179,8,0.14)',
+              border: '1px solid rgba(234,179,8,0.25)',
+              color: 'var(--yellow)',
+              padding: '2px 7px',
+              borderRadius: 6,
+              fontSize: 10,
+              fontWeight: 700,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              flexShrink: 0,
+              marginLeft: 4,
+            }}
+          >
+            {(idx % count) + 1}/{count} {expanded ? '▲' : '▼'}
+          </button>
         )}
       </div>
 
-      {/* expanded list */}
+      {/* expanded compact list */}
       {expanded && (
-        <div style={{ borderTop: '1px solid rgba(234,179,8,0.15)', padding: '6px 20px 10px' }}>
-          {alerts.slice(0, EXPANDED_COUNT).map((a, i) => {
+        <div style={{
+          borderTop: '1px solid rgba(234,179,8,0.15)',
+          padding: '4px 16px 8px',
+          maxHeight: 260,
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2,
+        }}>
+          {alerts.map((a, i) => {
             const aTime = formatAlertDateTime(a.start, lang, t)
             return (
               <div
                 key={a.id || i}
                 onClick={() => onSelectAlert(a)}
                 style={{
-                  padding: '8px 10px',
-                  borderBottom: i < Math.min(alerts.length, EXPANDED_COUNT) - 1 ? '1px solid rgba(234,179,8,0.1)' : 'none',
-                  borderRadius: 8,
+                  padding: '6px 10px',
+                  borderRadius: 6,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
@@ -140,50 +182,81 @@ function AlertBanner({ alerts, onSelectAlert }: { alerts: Alert[]; onSelectAlert
                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(234,179,8,0.08)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span>{a.header}</span>
-                    {aTime && (
-                      <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', background: 'rgba(234,179,8,0.12)', padding: '1px 6px', borderRadius: 4, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                        🕒 {aTime.full}
-                      </span>
-                    )}
-                  </div>
-                  {a.explanation && (
-                    <div style={{ color: 'var(--text)', opacity: 0.8, fontSize: 11, lineHeight: 1.35 }}>
-                      {a.explanation}
-                    </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+                  {networkMode === 'both' && a.operator && (
+                    <span style={{
+                      fontSize: 9,
+                      fontWeight: 700,
+                      padding: '1px 5px',
+                      borderRadius: 4,
+                      background: a.operator === 'renfe' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 140, 0, 0.2)',
+                      color: a.operator === 'renfe' ? '#ef4444' : '#ff8c00',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.3px',
+                      flexShrink: 0,
+                    }}>
+                      {a.operator === 'renfe' ? 'Rodalies' : 'FGC'}
+                    </span>
                   )}
-                {a.stops && a.stops.length > 0 && (
-                  <div style={{ marginTop: 4, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 10, color: 'var(--muted)' }}>
-                      📍 {t('allStationsAffected', a.stops.length)}:
+                  {a.routes && a.routes.length > 0 && a.routes.length <= 3 && (
+                    <span style={{ fontSize: 9.5, fontWeight: 700, opacity: 0.85, flexShrink: 0 }}>
+                      {a.routes.join(' ')}
                     </span>
-                    <span style={{ fontSize: 10, color: 'var(--text)', opacity: 0.7 }}>
-                      {a.stops.slice(0, 4).join(', ')}{a.stops.length > 4 ? ` +${a.stops.length - 4}` : ''}
+                  )}
+                  <span style={{
+                    fontWeight: 600,
+                    fontSize: 12,
+                    color: 'var(--text)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {a.header}
+                  </span>
+                  {aTime && (
+                    <span style={{
+                      fontSize: 10,
+                      color: 'var(--muted)',
+                      flexShrink: 0,
+                      background: 'rgba(234,179,8,0.12)',
+                      padding: '1px 6px',
+                      borderRadius: 4,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      whiteSpace: 'nowrap',
+                    }}>
+                      🕒 {aTime.full}
                     </span>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
 
-              <div style={{
-                background: 'rgba(234,179,8,0.18)',
-                border: '1px solid rgba(234,179,8,0.3)',
-                padding: '3px 8px',
-                borderRadius: 6,
-                fontSize: 10,
-                fontWeight: 700,
-                color: 'var(--yellow)',
-                flexShrink: 0,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 3,
-              }}>
-                ℹ️ {t('viewMoreInfo')}
+                <button
+                  onClick={e => {
+                    e.stopPropagation()
+                    onSelectAlert(a)
+                  }}
+                  style={{
+                    background: 'rgba(234,179,8,0.18)',
+                    border: '1px solid rgba(234,179,8,0.3)',
+                    padding: '3px 8px',
+                    borderRadius: 6,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: 'var(--yellow)',
+                    flexShrink: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 3,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  ℹ️ {t('viewMoreInfo')}
+                </button>
               </div>
-            </div>
-          )
-        })}
+            )
+          })}
         </div>
       )}
     </div>
@@ -408,6 +481,12 @@ function AppInner() {
 
   const lineCount = useMemo(() => new Set(visibleTrains.map(t => t.line)).size, [visibleTrains])
 
+  const visibleAlerts = useMemo(() => {
+    if (networkMode === 'fgc') return alerts.filter(a => a.operator === 'fgc')
+    if (networkMode === 'renfe') return alerts.filter(a => a.operator === 'renfe')
+    return alerts
+  }, [alerts, networkMode])
+
   if (isMobile) {
     return (
       <div data-theme={theme}>
@@ -415,7 +494,7 @@ function AppInner() {
           trains={filteredTrains}
           stops={visibleStops}
           routes={visibleRoutes}
-          alerts={alerts}
+          alerts={visibleAlerts}
           lines={lines}
           lineColors={lineColors}
           activeLines={activeLines}
@@ -470,8 +549,8 @@ function AppInner() {
         </div>
       )}
 
-      {!apiError && alerts.length > 0 && (
-        <AlertBanner alerts={alerts} onSelectAlert={setSelectedAlert} />
+      {!apiError && visibleAlerts.length > 0 && (
+        <AlertBanner alerts={visibleAlerts} onSelectAlert={setSelectedAlert} networkMode={networkMode} />
       )}
 
       <Sidebar

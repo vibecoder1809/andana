@@ -123,6 +123,23 @@ export async function fetchTripDelays(): Promise<Map<string, number>> {
   return new Map([...info.entries()].map(([id, v]) => [id, v.delay]))
 }
 
+// Returns set of tripIds where GTFS-RT reports scheduleRelationship === 3 (CANCELED)
+export async function fetchCanceledTrips(): Promise<Set<string>> {
+  try {
+    const feed = await fgcFeed('trip-updates-gtfs_realtime')
+    const canceled = new Set<string>()
+    for (const e of feed.entity) {
+      if (e.tripUpdate?.trip?.scheduleRelationship === 3 && e.tripUpdate.trip.tripId) {
+        canceled.add(e.tripUpdate.trip.tripId)
+      }
+    }
+    return canceled
+  } catch (err) {
+    console.error('fetchCanceledTrips failed:', err)
+    return new Set()
+  }
+}
+
 // Median live delay (minutes) per line, from current train positions joined to
 // GTFS-RT trip delays. Only lines actually running late appear (delay > 0).
 // Shared by the trip planner and the station departures board.
@@ -295,7 +312,7 @@ export async function fetchAlerts(): Promise<Alert[]> {
     })
 
     const routes = Array.from(g.routes)
-    let explanation: string | undefined = g.description
+    let explanation: string | undefined
 
     const lower = g.header.toLowerCase()
     if (lower.includes('autobús') || lower.includes('autobus')) {
@@ -303,16 +320,21 @@ export async function fetchAlerts(): Promise<Alert[]> {
         routes.push('R5', 'R6', 'S4', 'S8')
       }
       explanation = 'Servei substitutori per carretera: els trens enllacen amb autobús degut a treballs o incidències en el tram indicat.'
-    } else if (lower.includes('primers cotxes') || lower.includes('primer cotxe')) {
+    } else if (lower.includes('primer') && lower.includes('cotxe')) {
       if (routes.length === 0) {
         routes.push('R5', 'R6')
       }
-      explanation = 'Embarcament exclusiu als primers 3 cotxes degut a la longitud reduïda de les andanes a les parades indicades.'
+      explanation = "Embarcament als tres primers cotxes: en combois de doble composició a la línia Llobregat-Anoia, cal viatjar als cotxes davanters perquè algunes estacions del trajecte tenen andanes curtes on els cotxes posteriors no obren portes o la segona unitat no admet passatge."
+    }
+
+    let header = g.header
+    if (header.endsWith('cotxe.')) {
+      header = header.replace(/cotxe\.$/, 'cotxes.')
     }
 
     result.push({
       id: g.id,
-      header: g.header,
+      header,
       description: g.description,
       explanation,
       routes,
@@ -325,8 +347,26 @@ export async function fetchAlerts(): Promise<Alert[]> {
     })
   }
 
-  return result
+  // Register in persistent cache so alerts remain visible until their valid end time,
+  // even if FGC's momentary feed purges them prematurely.
+  const now = Math.floor(Date.now() / 1000)
+  for (const a of result) {
+    persistentAlerts.set(a.id, { ...a, lastSeen: now })
+  }
+
+  for (const [id, a] of persistentAlerts.entries()) {
+    if (a.end != null && now > a.end) {
+      persistentAlerts.delete(id)
+    } else if (a.end == null && now - a.lastSeen > ALERT_GRACE_PERIOD_S) {
+      persistentAlerts.delete(id)
+    }
+  }
+
+  return Array.from(persistentAlerts.values()).map(({ lastSeen: _, ...a }) => a)
 }
+
+const persistentAlerts = new Map<string, Alert & { lastSeen: number }>()
+const ALERT_GRACE_PERIOD_S = 3600 // 1 hour grace period
 
 // Air quality keyed by base stop code (no digit suffix), e.g. "PC", "SR"
 export async function fetchAirQuality(): Promise<Map<string, StopDetail['air']>> {

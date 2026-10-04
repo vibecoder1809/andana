@@ -1,9 +1,12 @@
 import { STATION_CODES } from './constants'
 import { fgcExport, fgcGtfsFile, fgcAllRecords } from './fgc'
 import { fetchStops } from './gtfs'
+import { fetchRenfeStations } from './renfe'
+import { loadRodaliesTimetable } from './renfeTimetable'
+import { FOOTPATH_MAP } from './footpaths'
 import { serviceDate, isWithinPlanWindow } from './serviceTime'
 import { finiteNum } from './validate'
-import type { PlannerStation, JourneyLeg, Journey } from '@/types'
+import type { PlannerStation, JourneyLeg, Journey, Operator, Stop } from '@/types'
 
 // Minimum time (seconds) needed to change between two trips at a station.
 const TRANSFER_SECONDS = 120
@@ -30,15 +33,16 @@ interface TripStop {
   departure: number   // seconds since midnight
 }
 
-interface Trip {
+export interface Trip {
   id: number
   line: string        // route_short_name
   headsign: string
+  operator?: Operator
   stops: TripStop[]
 }
 
 // A single ride between two consecutive stops on a trip.
-interface Connection {
+export interface Connection {
   depTime: number
   arrTime: number
   fromParent: string
@@ -48,14 +52,17 @@ interface Connection {
   tripId: number
   line: string
   headsign: string
+  operator?: Operator
 }
 
-interface TimetableData {
+export interface TimetableData {
   date: string                 // service date (YYYY-MM-DD) the data was built for
   connections: Connection[]    // sorted ascending by depTime
   tripConns: Map<number, Connection[]>  // tripId -> its connections, in stop order
   trips: Map<number, Trip>
   stationNames: Map<string, string>  // parent code -> display name
+  stationLines: Map<string, string[]> // parent code -> sorted lines array
+  stationOperators: Map<string, Operator> // parent code -> 'fgc' | 'renfe'
 }
 
 // ---- time helpers -------------------------------------------------------
@@ -165,7 +172,7 @@ async function buildTimetable(): Promise<TimetableData> {
 
 // Flatten built trips into the sorted connection list + per-trip connection
 // index the planner consumes. Shared by the today (viajes-de-hoy) builder and
-// the date-specific GTFS builder.
+// the date-specific GTFS builder. Merges FGC and Rodalies networks.
 function assembleTimetable(
   date: string,
   trips: Map<number, Trip>,
@@ -173,7 +180,12 @@ function assembleTimetable(
 ): TimetableData {
   const connections: Connection[] = []
   const tripConns = new Map<number, Connection[]>()
+  const stationLinesMap = new Map<string, Set<string>>()
+  const stationOperators = new Map<string, Operator>()
+
+  // 1. Process FGC trips
   for (const trip of trips.values()) {
+    trip.operator = trip.operator ?? 'fgc'
     const own: Connection[] = []
     for (let i = 0; i < trip.stops.length - 1; i++) {
       const a = trip.stops[i]
@@ -189,15 +201,62 @@ function assembleTimetable(
         tripId: trip.id,
         line: trip.line,
         headsign: trip.headsign,
+        operator: 'fgc',
       }
       connections.push(conn)
       own.push(conn)
+
+      if (!stationLinesMap.has(a.parent)) stationLinesMap.set(a.parent, new Set())
+      stationLinesMap.get(a.parent)!.add(trip.line)
+      stationOperators.set(a.parent, 'fgc')
+    }
+    const lastStop = trip.stops[trip.stops.length - 1]
+    if (lastStop) {
+      if (!stationLinesMap.has(lastStop.parent)) stationLinesMap.set(lastStop.parent, new Set())
+      stationLinesMap.get(lastStop.parent)!.add(trip.line)
+      stationOperators.set(lastStop.parent, 'fgc')
     }
     if (own.length > 0) tripConns.set(trip.id, own)
   }
+
+  // 2. Load and merge Rodalies timetable
+  let maxTripId = 0
+  for (const id of trips.keys()) {
+    if (id > maxTripId) maxTripId = id
+  }
+  const rodalies = loadRodaliesTimetable(maxTripId + 1, date)
+
+  for (const [tId, t] of rodalies.trips) {
+    trips.set(tId, t)
+  }
+  for (const c of rodalies.connections) {
+    connections.push(c)
+    let own = tripConns.get(c.tripId)
+    if (!own) {
+      own = []
+      tripConns.set(c.tripId, own)
+    }
+    own.push(c)
+  }
+  for (const [code, name] of rodalies.stationNames) {
+    if (!stationNames.has(code)) {
+      stationNames.set(code, name)
+    }
+    stationOperators.set(code, 'renfe')
+  }
+  for (const [code, lines] of rodalies.stationLines) {
+    if (!stationLinesMap.has(code)) stationLinesMap.set(code, new Set())
+    for (const l of lines) stationLinesMap.get(code)!.add(l)
+  }
+
   connections.sort((x, y) => x.depTime - y.depTime)
 
-  return { date, connections, tripConns, trips, stationNames }
+  const stationLines = new Map<string, string[]>()
+  for (const [code, lines] of stationLinesMap) {
+    stationLines.set(code, Array.from(lines).sort())
+  }
+
+  return { date, connections, tripConns, trips, stationNames, stationLines, stationOperators }
 }
 
 // ---- date-specific build (full static GTFS) ----------------------------
@@ -238,7 +297,7 @@ async function buildTimetableForDate(date: string): Promise<TimetableData> {
   )
   const runningServices = new Set(calRows.map(r => r.service_id))
   if (runningServices.size === 0) {
-    return { date, connections: [], tripConns: new Map(), trips: new Map(), stationNames: new Map() }
+    return assembleTimetable(date, new Map(), new Map())
   }
 
   // 2. Pull the static GTFS member files in parallel.
@@ -365,11 +424,17 @@ let accessibleInflight: Promise<Set<string>> | null = null
 async function getAccessibleStations(): Promise<Set<string>> {
   if (accessibleCache) return accessibleCache
   if (accessibleInflight) return accessibleInflight
-  accessibleInflight = fetchStops()
-    .then(stops => {
+  accessibleInflight = Promise.all([
+    fetchStops().catch(() => [] as Stop[]),
+    fetchRenfeStations().catch(() => [] as Stop[]),
+  ])
+    .then(([fgcStops, renfeStops]) => {
       const set = new Set<string>()
-      for (const s of stops) {
+      for (const s of fgcStops) {
         if (s.wheelchairBoarding) set.add(s.stopId.replace(/\d+$/, ''))
+      }
+      for (const s of renfeStops) {
+        if (s.wheelchairBoarding) set.add(s.stopId)
       }
       accessibleCache = set
       accessibleInflight = null
@@ -384,7 +449,12 @@ async function getAccessibleStations(): Promise<Set<string>> {
 export async function getStations(): Promise<PlannerStation[]> {
   const data = await getTimetable()
   return [...data.stationNames.entries()]
-    .map(([code, name]) => ({ code, name }))
+    .map(([code, name]) => ({
+      code,
+      name,
+      operator: data.stationOperators.get(code) ?? 'fgc',
+      lines: data.stationLines.get(code) ?? [],
+    }))
     .sort((a, b) => a.name.localeCompare(b.name, 'ca'))
 }
 
@@ -441,30 +511,59 @@ interface Label {
   cost: number              // arr + TRANSFER_PENALTY*transfers + stepFree extra
   transfers: number         // number of boardings used to reach this stop
   extra: number             // accumulated inaccessible-interchange penalty
-  conn: Connection | null   // last connection ridden to reach it (null = origin)
+  conn: Connection | null   // last connection ridden to reach it (null = origin or walk)
   boardStop: string | null  // stop where the trip behind `conn` was boarded
+  walkFrom?: string | null  // stop we walked from to reach this stop
+  walkDuration?: number     // footpath duration in seconds
+  walkDescription?: { ca: string; es: string; en: string }
+}
+
+interface WalkStep {
+  walk: true
+  fromParent: string
+  toParent: string
+  durationSec: number
+  description?: { ca: string; es: string; en: string }
+}
+
+type PathStep = Connection | WalkStep
+
+function isWalkStep(step: PathStep): step is WalkStep {
+  return 'walk' in step && step.walk === true
 }
 
 // Reconstruct the connection path by walking transfers backward. Each label
 // records the stop where its trip was boarded, so we slice the trip's
 // connections between board and alight, then jump to the board stop's label
-// (a transfer) and repeat. This avoids mixing connections from different
-// competing paths that happen to share an intermediate stop.
+// (a transfer) and repeat. Footpath steps are recorded as WalkStep.
 function reconstruct(
   origin: string,
   dest: string,
   labels: Map<string, Label>,
   tripConns: Map<number, Connection[]>,
-): Connection[] | null {
-  const path: Connection[] = []
+): PathStep[] | null {
+  const path: PathStep[] = []
   let cur = dest
   const guard = new Set<string>()
   while (cur !== origin) {
     const label = labels.get(cur)
-    if (!label || !label.conn || label.boardStop == null) return null
+    if (!label) return null
     if (guard.has(cur)) return null // cycle safety — should never happen
     guard.add(cur)
 
+    if (label.walkFrom) {
+      path.push({
+        walk: true,
+        fromParent: label.walkFrom,
+        toParent: cur,
+        durationSec: label.walkDuration ?? 120,
+        description: label.walkDescription,
+      })
+      cur = label.walkFrom
+      continue
+    }
+
+    if (!label.conn || label.boardStop == null) return null
     const conns = tripConns.get(label.conn.tripId)
     if (!conns) return null
     // Take the slice of this trip from boardStop up to the alight stop (cur).
@@ -485,18 +584,51 @@ function reconstruct(
 // same-line transfers (waiting for a later train) have multi-minute gaps.
 const PHANTOM_GAP = 150
 
-function legsFromPath(path: Connection[]): JourneyLeg[] {
-  const legs: JourneyLeg[] = []
-  for (const c of path) {
-    const last = legs[legs.length - 1]
-    if (last && last.toCode === c.fromParent && last.line === c.line && last.headsign === c.headsign) {
+function legsFromPath(
+  path: PathStep[],
+  stationNames: Map<string, string>,
+  searchAfterSeconds: number,
+): JourneyLeg[] {
+  const rawLegs: JourneyLeg[] = []
+  let prevArr = searchAfterSeconds
+
+  for (const step of path) {
+    if (isWalkStep(step)) {
+      const depTime = prevArr
+      const arrTime = depTime + step.durationSec
+      prevArr = arrTime
+      rawLegs.push({
+        line: 'WALK',
+        headsign: step.description?.ca ?? 'Enllaç a peu',
+        fromCode: step.fromParent,
+        fromName: stationNames.get(step.fromParent) ?? step.fromParent,
+        toCode: step.toParent,
+        toName: stationNames.get(step.toParent) ?? step.toParent,
+        depTime,
+        arrTime,
+        intermediateStops: 0,
+        operator: 'walk',
+      })
+      continue
+    }
+
+    const c = step
+    const last = rawLegs[rawLegs.length - 1]
+    if (
+      last &&
+      last.operator !== 'walk' &&
+      last.toCode === c.fromParent &&
+      last.line === c.line &&
+      last.headsign === c.headsign
+    ) {
       // same trip continuing — extend the leg
       last.toCode = c.toParent
       last.toName = c.toName
       last.arrTime = c.arrTime
       last.intermediateStops++
+      prevArr = c.arrTime
     } else {
-      legs.push({
+      rawLegs.push({
         line: c.line,
         headsign: c.headsign,
         fromCode: c.fromParent,
@@ -506,16 +638,24 @@ function legsFromPath(path: Connection[]): JourneyLeg[] {
         depTime: c.depTime,
         arrTime: c.arrTime,
         intermediateStops: 0,
+        operator: c.operator ?? 'fgc',
       })
+      prevArr = c.arrTime
     }
   }
 
   // Collapse phantom splits: consecutive same-line legs separated by only a
   // few seconds are really one ride that got split during reconstruction.
   const merged: JourneyLeg[] = []
-  for (const leg of legs) {
+  for (const leg of rawLegs) {
     const prev = merged[merged.length - 1]
-    if (prev && prev.line === leg.line && leg.depTime - prev.arrTime <= PHANTOM_GAP) {
+    if (
+      prev &&
+      prev.operator !== 'walk' &&
+      leg.operator !== 'walk' &&
+      prev.line === leg.line &&
+      leg.depTime - prev.arrTime <= PHANTOM_GAP
+    ) {
       prev.toCode = leg.toCode
       prev.toName = leg.toName
       prev.arrTime = leg.arrTime
@@ -524,6 +664,14 @@ function legsFromPath(path: Connection[]): JourneyLeg[] {
       merged.push(leg)
     }
   }
+
+  // If the initial leg is a walk and the second is a train, align the walk departure just-in-time
+  if (merged.length >= 2 && merged[0].operator === 'walk' && merged[1].operator !== 'walk') {
+    const walkDur = merged[0].arrTime - merged[0].depTime
+    merged[0].arrTime = merged[1].depTime
+    merged[0].depTime = Math.max(searchAfterSeconds, merged[1].depTime - walkDur)
+  }
+
   return merged
 }
 
@@ -548,7 +696,33 @@ export async function planJourney(
   const accessible = stepFree ? await getAccessibleStations() : null
 
   const labels = new Map<string, Label>()
-  labels.set(originCode, { arr: afterSeconds, cost: afterSeconds, transfers: 0, extra: 0, conn: null, boardStop: null })
+  labels.set(originCode, {
+    arr: afterSeconds,
+    cost: afterSeconds,
+    transfers: 0,
+    extra: 0,
+    conn: null,
+    boardStop: null,
+  })
+
+  // Relax direct footpaths from origin
+  const originFootpaths = FOOTPATH_MAP.get(originCode)
+  if (originFootpaths) {
+    for (const fp of originFootpaths) {
+      const arr = afterSeconds + fp.durationSec
+      labels.set(fp.to, {
+        arr,
+        cost: arr,
+        transfers: 0,
+        extra: 0,
+        conn: null,
+        boardStop: null,
+        walkFrom: originCode,
+        walkDuration: fp.durationSec,
+        walkDescription: fp.description,
+      })
+    }
+  }
 
   // Per-trip carried state: the cheapest way found to be riding this trip —
   // the boarding label's transfer count, the stop where we boarded, and the
@@ -571,7 +745,7 @@ export async function planJourney(
 
     // Can we board this connection by transferring here?
     if (fromLabel) {
-      const needBuffer = c.fromParent === originCode ? 0 : TRANSFER_SECONDS
+      const needBuffer = (c.fromParent === originCode || fromLabel.walkFrom != null) ? 0 : TRANSFER_SECONDS
       if (fromLabel.arr + needBuffer <= c.depTime) {
         const boardTransfers = fromLabel.transfers + 1
         // Charge the step-free penalty when this boarding is a genuine
@@ -593,10 +767,43 @@ export async function planJourney(
     const arr = c.arrTime
     const cost = arr + TRANSFER_PENALTY * riding.transfers + riding.extra
     if (cost < costAt(c.toParent)) {
-      labels.set(c.toParent, { arr, cost, transfers: riding.transfers, extra: riding.extra, conn: c, boardStop: riding.boardStop })
+      labels.set(c.toParent, {
+        arr,
+        cost,
+        transfers: riding.transfers,
+        extra: riding.extra,
+        conn: c,
+        boardStop: riding.boardStop,
+      })
       if (c.toParent === destCode) {
         if (cost < bestDestCost) bestDestCost = cost
         if (arr < bestDestArr) bestDestArr = arr
+      }
+
+      // Relax footpaths from c.toParent
+      const outFootpaths = FOOTPATH_MAP.get(c.toParent)
+      if (outFootpaths) {
+        for (const fp of outFootpaths) {
+          const fpArr = arr + fp.durationSec
+          const fpCost = fpArr + TRANSFER_PENALTY * riding.transfers + riding.extra
+          if (fpCost < costAt(fp.to)) {
+            labels.set(fp.to, {
+              arr: fpArr,
+              cost: fpCost,
+              transfers: riding.transfers,
+              extra: riding.extra,
+              conn: null,
+              boardStop: null,
+              walkFrom: c.toParent,
+              walkDuration: fp.durationSec,
+              walkDescription: fp.description,
+            })
+            if (fp.to === destCode) {
+              if (fpCost < bestDestCost) bestDestCost = fpCost
+              if (fpArr < bestDestArr) bestDestArr = fpArr
+            }
+          }
+        }
       }
     }
   }
@@ -604,10 +811,16 @@ export async function planJourney(
   const path = reconstruct(originCode, destCode, labels, data.tripConns)
   if (!path || path.length === 0) return null
 
-  const legs = legsFromPath(path)
+  const legs = legsFromPath(path, data.stationNames, afterSeconds)
+  if (legs.length === 0) return null
+
   const depTime = legs[0].depTime
   const arrTime = legs[legs.length - 1].arrTime
-  const liveDelayMin = lineDelays?.get(legs[0].line)
+  const firstTrainLeg = legs.find(l => l.operator !== 'walk')
+  const liveDelayMin = firstTrainLeg ? lineDelays?.get(firstTrainLeg.line) : undefined
+  const trainLegs = legs.filter(l => l.operator !== 'walk')
+  const transfers = Math.max(0, trainLegs.length - 1)
+
   // When step-free was requested, report whether every interchange (each leg
   // after the first boards at its `fromCode`) is actually step-free.
   const stepFreeOk = accessible
@@ -618,7 +831,7 @@ export async function planJourney(
     depTime,
     arrTime,
     durationMin: Math.round((arrTime - depTime) / 60),
-    transfers: legs.length - 1,
+    transfers,
     ...(liveDelayMin ? { liveDelayMin } : {}),
     ...(stepFreeOk !== undefined ? { stepFree: stepFreeOk } : {}),
   }
@@ -643,8 +856,8 @@ export async function planJourneys(
     const j = await planJourney(originCode, destCode, after, lineDelays, date, stepFree)
     if (!j) break
     journeys.push(j)
-    // Next search starts one second after this option's first departure.
-    after = j.depTime + 1
+    const firstTrain = j.legs.find(l => l.operator !== 'walk')
+    after = (firstTrain ? firstTrain.depTime : j.depTime) + 1
   }
   return journeys
 }

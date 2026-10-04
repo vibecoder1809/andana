@@ -4,6 +4,7 @@ import {
   fetchRenfeRoutes,
   fetchRenfeTrains,
   fetchRenfeDepartures,
+  fetchRenfeAlerts,
 } from '../src/lib/renfe.ts'
 
 async function run() {
@@ -35,6 +36,14 @@ async function run() {
   if (departures.length > 0) {
     const d = departures[0]
     console.log(`  Sample departure: ${d.line} -> ${d.headsign} depTime=${d.depTime}s delay=${d.delayMin}m track=${d.track}`)
+  }
+
+  const alerts = await fetchRenfeAlerts()
+  console.log(`✓ Real-time alerts fetched: ${alerts.length}`)
+  if (alerts.length > 0) {
+    const a = alerts[0]
+    console.log(`  Sample alert: [${a.operator}] ${a.header} (lines: ${a.routes.join(', ')})`)
+    assert.equal(a.operator, 'renfe')
   }
 
   console.log('ALL RENFE CLIENT CHECKS PASSED!')

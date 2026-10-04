@@ -126,22 +126,73 @@ export function DeparturesBoard({ stationCode, lineColors }: { stationCode: stri
         <div style={{ fontSize: 12, color: 'var(--muted)', padding: '4px 0' }}>{t('noDepartures')}</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {upcoming.some(d => d.isSuspended) && (
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.25)',
+              borderRadius: 8,
+              padding: '8px 12px',
+              color: 'var(--red)',
+              fontSize: 11.5,
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              marginBottom: 4,
+              lineHeight: 1.35,
+            }}>
+              <span style={{ fontSize: 13, flexShrink: 0 }}>⚠️</span>
+              <span>{t('serviceSuspendedNotice')}</span>
+            </div>
+          )}
           {upcoming.map((d, i) => {
             const color     = lineColors[d.line] || LINE_COLORS[d.line] || '#7a82a0'
             const remaining = d.eff - now
             const imminent  = remaining <= IMMINENT_S
+            const isInactive = d.isSuspended || d.isCancelled
+
             return (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg3)', borderRadius: 8, padding: '7px 10px' }}>
-                <span style={{ background: color, color: '#fff', fontWeight: 700, fontSize: 11, padding: '2px 7px', borderRadius: 6, fontFamily: 'var(--font-space-grotesk), sans-serif', flexShrink: 0, minWidth: 30, textAlign: 'center' }}>
+              <div
+                key={i}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  background: 'var(--bg3)',
+                  borderRadius: 8,
+                  padding: '7px 10px',
+                  opacity: isInactive ? 0.75 : 1,
+                }}
+              >
+                <span style={{
+                  background: color,
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: 11,
+                  padding: '2px 7px',
+                  borderRadius: 6,
+                  fontFamily: 'var(--font-space-grotesk), sans-serif',
+                  flexShrink: 0,
+                  minWidth: 30,
+                  textAlign: 'center',
+                }}>
                   {d.line}
                 </span>
-                <span style={{ flex: 1, minWidth: 0, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{
+                  flex: 1,
+                  minWidth: 0,
+                  fontSize: 12,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  textDecoration: isInactive ? 'line-through' : 'none',
+                }}>
                   {d.headsign}
                 </span>
                 {d.accessible && (
                   <span style={{ fontSize: 11, color: 'var(--accent)', flexShrink: 0 }} title={t('accessibleTrain')}>♿</span>
                 )}
-                {d.track && (
+                {d.track && !isInactive && (
                   <span style={{
                     fontSize: 10,
                     fontWeight: 600,
@@ -156,25 +207,42 @@ export function DeparturesBoard({ stationCode, lineColors }: { stationCode: stri
                     {t('trackLabel')} {d.track}
                   </span>
                 )}
-                {d.delayMin > 0 && (
+                {d.delayMin > 0 && !isInactive && (
                   <span style={{ color: 'var(--red)', fontWeight: 600, fontSize: 10, flexShrink: 0 }}>+{d.delayMin}m</span>
                 )}
-                <span style={{
-                  flexShrink: 0,
-                  fontFamily: 'var(--font-space-grotesk), monospace',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  fontVariantNumeric: 'tabular-nums',
-                  color: imminent ? 'var(--accent)' : 'var(--text)',
-                  minWidth: 46,
-                  textAlign: 'right',
-                }}>
-                  {imminent
-                    ? t('etaNow')
-                    : remaining < 3600
-                      ? t('minShort', Math.ceil(remaining / 60))
-                      : fmtClock(d.depTime)}
-                </span>
+                {isInactive ? (
+                  <span style={{
+                    flexShrink: 0,
+                    fontFamily: 'var(--font-space-grotesk), monospace',
+                    fontSize: 10,
+                    fontWeight: 800,
+                    letterSpacing: '0.4px',
+                    color: 'var(--red)',
+                    background: 'rgba(239, 68, 68, 0.15)',
+                    padding: '2px 6px',
+                    borderRadius: 4,
+                    textTransform: 'uppercase',
+                  }}>
+                    {d.isCancelled ? t('cancelled') : t('suspended')}
+                  </span>
+                ) : (
+                  <span style={{
+                    flexShrink: 0,
+                    fontFamily: 'var(--font-space-grotesk), monospace',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    fontVariantNumeric: 'tabular-nums',
+                    color: imminent ? 'var(--accent)' : 'var(--text)',
+                    minWidth: 46,
+                    textAlign: 'right',
+                  }}>
+                    {imminent
+                      ? t('etaNow')
+                      : remaining < 3600
+                        ? t('minShort', Math.ceil(remaining / 60))
+                        : fmtClock(d.depTime)}
+                  </span>
+                )}
               </div>
             )
           })}

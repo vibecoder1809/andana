@@ -54,6 +54,8 @@ export interface Departure {
   delayMin: number   // current median live delay or reported delay
   track?: string     // platform/track (e.g. "1", "3")
   accessible?: boolean
+  isSuspended?: boolean
+  isCancelled?: boolean
 }
 
 export interface Alert {
@@ -109,6 +111,8 @@ export type Theme = 'dark' | 'light'
 export interface PlannerStation {
   code: string
   name: string
+  operator?: Operator
+  lines?: string[]
 }
 
 export interface JourneyLeg {
@@ -121,6 +125,7 @@ export interface JourneyLeg {
   depTime: number       // seconds since midnight (scheduled)
   arrTime: number
   intermediateStops: number
+  operator?: Operator | 'walk'
 }
 
 export interface Journey {

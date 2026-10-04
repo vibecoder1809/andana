@@ -38,6 +38,11 @@
 - Source language is **Catalan (`ca`)**, with required counterparts in **Spanish (`es`)** and **English (`en`)**.
 - **Rule:** NEVER hardcode user-facing strings in JSX or API handlers. Use `const { t } = useI18n()` and `t('key')`. API routes return machine-readable error codes (e.g., `same_station`, `missing_params`), and the client maps them to translated strings.
 
+### E. Zero Fake Dynamics (No Smoke & Mirrors)
+- **STRICT RULE:** Never build features that are a "smoke screen", fake mockups pretending to be real, or UI elements that appear to be dynamic/interactive but are secretly hardcoded.
+- All live stats, countdowns, platform track assignments, delay minutes, train positions, filters, and telemetry MUST connect to authentic upstream data feeds and genuine business logic.
+- If upstream data is unavailable, unroutable, or missing for an entity, render an honest, clean "no data available" or graceful fallback state rather than inventing deceptive fake metrics.
+
 ---
 
 ## 3. Subsystem Workflows
@@ -97,6 +102,7 @@ Before committing any changes or concluding a session, verify:
 
 > **Windows PowerShell Note:** If PowerShell execution policy blocks `npm.ps1`, invoke commands with `cmd /c npm <script>` or `cmd /c npx <cmd>`.
 > **Lint Note:** Pre-existing `react-hooks/set-state-in-effect` and `exhaustive-deps` warnings exist in client effects and do not block `next build`. Do not churn unrelated code solely to satisfy these unless specifically asked.
+> **Git Push Rule:** NEVER run `git push` automatically. Only push changes to remote when the user explicitly asks for it.
 
 ---
 
@@ -317,5 +323,161 @@ Before committing any changes or concluding a session, verify:
   - `cmd /c node --experimental-strip-types --no-warnings scripts/test-renfe.mts`: passed.
   - `cmd /c npx tsc --noEmit`: 0 errors.
   - `cmd /c npm run build`: Next.js Turbopack production build succeeded cleanly.
+
+### Session: 2026-10-04 (Rodalies Real-Time Service Alerts & Network Mode Filtering Parity)
+- **Official Rodalies Incidents RSS Integration (`src/lib/renfe.ts`):**
+  - Integrated official Generalitat de Catalunya Rodalies live incident feed (`https://www.gencat.cat/rodalies/incidencies_rodalies_rss_ca_ES.xml`).
+  - Added `loadRenfeAlerts()` and cached fetcher `fetchRenfeAlerts()` with 60-second TTL.
+  - Cleanly parses XML without external heavyweight libraries:
+    - Extracts affected Rodalies lines (e.g. `R1`, `R3`, `R4`, `RL4`, `R2N`, `R2S`).
+    - Solves upstream 140-char title truncation by extracting untruncated first sentence from `<description>`.
+    - Parses publication timestamp (`<pubDate>`).
+    - Cross-references station database to detect and tag affected station names (e.g. Lleida-Pirineus, Manresa, etc.).
+    - Generates plain-language explanations for common disruptions (alternative bus/road transport, Inuncat/weather warnings, service normalization).
+  - Updated `scripts/test-renfe.mts` to validate Rodalies alert fetching and parsing.
+- **Unified Alerts API (`src/app/api/alerts/route.ts`):**
+  - Updated `/api/alerts` to query both `fetchAlerts()` (FGC) and `fetchRenfeAlerts()` (Rodalies) concurrently using `Promise.allSettled`.
+- **Network Mode Filtering Parity (`App.tsx` & `MobileLayout.tsx`):**
+  - Wired `visibleAlerts` filtered by active `networkMode`:
+    - In `fgc` mode: only FGC corridor alerts.
+    - In `renfe` mode: only Rodalies de Catalunya alerts.
+    - In `both` mode: all alerts merged across both operators.
+  - In `AlertBanner` (desktop) and `MobileAlertBanner` (mobile):
+    - Added operator badge (`[RODALIES]` vs `[FGC]`) when `networkMode === 'both'` in both the ticker capsule and expanded dropdown items.
+- **Operator-Aware Context in `AlertModal.tsx`:**
+  - Updated official real-time verification channels in `<AlertModal />` to display relevant links based on the alert operator (Rodalies alteracions web + `@rodalies` Twitter when `operator === 'renfe'`; FGC avisos web + `@FGC` Twitter when `operator === 'fgc'`).
+- **Verification:**
+  - `cmd /c npm test`: 30/30 checks passed.
+  - `cmd /c node --experimental-strip-types --no-warnings scripts/test-renfe.mts`: all Renfe client and alerts checks passed.
+  - `cmd /c npx tsc --noEmit`: 0 errors.
+  - `cmd /c npm run build`: Next.js Turbopack production build succeeded cleanly.
+
+### Session: 2026-10-04 (Zero-Fake Departures: Live Line Suspension & Canceled Trip Protection + Alert Persistence)
+- **Problem Diagnosed (Rubí Centre S1 Phantom Countdown & Disappearing Alerts):**
+  - During weather disruptions (e.g. Inuncat emergency shutdown of Barcelona-Vallès lines S1, S2, L6, L7), the station departures board (`DeparturesBoard.tsx`) previously relied on static GTFS timetable scanning (`viajes-de-hoy` / `stop_times.txt`) with live delay offsetting. When all trains were halted by civil protection, it still displayed countdowns ("S1 8 min", "S1 18 min", etc.) because it never cross-checked whether trains were actually circulating.
+  - Furthermore, FGC's open data feed (`alerts-gtfs_realtime`) periodically drops network-wide alerts prematurely when operational shifts swap bulletins for local bus notes or when `activePeriod.end` expires prematurely.
+- **Departures Board Live Line Suspension & Cancellation Checks (`src/app/api/departures/route.ts`):**
+  - Updated `/api/departures`:
+    - Evaluates live circulating trains from `fetchTrains()`.
+    - **False-alarm prevention guards:**
+      - Only evaluates suspension during daytime operating hours (`06:30` to `23:30`), preventing night closures from being flagged as disruptions.
+      - Imminent lookahead window: only evaluates departures within `35 minutes`. If a train departs in 1–2 hours, it is left on normal schedule since the train simply hasn't left the depot yet.
+      - Restricted to high-frequency trunk lines (`S1`, `S2`, `L6`, `L7`) where multiple trains circulate constantly. Low-frequency or branched lines (e.g. `R8`, `S4`, `R5`, `R6`) are NEVER falsely flagged as suspended during routine service intervals.
+      - Network sanity check: requires the overall FGC network to be actively reporting fleet (`fgcLiveTrains.length >= 6`) to distinguish genuine line halts from total feed outages.
+    - Cross-references GTFS-RT `trip-updates` entities reporting `scheduleRelationship: 3` (CANCELED) and flags departures as `isCancelled: true`.
+- **Truthful Departures UI (`src/components/DeparturesBoard.tsx`):**
+  - Added `isSuspended?: boolean` and `isCancelled?: boolean` to `Departure` interface in `src/types/index.ts`.
+  - In `DeparturesBoard.tsx`:
+    - When any upcoming departure for a station is suspended, renders a prominent warning banner: `⚠️ Sense trens en circulació en aquesta línia en aquests moments`.
+    - For individual suspended or cancelled departures, replaces the countdown time with a bold red status chip (`SUSPÈS` / `CANCEL·LAT`) and strikes through the destination. Never renders a fake countdown.
+- **Alert Persistence Registry (`src/lib/gtfs.ts`):**
+  - Added an in-memory persistent alert registry (`persistentAlerts`) in `fetchAlerts()`.
+  - Preserves legitimate alerts until their specified `activePeriod.end` timestamp expires (with a 1-hour grace period if unspecified), preventing valid emergency notices from vanishing when FGC's momentary feed is cleared.
+- **Localization:**
+  - Added `suspended`, `cancelled`, and `serviceSuspendedNotice` across Catalan, Spanish, and English in `src/lib/i18n.tsx`.
+- **Git Push Policy Respected:**
+  - All changes tested and verified locally. No `git push` executed.
+- **Verification:**
+  - `cmd /c npm test`: 30/30 checks passed.
+  - `cmd /c node --experimental-strip-types --no-warnings scripts/test-renfe.mts`: passed.
+  - `cmd /c npx tsc --noEmit`: 0 errors.
+  - `cmd /c npm run build`: Next.js Turbopack production build succeeded cleanly.
+
+### Session: 2026-10-04 (Car Composition Alert Normalization & Short-Platform Explanation)
+- **Problem Diagnosed ("Els tres primers cotxe." Alert at Pl. Espanya):**
+  - FGC open data published a cryptic, truncated alert with header `"Els tres primers cotxe."` for Pl. Espanya tied to trip `7e2dc0e207` (13:09 R6 to Igualada).
+  - In FGC's raw GTFS-RT protobuf, the string was literally cut off at `cotxe.` without a description, caused by character limits or manual operator cut-off in FGC's platform dispatch console.
+  - In `src/lib/gtfs.ts`, the matching condition was missing the plural/singular variant `primers cotxe`, leaving explanation empty and route unassigned.
+- **Fix & Clarification Engine (`src/lib/gtfs.ts`):**
+  - Updated matching keyword detection to `lower.includes('primer') && lower.includes('cotxe')`.
+  - Automatically heals the truncated title from `"Els tres primers cotxe."` to `"Els tres primers cotxes."`.
+  - Automatically associates affected lines (`R5`, `R6`) when missing in the GTFS-RT feed.
+  - Generates clear, plain-language explanation: *"Embarcament als tres primers cotxes: en combois de doble composició a la línia Llobregat-Anoia, cal viatjar als cotxes davanters perquè algunes estacions del trajecte tenen andanes curtes on els cotxes posteriors no obren portes o la segona unitat no admet passatge."*
+- **Verification:**
+  - Tested `/api/alerts` endpoint directly; confirmed alert returns healed title and rich explanation.
+  - `cmd /c npm test`: 30/30 checks passed.
+  - No `git push` performed.
+
+### Session: 2026-10-04 (Eliminating Triplicated Rodalies Alert Text in AlertModal)
+- **Problem Diagnosed (Triplicate Alert Content in Rodalies RSS):**
+  - In Gencat's Rodalies RSS (`incidencies_rodalies_rss_ca_ES.xml`), every item's `<description>` literally begins by re-quoting the `<title>`.
+  - When parsed into `header` (first sentence) and `description` (full description), `AlertModal.tsx` rendered the header, then rendered the description (repeating the header), and furthermore fell back to `alert.description` when `alert.explanation` was undefined under *"Què vol dir aquest avís?"*, resulting in the user reading the same sentence three times in a row.
+- **Fix & Deduplication Architecture:**
+  - **In `src/lib/renfe.ts`:** Strip leading `header` or first sentence from `desc` so that `description` contains strictly the additional body content or instructions. If the alert is a single sentence, `description` becomes `undefined` rather than a duplicate echo.
+  - **In `src/lib/gtfs.ts`:** Prevented `explanation` from initializing as `g.description`.
+  - **In `src/components/AlertModal.tsx`:** Removed the fallback `explanation = ... || alert.description`. Only render the *"Què vol dir aquest avís?"* section when `explanation` exists and is distinct from both `description` and `header`.
+- **Verification:**
+  - Tested live Rodalies R7 and RL3 alerts; verified title displays headline, subtitle displays remaining instruction without repetition, and no redundant explanation card appears.
+  - `cmd /c npm test`: 30/30 checks passed.
+  - `node --experimental-strip-types --no-warnings scripts/test-renfe.mts`: passed.
+  - `cmd /c npx tsc --noEmit`: 0 errors.
+  - No `git push` performed.
+
+### Session: 2026-10-04 (Alert Banner 10s Full Rotation, Count Indicator & Compact Dropdown with Enhanced Mobile Affordance)
+- **10-Second Rotation Across All Active Alerts:**
+  - Removed the arbitrary `PREVIEW_COUNT = 5` slice cap from both `App.tsx` (desktop) and `MobileLayout.tsx` (mobile).
+  - Configured `ROTATION_MS = 10_000` (10 seconds per rotation) to cycle smoothly across all active alerts (`alerts.length`).
+  - Updated counter badge to show real current position over total active count: `${(idx % count) + 1}/${count}` (e.g. `1/9`, `2/9`, etc.).
+- **Ultra-Compact Expanded Dropdown Rows:**
+  - Eliminated the bulky multi-line `explanation` and `stops` listings that caused the expanded list to take over the screen.
+  - Each item in the expanded dropdown now renders as a sleek, single-line/compact row (~32px):
+    - Left/Center: Operator badge (`[Rodalies]` / `[FGC]` in `both` mode) + Route tag + Headline Title (with clean ellipsis) + Compact Timestamp (`🕒 HH:MM`).
+    - Far Right: Dedicated, styled `+ info ↗` button.
+    - Clicking anywhere on the row or button launches the full detail modal (`AlertModal`).
+- **Mobile Affordance & Touch Intuition Overhaul (`MobileLayout.tsx`):**
+  - Added a distinct, clearly tappable `+ info ↗` button directly into the mobile ticker pill with subtle contrasted border and background (`rgba(0,0,0,0.18)`), making clickability instantly obvious without relying on desktop `:hover`.
+  - Tapping the banner text or the `+ info` button directly opens `<AlertModal />` for the current alert.
+  - Tapping the counter pill `[1/9 ▾]` toggles the compact dropdown list of all active alerts.
+- **Verification:**
+  - `cmd /c npm test`: 30/30 checks passed.
+  - `node --experimental-strip-types --no-warnings scripts/test-renfe.mts`: passed.
+  - `cmd /c npx tsc --noEmit`: 0 errors.
+  - No `git push` performed.
+
+### Session: 2026-10-04 (Universal Multi-Modal Journey Planner: FGC + Rodalies Integration)
+- **Goal:**
+  - Unify the "Anar a…" (Trip Planner) tab so users can plan journeys across both FGC and Rodalies networks seamlessly, including real inter-operator walking transfers (footpaths) at key transit hubs in Catalonia.
+- **Architectural Implementation:**
+  1. **Timetable Data Layer (`src/data/rodalies-timetable.json` & `src/lib/renfeTimetable.ts`):**
+     - Sourced and parsed official Renfe Cercanías GTFS (`fomento_transit.zip`, nucleus 51 / Catalonia).
+     - Compressed all 210 stations and ~1,480 daily trips into an optimized timetable JSON (weekday, Saturday, and Sunday service patterns).
+     - Built `loadRodaliesTimetable(baseTripId, date)` which resolves service calendar and exports `Trip[]`, `Connection[]`, `stationNames`, and `stationLines`.
+  2. **Interchange Footpaths Engine (`src/lib/footpaths.ts`):**
+     - Mapped exact physical pedestrian links between FGC parent codes and Rodalies 5-digit stop IDs:
+       - Pl. Catalunya: `PC` ↔ `71801` (4 min / 240s underground passage).
+       - Terrassa Estació del Nord: `EN` ↔ `72207` (1.5 min / 90s unified station hub).
+       - Sabadell Nord: `NO` ↔ `72205` (1.5 min / 90s unified station hub).
+       - Martorell Central: `MC` ↔ `72304` (2 min / 120s multimodal forecourt).
+       - Gornal / Bellvitge: `GO` ↔ `72401` (2 min / 120s pedestrian walkway).
+       - Provença / Passeig de Gràcia: `PR` ↔ `71802` (6 min / 360s urban connection).
+       - Av. Carrilet / L'Hospitalet: `LH` ↔ `71701` (5 min / 300s Rambla Marina link).
+  3. **CSA Planner Unification (`src/lib/planner.ts`):**
+     - In `assembleTimetable()`: dynamically merges FGC trips with Rodalies trips into a unified connection timeline, indexed by `tripConns` and sorted by `depTime`. Populates `stationLines` and `stationOperators`.
+     - In `planJourney()`:
+       - Initial relaxation: checks and relaxes direct footpaths from origin stop.
+       - Connection scan: relaxes adjacent footpaths upon connection arrival at `c.toParent`.
+       - Boarding buffer: set to 0 when boarding after a walking transfer (as walking duration already includes platform access) or at origin; 120s for train-to-train transfers.
+       - Backward reconstruction: supports `WalkStep` along with train connections.
+       - Just-in-time walk departure: aligns initial walk leg's departure time so passengers don't wait unnecessarily on the platform.
+       - Transfers calculation: correctly counts train boardings (`Math.max(0, trainLegs.length - 1)`).
+     - In `getStations()`: returns all ~260 stations across both networks with operator tag and serving lines.
+     - In `getAccessibleStations()`: loads wheelchair accessibility flags from both FGC and Renfe station feeds.
+  4. **Map Path Visualization (`src/lib/journeyPath.ts` & `src/lib/constants.ts`):**
+     - Updated `findCoord()` to support exact stop IDs (preventing numeric Rodalies codes from being stripped).
+     - Added official line colors for all Rodalies lines (R1–R4, R7, R8, R11–R17, RG1, RT1, RT2) and `WALK` (`#f59e0b`) in `LINE_COLORS`.
+     - Clipped route geometry for both FGC and Renfe lines, with straight chord connections for walk legs.
+  5. **UI & Mobile Experience (`src/components/TripPlanner.tsx` & `src/lib/i18n.tsx`):**
+     - Station autocomplete dropdown now shows distinct `[FGC]` and `[Rodalies]` operator chips and serving lines preview `(S1, S2...)` / `(R1, R4...)`.
+     - Journey leg chain displays `🚶 X min` (with footpath tooltip) for walking legs, and line pills with Rodalies tags for commuter trains.
+     - `locateOrigin` GPS button supports numeric Rodalies stop IDs.
+     - Added `walkingTransfer` i18n key in Catalan, Spanish, and English.
+- **Verification:**
+  - `cmd /c npx tsc --noEmit`: 0 errors.
+  - `cmd /c npm test`: 30/30 checks passed.
+  - Next.js production build (`next build`) verified clean (Turbopack, App Router, SSR, static page collection).
+  - STRICT ADHERENCE: No `git push` executed.
+
+
+
 
 

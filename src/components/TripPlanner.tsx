@@ -155,16 +155,37 @@ function StationInput({
         </button>
       )}
       {open && matches.length > 0 && (
-        <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 8, marginTop: 4, maxHeight: 200, overflowY: 'auto', zIndex: 40, boxShadow: '0 10px 25px rgba(0,0,0,0.25)' }}>
+        <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 8, marginTop: 4, maxHeight: 220, overflowY: 'auto', zIndex: 40, boxShadow: '0 10px 25px rgba(0,0,0,0.25)' }}>
           {matches.map(s => (
             <div
               key={s.code}
               onClick={() => { onChange(s); setOpen(false) }}
-              style={{ padding: '9px 11px', cursor: 'pointer', fontSize: 13 }}
+              style={{ padding: '8px 11px', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg3)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
-              {s.name}
+              <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{ fontWeight: 500 }}>{s.name}</span>
+                {s.lines && s.lines.length > 0 && (
+                  <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>
+                    ({s.lines.slice(0, 4).join(', ')}{s.lines.length > 4 ? '…' : ''})
+                  </span>
+                )}
+              </div>
+              <span style={{
+                fontSize: 9,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                padding: '1px 5px',
+                borderRadius: 4,
+                flexShrink: 0,
+                background: s.operator === 'renfe' ? 'rgba(232,119,34,0.15)' : 'rgba(245,158,11,0.15)',
+                color: s.operator === 'renfe' ? '#e87722' : 'var(--accent)',
+                border: `1px solid ${s.operator === 'renfe' ? 'rgba(232,119,34,0.3)' : 'rgba(245,158,11,0.3)'}`,
+              }}>
+                {s.operator === 'renfe' ? 'Rodalies' : 'FGC'}
+              </span>
             </div>
           ))}
         </div>
@@ -267,7 +288,35 @@ function JourneyCard({ journey, lineColors, best, live, active, date, onClick }:
         {journey.legs.map((leg, i) => (
           <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             {i > 0 && <span style={{ color: 'var(--muted)', fontSize: 11 }}>↔ {leg.fromName}</span>}
-            <LinePill line={leg.line} lineColors={lineColors} />
+            {leg.operator === 'walk' ? (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  background: 'var(--bg3)',
+                  border: '1px dashed var(--border2)',
+                  color: 'var(--accent)',
+                  fontWeight: 600,
+                  fontSize: 11,
+                  padding: '2px 7px',
+                  borderRadius: 6,
+                }}
+                title={leg.headsign}
+              >
+                <span>🚶</span>
+                <span>{Math.round((leg.arrTime - leg.depTime) / 60)} min</span>
+              </span>
+            ) : (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <LinePill line={leg.line} lineColors={lineColors} />
+                {leg.operator === 'renfe' && (
+                  <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                    Rodalies
+                  </span>
+                )}
+              </span>
+            )}
           </span>
         ))}
       </div>
@@ -382,7 +431,7 @@ export function TripPlanner({ lineColors, selectedJourney, onSelectJourney, stop
     locate((lat, lng) => {
       const nearest = nearestByLatLng(lat, lng, stops)
       if (!nearest) return
-      const code = nearest.stopId.replace(/\d+$/, '')
+      const code = /^\d+$/.test(nearest.stopId) ? nearest.stopId : nearest.stopId.replace(/\d+$/, '')
       const ps = stations.find(s => s.code === code)
       if (ps) setOrigin(ps)
     })

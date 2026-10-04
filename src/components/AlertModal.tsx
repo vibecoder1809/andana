@@ -29,10 +29,10 @@ export function AlertModal({ alert, onClose, lineColors = {} }: AlertModalProps)
 
   const isRenfe = alert.operator === 'renfe'
   const isBus = alert.header.toLowerCase().includes('autobús') || alert.header.toLowerCase().includes('autobus')
-  const isCars = alert.header.toLowerCase().includes('primers cotxes') || alert.header.toLowerCase().includes('primer cotxe')
+  const isCars = alert.header.toLowerCase().includes('primer') && alert.header.toLowerCase().includes('cotxe')
 
-  // Resolve explanation
-  const explanation = alert.explanation || (isBus ? t('busReplacementNotice') : isCars ? t('carsRestrictionNotice') : alert.description)
+  // Resolve explanation only when it provides genuine additional context
+  const explanation = alert.explanation || (isBus ? t('busReplacementNotice') : isCars ? t('carsRestrictionNotice') : undefined)
   const alertTime = formatAlertDateTime(alert.start, lang, t)
   const validUntilTime = formatAlertDateTime(alert.end, lang, t)
 
@@ -164,7 +164,7 @@ export function AlertModal({ alert, onClose, lineColors = {} }: AlertModalProps)
           )}
 
           {/* Context explanation */}
-          {explanation && (
+          {explanation && explanation !== alert.description && explanation !== alert.header && (
             <div style={{ background: 'var(--bg3)', border: '1px solid var(--border2)', borderRadius: 10, padding: '12px 14px' }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 4 }}>
                 {t('whatIsThisAlert')}
@@ -248,113 +248,119 @@ export function AlertModal({ alert, onClose, lineColors = {} }: AlertModalProps)
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {/* FGC official avisos */}
-              <a
-                href="https://www.fgc.cat/avisos/"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '10px 14px',
-                  background: 'var(--bg3)',
-                  border: '1px solid var(--border2)',
-                  borderRadius: 10,
-                  color: 'var(--text)',
-                  textDecoration: 'none',
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  transition: 'background 0.15s, border-color 0.15s',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span>🌐</span>
-                  <span>{t('officialFgcAvisos')}</span>
-                </div>
-                <span style={{ fontSize: 12, color: 'var(--muted)' }}>↗</span>
-              </a>
+              {isRenfe ? (
+                <>
+                  {/* Rodalies official alteracions */}
+                  <a
+                    href="https://rodalies.gencat.cat/ca/alteracions_del_servei/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 14px',
+                      background: 'var(--bg3)',
+                      border: '1px solid var(--border2)',
+                      borderRadius: 10,
+                      color: 'var(--text)',
+                      textDecoration: 'none',
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      transition: 'background 0.15s, border-color 0.15s',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span>🚆</span>
+                      <span>{t('officialRodaliesAlteracions')}</span>
+                    </div>
+                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>↗</span>
+                  </a>
 
-              {/* FGC twitter */}
-              <a
-                href="https://twitter.com/FGC"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '10px 14px',
-                  background: 'var(--bg3)',
-                  border: '1px solid var(--border2)',
-                  borderRadius: 10,
-                  color: 'var(--text)',
-                  textDecoration: 'none',
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  transition: 'background 0.15s, border-color 0.15s',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span>🐦</span>
-                  <span>{t('officialFgcTwitter')}</span>
-                </div>
-                <span style={{ fontSize: 12, color: 'var(--muted)' }}>↗</span>
-              </a>
+                  {/* Rodalies twitter */}
+                  <a
+                    href="https://twitter.com/rodalies"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 14px',
+                      background: 'var(--bg3)',
+                      border: '1px solid var(--border2)',
+                      borderRadius: 10,
+                      color: 'var(--text)',
+                      textDecoration: 'none',
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      transition: 'background 0.15s, border-color 0.15s',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span>🐦</span>
+                      <span>{t('officialRodaliesTwitter')}</span>
+                    </div>
+                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>↗</span>
+                  </a>
+                </>
+              ) : (
+                <>
+                  {/* FGC official avisos */}
+                  <a
+                    href="https://www.fgc.cat/avisos/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 14px',
+                      background: 'var(--bg3)',
+                      border: '1px solid var(--border2)',
+                      borderRadius: 10,
+                      color: 'var(--text)',
+                      textDecoration: 'none',
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      transition: 'background 0.15s, border-color 0.15s',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span>🌐</span>
+                      <span>{t('officialFgcAvisos')}</span>
+                    </div>
+                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>↗</span>
+                  </a>
 
-              {/* Rodalies official alteracions */}
-              <a
-                href="https://rodalies.gencat.cat/ca/alteracions_del_servei/"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '10px 14px',
-                  background: 'var(--bg3)',
-                  border: '1px solid var(--border2)',
-                  borderRadius: 10,
-                  color: 'var(--text)',
-                  textDecoration: 'none',
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  transition: 'background 0.15s, border-color 0.15s',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span>🚆</span>
-                  <span>{t('officialRodaliesAlteracions')}</span>
-                </div>
-                <span style={{ fontSize: 12, color: 'var(--muted)' }}>↗</span>
-              </a>
-
-              {/* Rodalies twitter */}
-              <a
-                href="https://twitter.com/rodalies"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '10px 14px',
-                  background: 'var(--bg3)',
-                  border: '1px solid var(--border2)',
-                  borderRadius: 10,
-                  color: 'var(--text)',
-                  textDecoration: 'none',
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  transition: 'background 0.15s, border-color 0.15s',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span>🐦</span>
-                  <span>{t('officialRodaliesTwitter')}</span>
-                </div>
-                <span style={{ fontSize: 12, color: 'var(--muted)' }}>↗</span>
-              </a>
+                  {/* FGC twitter */}
+                  <a
+                    href="https://twitter.com/FGC"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 14px',
+                      background: 'var(--bg3)',
+                      border: '1px solid var(--border2)',
+                      borderRadius: 10,
+                      color: 'var(--text)',
+                      textDecoration: 'none',
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      transition: 'background 0.15s, border-color 0.15s',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span>🐦</span>
+                      <span>{t('officialFgcTwitter')}</span>
+                    </div>
+                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>↗</span>
+                  </a>
+                </>
+              )}
             </div>
           </div>
         </div>

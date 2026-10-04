@@ -142,6 +142,7 @@ const DICT = {
   swap:            { ca: 'Intercanviar', es: 'Intercambiar', en: 'Swap' },
   direct:          { ca: 'Directe',    es: 'Directo',     en: 'Direct' },
   transfers:       { ca: (n: number) => `${n} transbord${n > 1 ? 'aments' : 'ament'}`, es: (n: number) => `${n} transbordo${n > 1 ? 's' : ''}`, en: (n: number) => `${n} transfer${n > 1 ? 's' : ''}` },
+  walkingTransfer: { ca: 'Enllaç a peu', es: 'Enlace a pie', en: 'Walking transfer' },
   delayLive:       { ca: (line: string, d: number) => `${line} circula amb +${d} min de retard ara mateix`, es: (line: string, d: number) => `${line} circula con +${d} min de retraso ahora mismo`, en: (line: string, d: number) => `${line} is running +${d} min late right now` },
   calcRoute:       { ca: 'Calculant ruta…', es: 'Calculando ruta…', en: 'Calculating route…' },
   sameOriginDest:  { ca: "L'origen i la destinació són iguals", es: 'El origen y el destino son iguales', en: 'Origin and destination are the same' },
@@ -212,9 +213,12 @@ const DICT = {
   removeFavorite:       { ca: 'Treure de preferides', es: 'Quitar de favoritas', en: 'Remove from favorites' },
   noFavoritesYet:       { ca: 'Prem l’estrella ⭐️ a qualsevol estació per tenir-la sempre a mà.', es: 'Pulsa la estrella ⭐️ en cualquier estación para tenerla siempre a mano.', en: 'Tap the star ⭐️ on any station to keep it handy.' },
 
-  // ── Departures filtering ──
+  // ── Departures filtering & status ──
   filterDepartures:     { ca: 'Filtra per línia', es: 'Filtrar por línea', en: 'Filter by line' },
   allLines:             { ca: 'Totes', es: 'Todas', en: 'All' },
+  suspended:            { ca: 'Suspès', es: 'Suspendido', en: 'Suspended' },
+  cancelled:            { ca: 'Cancel·lat', es: 'Cancelado', en: 'Cancelled' },
+  serviceSuspendedNotice: { ca: 'Sense trens en circulació en aquesta línia en aquests moments', es: 'Sin trenes en circulación en esta línea en estos momentos', en: 'No trains currently circulating on this line at this time' },
 
   // ── PWA Installation ──
   installApp:           { ca: 'Instal·la Andana al mòbil', es: 'Instala Andana en el móvil', en: 'Install Andana on mobile' },
