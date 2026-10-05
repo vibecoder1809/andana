@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react'
 import dynamic from 'next/dynamic'
-import type { Train, Stop, Alert, Route, Theme, Journey, NetworkMode } from '@/types'
+import type { Train, Stop, Alert, Route, Theme, Journey, NetworkMode, OutageStatus } from '@/types'
 import { LINE_COLORS } from '@/lib/constants'
 import { buildJourneyPath } from '@/lib/journeyPath'
 import { Header } from './Header'
@@ -296,6 +296,7 @@ function AppInner() {
   const [refreshing, setRefreshing]       = useState(false)
   const [lastUpdate, setLastUpdate]       = useState<Date | null>(null)
   const [apiError, setApiError]           = useState<string | null>(null)
+  const [outages, setOutages]             = useState<OutageStatus>({ renfe: false, fgc: false })
   const [isMobile, setIsMobile]           = useState(false)
   const [networkMode, setNetworkModeState] = useState<NetworkMode>('both')
   // Journey whose path is drawn on the map (from the Plan tab). Null = none.
@@ -395,7 +396,13 @@ function AppInner() {
         setApiError(t('apiConnectError'))
         return
       }
-      const data: Train[] = await res.json()
+      const raw = await res.json()
+      const data: Train[] = Array.isArray(raw) ? raw : (raw.trains ?? [])
+      const outageInfo: OutageStatus = (raw && typeof raw === 'object' && 'outages' in raw && raw.outages) ? raw.outages : {
+        renfe: res.headers.get('x-andana-renfe-outage') === '1',
+        fgc: res.headers.get('x-andana-fgc-outage') === '1',
+      }
+      setOutages(outageInfo)
       setApiError(null)
       setTrains(data)
       const fingerprint = JSON.stringify(data.map(t => ({ id: t.id, lat: t.lat, lng: t.lng, delay: t.delayMinutes })))
@@ -513,14 +520,27 @@ function AppInner() {
     return [...list].sort((a, b) => (b.start ?? 0) - (a.start ?? 0))
   }, [alerts, networkMode])
 
+  const activeOutageMessage = useMemo(() => {
+    if (networkMode === 'renfe' && outages.renfe) return t('renfeOutageError')
+    if (networkMode === 'fgc' && outages.fgc) return t('fgcOutageError')
+    if (networkMode === 'both') {
+      if (outages.renfe && outages.fgc) return `${t('renfeOutageError')} • ${t('fgcOutageError')}`
+      if (outages.renfe) return t('renfeOutageError')
+      if (outages.fgc) return t('fgcOutageError')
+    }
+    return null
+  }, [networkMode, outages, t])
+
   if (isMobile) {
     return (
       <div data-theme={theme}>
         <MobileLayout
           trains={filteredTrains}
+          allTrains={trains}
           stops={visibleStops}
           routes={visibleRoutes}
           alerts={visibleAlerts}
+          allAlerts={alerts}
           lines={lines}
           lineColors={lineColors}
           activeLines={activeLines}
@@ -529,6 +549,7 @@ function AppInner() {
           refreshing={refreshing}
           lastUpdate={lastUpdate}
           apiError={apiError}
+          outages={outages}
           theme={theme}
           networkMode={networkMode}
           onNetworkChange={setNetworkMode}
@@ -580,6 +601,34 @@ function AppInner() {
         </div>
       )}
 
+      {!apiError && activeOutageMessage && (
+        <div style={{
+          gridColumn: '1 / -1',
+          background: 'rgba(245,158,11,0.12)',
+          borderBottom: '1px solid rgba(245,158,11,0.3)',
+          color: 'var(--yellow)',
+          padding: '6px 20px',
+          fontSize: 12,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          fontWeight: 600,
+        }}>
+          <span style={{
+            background: 'var(--yellow)',
+            color: '#000',
+            padding: '1px 6px',
+            borderRadius: 4,
+            fontSize: 10,
+            fontWeight: 800,
+            flexShrink: 0,
+          }}>
+            AVÍS
+          </span>
+          <span>{activeOutageMessage}</span>
+        </div>
+      )}
+
       {!apiError && visibleAlerts.length > 0 && (
         <AlertBanner alerts={visibleAlerts} onSelectAlert={setSelectedAlert} networkMode={networkMode} />
       )}
@@ -601,6 +650,8 @@ function AppInner() {
           setActiveTrip(j)
           setSelectedJourney(j)
         }}
+        outages={outages}
+        networkMode={networkMode}
       />
 
       <div style={{ position: 'relative', overflow: 'hidden' }}>
@@ -640,7 +691,16 @@ function AppInner() {
         trains={trains}
         lineColors={lineColors}
         focusedLine={focusedLine}
+        outages={outages}
         onSelectLine={(line) => {
+          if (line) {
+            const isFgc = /^(S|L)\d/i.test(line) || ['R5', 'R6', 'R50', 'R60'].includes(line)
+            if (isFgc && networkMode === 'renfe') {
+              setNetworkMode('both')
+            } else if (!isFgc && networkMode === 'fgc') {
+              setNetworkMode('both')
+            }
+          }
           setFocusedLine(line)
           setNetworkStatusOpen(false)
         }}

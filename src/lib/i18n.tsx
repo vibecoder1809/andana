@@ -321,8 +321,33 @@ const DICT = {
     en: (orig: string | number, dest: string | number) => `No direct rail route between ${orig} and ${dest}. You can connect directly using TMB Metro / Tram:`
   },
 
-  // ── App-level errors ──
+  // ── App-level errors & Telemetry outages ──
   apiConnectError: { ca: "No es pot connectar amb l'API de trens", es: 'No se puede conectar con la API de trenes', en: 'Cannot connect to the trains API' },
+  renfeOutageError: {
+    ca: 'Posicions de Rodalies no disponibles temporalment (incidència al servidor de Renfe)',
+    es: 'Posiciones de Rodalies no disponibles temporalmente (incidencia en el servidor de Renfe)',
+    en: 'Rodalies live train positions temporarily unavailable (Renfe upstream outage)',
+  },
+  fgcOutageError: {
+    ca: 'Posicions d’FGC no disponibles temporalment (incidència al servidor d’FGC)',
+    es: 'Posiciones de FGC no disponibles temporalmente (incidencia en el servidor de FGC)',
+    en: 'FGC live train positions temporarily unavailable (FGC upstream outage)',
+  },
+  noLiveTelemetry: {
+    ca: 'Sense telemetria en directe',
+    es: 'Sin telemetría en directo',
+    en: 'No live telemetry',
+  },
+  telemetryUnavailableDesc: {
+    ca: 'El servidor de telemetria en temps real no està emetent dades en aquests moments. Els horaris i sortides continuen funcionant.',
+    es: 'El servidor de telemetría en tiempo real no está emitiendo datos en estos momentos. Los horarios y salidas siguen funcionando.',
+    en: 'The upstream live telemetry server is not broadcasting data right now. Timetables and departures remain operational.',
+  },
+  telemetryOutageBadge: {
+    ca: 'Telemetria no disponible',
+    es: 'Telemetría no disponible',
+    en: 'Telemetry unavailable',
+  },
 } as const
 
 export type TransKey = keyof typeof DICT

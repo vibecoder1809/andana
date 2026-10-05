@@ -160,3 +160,9 @@ export interface Journey {
   fare?: JourneyFare
   isLastService?: boolean
 }
+
+export interface OutageStatus {
+  renfe: boolean
+  fgc: boolean
+}
+

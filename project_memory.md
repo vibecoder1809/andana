@@ -137,3 +137,13 @@ Centralized in [`src/lib/externalLinks.ts`](src/lib/externalLinks.ts). Update be
   - Enhanced station matching in `StopPanel` with accent-insensitive search normalization; added contextual weather frequency warning and correlated live circulating trains with timetable departures.
 - **Files Modified:** `api/alerts/route.ts`, `gtfs.ts`, `i18n.tsx`, `NetworkStatusModal.tsx`, `MapView.tsx`, `MobileLayout.tsx`, `App.tsx`, `StopPanel.tsx`, `DeparturesBoard.tsx`, `project_memory.md`.
 - **Verification:** `npm test` (30/30 passed), `scripts/test-new-features.mts` passed, `npx tsc --noEmit` (0 errors), `npm run build` (14/14 routes compiled).
+
+### Session: 2026-10-05 (Upstream Telemetry Outage Detection & All-Line Network Status Parity)
+- **Context:** Renfe upstream fleet feed experienced an outage (broadcasting trains in Spain except Nucleo 50 Catalonia); users saw 0 trains with no error message; `NetworkStatusModal` on mobile received filtered alerts/trains and clicking opposite-operator lines showed blank maps.
+- **Key Changes:**
+  - Implemented daytime-aware telemetry outage detection in `/api/trains` using `!isNightRestHours()` to prevent false positives during overnight commercial rest (01:15–04:55).
+  - Emitted `outages: { renfe, fgc }` and response headers; added outage banner in `App.tsx` and `MobileLayout.tsx`, and friendly explanations in empty train lists.
+  - Ensured `NetworkStatusModal` receives unfiltered `allAlerts` and `allTrains` across mobile and desktop, showing all lines unconditionally with `Sense telemetria` and warning badges during feed outages.
+  - Auto-switched `networkMode` to `'both'` when selecting any line from the modal belonging to an inactive operator.
+- **Files Modified:** `api/trains/route.ts`, `types/index.ts`, `i18n.tsx`, `renfe.ts`, `NetworkStatusModal.tsx`, `App.tsx`, `MobileLayout.tsx`, `Sidebar.tsx`, `project_memory.md`.
+- **Verification:** `npm test` (30 checks passed), `test-new-features.mts` passed, `npx tsc --noEmit` (0 TS errors), `npm run build` (14/14 routes compiled).

@@ -2,7 +2,8 @@ import { fetchTrains } from '@/lib/trains'
 import { fetchTripInfo, fetchVehiclePositions } from '@/lib/gtfs'
 import { fetchRenfeTrains } from '@/lib/renfe'
 import { cached } from '@/lib/cache'
-import type { Train } from '@/types'
+import { isNightRestHours } from '@/lib/serviceTime'
+import type { Train, OutageStatus } from '@/types'
 
 // GTFS occupancy_status (0–8) → rough percentage, for trains whose
 // posicionament feed reports no per-wagon occupancy.
@@ -18,7 +19,12 @@ const OCCUPANCY_PERCENT: Record<number, number> = {
 // Upstream feeds refresh every ~10-20s; TTL collapses client polling.
 const TTL_MS = 8_000
 
-async function loadTrains(): Promise<Train[]> {
+export interface TrainsFeedPayload {
+  trains: Train[]
+  outages: OutageStatus
+}
+
+async function loadTrains(): Promise<TrainsFeedPayload> {
   const [fgcResult, renfeResult] = await Promise.allSettled([
     (async () => {
       const trains = await fetchTrains()
@@ -58,18 +64,44 @@ async function loadTrains(): Promise<Train[]> {
   const fgcTrains = fgcResult.status === 'fulfilled' ? fgcResult.value : []
   const renfeTrains = renfeResult.status === 'fulfilled' ? renfeResult.value : []
 
-  if (fgcTrains.length === 0 && renfeTrains.length === 0) {
-    if (fgcResult.status === 'rejected') throw fgcResult.reason
+  const isNight = isNightRestHours()
+  // An outage is only detected when service should normally be running,
+  // preventing false positives during overnight commercial rest (01:15 - 04:55).
+  const fgcOutage = !isNight && (fgcResult.status === 'rejected' || fgcTrains.length === 0)
+  const renfeOutage = !isNight && (renfeResult.status === 'rejected' || renfeTrains.length === 0)
+
+  if (fgcTrains.length === 0 && renfeTrains.length === 0 && fgcResult.status === 'rejected' && renfeResult.status === 'rejected') {
+    throw fgcResult.reason
   }
 
-  return [...fgcTrains, ...renfeTrains]
+  return {
+    trains: [...fgcTrains, ...renfeTrains],
+    outages: {
+      renfe: renfeOutage,
+      fgc: fgcOutage,
+    },
+  }
 }
 
 export async function GET() {
   try {
-    return Response.json(await cached('all_trains', TTL_MS, loadTrains))
+    const data = await cached<TrainsFeedPayload>('all_trains', TTL_MS, loadTrains)
+    return Response.json(data, {
+      headers: {
+        'Cache-Control': 'public, max-age=8, stale-while-revalidate=15',
+        'x-andana-renfe-outage': data.outages.renfe ? '1' : '0',
+        'x-andana-fgc-outage': data.outages.fgc ? '1' : '0',
+      },
+    })
   } catch (err) {
     console.error('Train positions API failed:', err)
-    return Response.json({ error: 'trains_unavailable' }, { status: 503 })
+    return Response.json(
+      {
+        error: 'trains_unavailable',
+        trains: [],
+        outages: { renfe: true, fgc: true },
+      },
+      { status: 503 },
+    )
   }
 }

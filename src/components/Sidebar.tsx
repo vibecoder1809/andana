@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import type { Train, Stop, Journey } from '@/types'
+import type { Train, Stop, Journey, OutageStatus, NetworkMode } from '@/types'
 import { LINE_COLORS } from '@/lib/constants'
 import { TrainCard } from './TrainCard'
 import { TripPlanner } from './TripPlanner'
@@ -28,6 +28,8 @@ interface SidebarProps {
   selectedJourney: Journey | null
   onSelectJourney: (journey: Journey | null) => void
   onStartLiveTrip?: (journey: Journey) => void
+  outages?: OutageStatus
+  networkMode?: NetworkMode
 }
 
 const LINE_GROUPS: { key: string; labelKey: TransKey; prefix: RegExp }[] = [
@@ -40,7 +42,7 @@ const LINE_GROUPS: { key: string; labelKey: TransKey; prefix: RegExp }[] = [
   { key: 'Other',        labelKey: 'groupOther',       prefix: /^(?!L|S|R|M)/ },
 ]
 
-export function Sidebar({ trains, stops, lines, lineColors, activeLines, selectedTrain, selectedStop, onToggleLine, onSelectTrain, onSelectStop, selectedJourney, onSelectJourney, onStartLiveTrip }: SidebarProps) {
+export function Sidebar({ trains, stops, lines, lineColors, activeLines, selectedTrain, selectedStop, onToggleLine, onSelectTrain, onSelectStop, selectedJourney, onSelectJourney, onStartLiveTrip, outages, networkMode }: SidebarProps) {
   const { t } = useI18n()
   const { favorites, isFavorite, toggleFavorite } = useFavoriteStations()
   const [activeTab, setActiveTab]           = useState<Tab>('trains')
@@ -198,12 +200,27 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
 
           {/* Train list */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '8px 8px 8px 4px' }}>
-            {sortedTrains.length === 0
-              ? (isNightRestHours() && activeLines.has('ALL') ? <NightRestCard /> : <p style={{ textAlign: 'center', padding: 30, color: 'var(--muted)', fontSize: 12 }}>{t('noActiveTrains')}</p>)
-              : sortedTrains.map(t => (
-                  <TrainCard key={t.id} train={t} selected={selectedTrain?.id === t.id} onClick={() => onSelectTrain(t)} lineColors={lineColors} />
-                ))
-            }
+            {sortedTrains.length === 0 ? (
+              isNightRestHours() && activeLines.has('ALL') ? (
+                <NightRestCard />
+              ) : (networkMode === 'renfe' || networkMode === 'both') && outages?.renfe && activeLines.has('ALL') ? (
+                <div style={{ textAlign: 'center', padding: '28px 16px', color: 'var(--muted)' }}>
+                  <span style={{ fontSize: 24, display: 'block', marginBottom: 8 }}>⚠️</span>
+                  <p style={{ fontWeight: 600, color: 'var(--text)', fontSize: 13, margin: '0 0 6px' }}>{t('renfeOutageError')}</p>
+                  <p style={{ fontSize: 11.5, margin: 0, lineHeight: 1.4 }}>{t('telemetryUnavailableDesc')}</p>
+                </div>
+              ) : (networkMode === 'fgc' || networkMode === 'both') && outages?.fgc && activeLines.has('ALL') ? (
+                <div style={{ textAlign: 'center', padding: '28px 16px', color: 'var(--muted)' }}>
+                  <span style={{ fontSize: 24, display: 'block', marginBottom: 8 }}>⚠️</span>
+                  <p style={{ fontWeight: 600, color: 'var(--text)', fontSize: 13, margin: '0 0 6px' }}>{t('fgcOutageError')}</p>
+                  <p style={{ fontSize: 11.5, margin: 0, lineHeight: 1.4 }}>{t('telemetryUnavailableDesc')}</p>
+                </div>
+              ) : (
+                <p style={{ textAlign: 'center', padding: 30, color: 'var(--muted)', fontSize: 12 }}>{t('noActiveTrains')}</p>
+              )
+            ) : sortedTrains.map(t => (
+                <TrainCard key={t.id} train={t} selected={selectedTrain?.id === t.id} onClick={() => onSelectTrain(t)} lineColors={lineColors} />
+            ))}
           </div>
         </div>
       )}

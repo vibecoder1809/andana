@@ -202,7 +202,7 @@ async function loadRenfeTrains(): Promise<Train[]> {
 
   const data = await res.json() as { trenes?: RawRenfeTrain[] }
   const rawList = (data.trenes ?? []).filter(t =>
-    String(t.nucleo) === String(NUCLEO_CATALUNYA) &&
+    (String(t.nucleo) === String(NUCLEO_CATALUNYA) || String(t.nucleo) === '51' || /^(R|RT|RG|RL)\d/i.test(t.codLinea)) &&
     typeof t.latitud === 'number' &&
     typeof t.longitud === 'number' &&
     !isNaN(t.latitud) &&

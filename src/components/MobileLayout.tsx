@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import type { Train, Stop, Alert, Route, Theme, Journey, NetworkMode } from '@/types'
+import type { Train, Stop, Alert, Route, Theme, Journey, NetworkMode, OutageStatus } from '@/types'
 import { LINE_COLORS } from '@/lib/constants'
 import { buildJourneyPath } from '@/lib/journeyPath'
 import { TrainCard } from './TrainCard'
@@ -40,9 +40,11 @@ const MapView = dynamic(() => import('./MapView'), { ssr: false })
 
 interface MobileLayoutProps {
   trains: Train[]
+  allTrains?: Train[]
   stops: Stop[]
   routes: Route[]
   alerts: Alert[]
+  allAlerts?: Alert[]
   lines: string[]
   lineColors: Record<string, string>
   activeLines: Set<string>
@@ -51,6 +53,7 @@ interface MobileLayoutProps {
   refreshing: boolean
   lastUpdate: Date | null
   apiError: string | null
+  outages?: OutageStatus
   theme: Theme
   networkMode: NetworkMode
   onNetworkChange: (m: NetworkMode) => void
@@ -434,9 +437,9 @@ function MobileAlertBanner({ alerts, onSelectAlert, top, networkMode }: { alerts
 }
 
 export function MobileLayout({
-  trains, stops, routes, alerts, lines, lineColors,
+  trains, allTrains, stops, routes, alerts, allAlerts, lines, lineColors,
   activeLines, selectedTrain, selectedStop,
-  refreshing, lastUpdate, apiError, theme,
+  refreshing, lastUpdate, apiError, outages, theme,
   networkMode, onNetworkChange,
   onToggleLine, onSelectTrain, onSelectStop,
   onCloseTrain, onCloseStop, onRefresh, onThemeToggle,
@@ -455,6 +458,17 @@ export function MobileLayout({
   const [focusedLine, setFocusedLine]         = useState<string | null>(null)
   const [activeTrip, setActiveTrip]           = useState<Journey | null>(null)
   const [networkStatusOpen, setNetworkStatusOpen] = useState(false)
+
+  const activeOutageMessage = useMemo(() => {
+    if (networkMode === 'renfe' && outages?.renfe) return t('renfeOutageError')
+    if (networkMode === 'fgc' && outages?.fgc) return t('fgcOutageError')
+    if (networkMode === 'both') {
+      if (outages?.renfe && outages?.fgc) return `${t('renfeOutageError')} • ${t('fgcOutageError')}`
+      if (outages?.renfe) return t('renfeOutageError')
+      if (outages?.fgc) return t('fgcOutageError')
+    }
+    return null
+  }, [networkMode, outages, t])
 
   const {
     showTutorial,
@@ -674,9 +688,9 @@ export function MobileLayout({
             aria-label={t('networkStatus')}
             title={t('networkStatus')}
             style={{
-              background: alerts.length > 0 ? 'rgba(234,179,8,0.2)' : 'var(--bg2)',
-              border: alerts.length > 0 ? '1px solid rgba(234,179,8,0.4)' : '1px solid var(--border)',
-              color: alerts.length > 0 ? 'var(--yellow)' : 'var(--green)',
+              background: (allAlerts ?? alerts).length > 0 ? 'rgba(234,179,8,0.2)' : (outages?.renfe || outages?.fgc) ? 'rgba(245,158,11,0.18)' : 'var(--bg2)',
+              border: (allAlerts ?? alerts).length > 0 ? '1px solid rgba(234,179,8,0.4)' : (outages?.renfe || outages?.fgc) ? '1px solid rgba(245,158,11,0.35)' : '1px solid var(--border)',
+              color: (allAlerts ?? alerts).length > 0 || (outages?.renfe || outages?.fgc) ? 'var(--yellow)' : 'var(--green)',
               width: 38,
               height: 38,
               borderRadius: 12,
@@ -755,8 +769,19 @@ export function MobileLayout({
             {apiError}
           </div>
         )}
+        {!apiError && activeOutageMessage && (
+          <div style={{
+            position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 56px)', left: 12, right: 12,
+            background: 'rgba(245,158,11,0.96)', borderRadius: 14,
+            color: '#000', fontSize: 11.5, fontWeight: 600, padding: '8px 14px',
+            display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 6px 20px rgba(0,0,0,0.25)',
+          }}>
+            <span style={{ fontWeight: 800, fontSize: 10, background: '#000', color: '#fff', padding: '1px 5px', borderRadius: 4 }}>AVÍS</span>
+            <span style={{ flex: 1, lineHeight: 1.3 }}>{activeOutageMessage}</span>
+          </div>
+        )}
         {!apiError && alerts.length > 0 && (
-          <MobileAlertBanner alerts={alerts} onSelectAlert={setSelectedAlert} top="calc(env(safe-area-inset-top, 0px) + 56px)" networkMode={networkMode} />
+          <MobileAlertBanner alerts={alerts} onSelectAlert={setSelectedAlert} top={activeOutageMessage ? 'calc(env(safe-area-inset-top, 0px) + 110px)' : 'calc(env(safe-area-inset-top, 0px) + 56px)'} networkMode={networkMode} />
         )}
       </div>
 
@@ -1049,9 +1074,25 @@ export function MobileLayout({
                 ))}
               </div>
 
-              {sortedTrains.length === 0
-                ? (isNightRestHours() && activeLines.has('ALL') ? <NightRestCard /> : <p style={{ textAlign: 'center', padding: 30, color: 'var(--muted)', fontSize: 12 }}>{t('noActiveTrains')}</p>)
-                : sortedTrains.map(t => (
+              {sortedTrains.length === 0 ? (
+                isNightRestHours() && activeLines.has('ALL') ? (
+                  <NightRestCard />
+                ) : (networkMode === 'renfe' || networkMode === 'both') && outages?.renfe && activeLines.has('ALL') ? (
+                  <div style={{ textAlign: 'center', padding: '28px 16px', color: 'var(--muted)' }}>
+                    <span style={{ fontSize: 24, display: 'block', marginBottom: 8 }}>⚠️</span>
+                    <p style={{ fontWeight: 600, color: 'var(--text)', fontSize: 13, margin: '0 0 6px' }}>{t('renfeOutageError')}</p>
+                    <p style={{ fontSize: 11.5, margin: 0, lineHeight: 1.4 }}>{t('telemetryUnavailableDesc')}</p>
+                  </div>
+                ) : (networkMode === 'fgc' || networkMode === 'both') && outages?.fgc && activeLines.has('ALL') ? (
+                  <div style={{ textAlign: 'center', padding: '28px 16px', color: 'var(--muted)' }}>
+                    <span style={{ fontSize: 24, display: 'block', marginBottom: 8 }}>⚠️</span>
+                    <p style={{ fontWeight: 600, color: 'var(--text)', fontSize: 13, margin: '0 0 6px' }}>{t('fgcOutageError')}</p>
+                    <p style={{ fontSize: 11.5, margin: 0, lineHeight: 1.4 }}>{t('telemetryUnavailableDesc')}</p>
+                  </div>
+                ) : (
+                  <p style={{ textAlign: 'center', padding: 30, color: 'var(--muted)', fontSize: 12 }}>{t('noActiveTrains')}</p>
+                )
+              ) : sortedTrains.map(t => (
                     <TrainCard
                       key={t.id}
                       train={t}
@@ -1336,11 +1377,20 @@ export function MobileLayout({
       <NetworkStatusModal
         open={networkStatusOpen}
         onClose={() => setNetworkStatusOpen(false)}
-        alerts={alerts}
-        trains={trains}
+        alerts={allAlerts ?? alerts}
+        trains={allTrains ?? trains}
         lineColors={lineColors}
         focusedLine={focusedLine}
+        outages={outages}
         onSelectLine={(line) => {
+          if (line) {
+            const isFgc = /^(S|L)\d/i.test(line) || ['R5', 'R6', 'R50', 'R60'].includes(line)
+            if (isFgc && networkMode === 'renfe') {
+              onNetworkChange('both')
+            } else if (!isFgc && networkMode === 'fgc') {
+              onNetworkChange('both')
+            }
+          }
           setFocusedLine(line)
           setNetworkStatusOpen(false)
         }}
