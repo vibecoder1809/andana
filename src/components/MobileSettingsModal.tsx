@@ -4,6 +4,15 @@ import { useState, useEffect } from 'react'
 import type { Theme, NetworkMode } from '@/types'
 import { useI18n, LANGS, type Lang } from '@/lib/i18n'
 import { FeedbackModal } from './FeedbackModal'
+import {
+  isNotificationSupported,
+  getNotificationPermission,
+  requestNotificationPermission,
+  getNotificationSettings,
+  saveNotificationSettings,
+  sendAppNotification,
+  type NotificationSettings,
+} from '@/lib/notifications'
 
 interface MobileSettingsModalProps {
   open: boolean
@@ -40,6 +49,43 @@ export function MobileSettingsModal({
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const [isStandalone, setIsStandalone] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | 'unsupported'>('default')
+  const [notifSettings, setNotifSettings] = useState<NotificationSettings>(getNotificationSettings)
+  const [testSent, setTestSent] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    setNotifPermission(getNotificationPermission())
+    setNotifSettings(getNotificationSettings())
+  }, [open])
+
+  const handleRequestPermission = async () => {
+    const perm = await requestNotificationPermission()
+    setNotifPermission(perm)
+  }
+
+  const handleToggleSetting = (key: keyof NotificationSettings) => {
+    const updated = saveNotificationSettings({ [key]: !notifSettings[key] })
+    setNotifSettings(updated)
+  }
+
+  const handleTestNotification = async () => {
+    await sendAppNotification({
+      title: t('testNotificationSent'),
+      body: t('testNotificationBody'),
+      type: 'info',
+    })
+    setTestSent(true)
+    setTimeout(() => setTestSent(false), 3000)
+  }
+
+  const handleOpenWidget = () => {
+    const w = 400
+    const h = 560
+    const left = typeof window !== 'undefined' ? Math.max(0, window.screen.width - w - 40) : 100
+    const top = 60
+    window.open('/widget', 'AndanaWidget', `width=${w},height=${h},top=${top},left=${left},resizable=yes,scrollbars=yes`)
+  }
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -302,6 +348,177 @@ export function MobileSettingsModal({
               >
                 <span style={{ animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }}>↻</span>
                 <span>{refreshing ? t('loading') : t('refresh')}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Notifications Section */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                🔔 {t('notifications')}
+              </div>
+              <span style={{
+                fontSize: 10,
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: 10,
+                background: notifPermission === 'granted' ? 'rgba(34,197,94,0.15)' : notifPermission === 'denied' ? 'rgba(239,68,68,0.15)' : 'var(--bg3)',
+                color: notifPermission === 'granted' ? 'var(--green)' : notifPermission === 'denied' ? 'var(--red)' : 'var(--muted)',
+                border: `1px solid ${notifPermission === 'granted' ? 'rgba(34,197,94,0.3)' : notifPermission === 'denied' ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
+              }}>
+                {notifPermission === 'granted' ? t('permissionGranted') : notifPermission === 'denied' ? t('permissionDenied') : t('permissionDefault')}
+              </span>
+            </div>
+
+            <div style={{
+              background: 'var(--bg3)',
+              borderRadius: 12,
+              padding: '12px 14px',
+              border: '1px solid var(--border)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}>
+              {notifPermission !== 'granted' && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.3 }}>
+                    {notifPermission === 'denied' ? t('permissionDenied') : t('enableNotifications')}
+                  </div>
+                  {notifPermission !== 'denied' && (
+                    <button
+                      onClick={handleRequestPermission}
+                      style={{
+                        background: 'var(--accent)',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 8,
+                        padding: '6px 12px',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {t('enableNotifications')}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Toggle: Favorite Station Warnings */}
+              <label style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, cursor: 'pointer' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>
+                    ⭐ {t('notifFavStations')}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, lineHeight: 1.3 }}>
+                    {t('notifFavStationsDesc')}
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={notifSettings.favStations}
+                  onChange={() => handleToggleSetting('favStations')}
+                  style={{ accentColor: 'var(--accent)', width: 16, height: 16, marginTop: 2, cursor: 'pointer' }}
+                />
+              </label>
+
+              {/* Toggle: Live Trip Incoming Train */}
+              <label style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, cursor: 'pointer' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>
+                    🚂 {t('notifLiveTrip')}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, lineHeight: 1.3 }}>
+                    {t('notifLiveTripDesc')}
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={notifSettings.liveTrip}
+                  onChange={() => handleToggleSetting('liveTrip')}
+                  style={{ accentColor: 'var(--accent)', width: 16, height: 16, marginTop: 2, cursor: 'pointer' }}
+                />
+              </label>
+
+              {/* Toggle: Sound & Vibration */}
+              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, cursor: 'pointer' }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>
+                  🔊 {t('notifSound')}
+                </div>
+                <input
+                  type="checkbox"
+                  checked={notifSettings.sound}
+                  onChange={() => handleToggleSetting('sound')}
+                  style={{ accentColor: 'var(--accent)', width: 16, height: 16, cursor: 'pointer' }}
+                />
+              </label>
+
+              {/* Test Notification Button */}
+              <button
+                onClick={handleTestNotification}
+                style={{
+                  background: 'var(--bg2)',
+                  border: '1px solid var(--border2)',
+                  borderRadius: 8,
+                  padding: '7px 12px',
+                  color: 'var(--text)',
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  fontFamily: 'inherit',
+                  marginTop: 2,
+                }}
+              >
+                <span>🧪</span>
+                <span>{testSent ? t('testNotificationSent') : t('testNotification')}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Widget Section */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8 }}>
+              📱 {t('widgetTitle')}
+            </div>
+            <div style={{
+              background: 'var(--bg3)',
+              borderRadius: 12,
+              padding: '12px 14px',
+              border: '1px solid var(--border)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+            }}>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--text)', opacity: 0.85, lineHeight: 1.4 }}>
+                {t('openWidgetWindowDesc')}
+              </p>
+              <button
+                onClick={handleOpenWidget}
+                style={{
+                  background: 'var(--accent)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '8px 14px',
+                  fontWeight: 700,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  marginTop: 4,
+                  fontFamily: 'inherit',
+                }}
+              >
+                <span>🗖</span>
+                <span>{t('openWidgetWindow')}</span>
               </button>
             </div>
           </div>

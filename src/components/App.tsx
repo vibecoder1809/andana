@@ -23,6 +23,8 @@ import { OnboardingModal } from './OnboardingModal'
 import { DonationModal } from './DonationModal'
 import { MobileSettingsModal } from './MobileSettingsModal'
 import { useUserEngagement } from '@/lib/userEngagement'
+import { useStationAlertNotifier } from '@/lib/useStationAlertNotifier'
+import { NotificationToast } from './NotificationToast'
 
 const MapView = dynamic(() => import('./MapView'), { ssr: false })
 
@@ -536,6 +538,25 @@ function AppInner() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [selectedAlert, networkStatusOpen, settingsOpen, selectedTrain, selectedStop, focusedLine])
 
+  useStationAlertNotifier(alerts)
+
+  const handleToastNavigate = useCallback((url: string) => {
+    try {
+      const parsed = new URL(url, window.location.origin)
+      const stopParam = parsed.searchParams.get('stop')
+      if (stopParam) {
+        const found = stops.find(s => s.stopId === stopParam || s.code === stopParam || s.name.toLowerCase() === stopParam.toLowerCase())
+        if (found) {
+          handleSelectStop(found)
+          return
+        }
+      }
+    } catch {}
+    if (typeof window !== 'undefined') {
+      window.location.href = url
+    }
+  }, [stops, handleSelectStop])
+
   const lineCount = useMemo(() => new Set(visibleTrains.map(t => t.line)).size, [visibleTrains])
 
   const visibleAlerts = useMemo(() => {
@@ -775,6 +796,8 @@ function AppInner() {
         onSnooze={snoozeDonation}
         onSupport={() => snoozeDonation(SUPPORT_SNOOZE_DAYS)}
       />
+
+      <NotificationToast onNavigate={handleToastNavigate} />
     </div>
   )
 }

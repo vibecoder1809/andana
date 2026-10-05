@@ -216,3 +216,14 @@ Centralized in [`src/lib/externalLinks.ts`](src/lib/externalLinks.ts). Update be
   - Added track plausibility filter in `findStopDist` ($< 1200\text{m}$) preventing homonyms from projecting onto distant lines; protected active platform dwell from premature cancellation during stale feed polls.
 - **Files Modified:** `constants.ts`, `trains.ts`, `gtfs.ts`, `planner.ts`, `StopPanel.tsx`, `api/stop-info/route.ts`, `interpolate.ts`, `project_memory.md`.
 - **Verification:** `npm test` passed, `test-new-features.mts` passed, `npx tsc --noEmit` (0 errors), `npm run build` (14/14 routes compiled).
+
+### Session: 2026-10-05 (Live HUD Incoming Train Notifications, Favorite Station Warnings & Standalone Widget)
+- **Context:** Added real-time notifications for incoming trains in Live HUD, alerts when favorite stations have active warnings, and widget support.
+- **Key Changes:**
+  - Built `src/lib/notifications.ts`: Web Notifications API, Service Worker background notifications, Web Audio synthesized chimes (train & warning chords), and haptic feedback.
+  - Added `NotificationToast.tsx` in-app floating banner and `useStationAlertNotifier.ts` hook for immediate notifications on favorite station incidents with 100% desktop/mobile dual-root parity.
+  - Enhanced `LiveTripHud.tsx` with incoming train arrival alerts, transfer & destination approach notifications, milestone deduplication, and mini-HUD floating widget mode (🗕).
+  - Created standalone `/widget` route, `/api/widget-data`, W3C PWA widget shortcuts in `manifest.ts`, and floating window pop-out in `Header.tsx` and `MobileSettingsModal.tsx`.
+- **Files Modified:** `notifications.ts`, `useStationAlertNotifier.ts`, `NotificationToast.tsx`, `LiveTripHud.tsx`, `App.tsx`, `MobileLayout.tsx`, `MobileSettingsModal.tsx`, `Header.tsx`, `i18n.tsx`, `manifest.ts`, `widget/page.tsx`, `api/widget-data/route.ts`, `sw.js`, `savedStations.ts`, `test-new-features.mts`, `project_memory.md`.
+- **Verification:** `cmd /c npm test` (30 checks passed), `test-new-features.mts` (all checks passed), `npx tsc --noEmit` (0 errors), `npm run build` (15/15 routes compiled).
+

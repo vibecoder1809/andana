@@ -23,6 +23,8 @@ import { OnboardingModal } from './OnboardingModal'
 import { DonationModal } from './DonationModal'
 import { useUserEngagement } from '@/lib/userEngagement'
 import { matchesSearch, startsWithSearch } from '@/lib/searchUtils'
+import { useStationAlertNotifier } from '@/lib/useStationAlertNotifier'
+import { NotificationToast } from './NotificationToast'
 import { NightRestCard } from './NightRestCard'
 import { isNightRestHours } from '@/lib/serviceTime'
 
@@ -480,6 +482,25 @@ export function MobileLayout({
     snoozeDonation,
     SUPPORT_SNOOZE_DAYS,
   } = useUserEngagement()
+
+  useStationAlertNotifier(allAlerts ?? alerts)
+
+  const handleToastNavigate = useCallback((url: string) => {
+    try {
+      const parsed = new URL(url, window.location.origin)
+      const stopParam = parsed.searchParams.get('stop')
+      if (stopParam) {
+        const found = stops.find(s => s.stopId === stopParam || s.code === stopParam || s.name.toLowerCase() === stopParam.toLowerCase())
+        if (found) {
+          onSelectStop(found)
+          return
+        }
+      }
+    } catch {}
+    if (typeof window !== 'undefined') {
+      window.location.href = url
+    }
+  }, [stops, onSelectStop])
 
   const journeyPath = useMemo(
     () => selectedJourney && stops.length > 0
@@ -1468,6 +1489,8 @@ export function MobileLayout({
         onSnooze={snoozeDonation}
         onSupport={() => snoozeDonation(SUPPORT_SNOOZE_DAYS)}
       />
+
+      <NotificationToast onNavigate={handleToastNavigate} />
     </div>
   )
 }

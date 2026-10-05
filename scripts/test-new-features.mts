@@ -33,4 +33,13 @@ const dayTime = new Date('2026-10-05T12:00:00+02:00')
 assert.equal(isNightRestHours(dayTime), false, '12:00 is not night rest')
 console.log('✓ Night rest hours logic passed')
 
+console.log('Testing favorite station alert matching...')
+import { matchStation, getBaseStationCode } from '../src/lib/savedStations.ts'
+const favStation = { stopId: 'PC', name: 'Pl. Catalunya', code: 'PC', operator: 'fgc', lines: ['L6', 'L7', 'S1', 'S2'] }
+assert.equal(matchStation(favStation, 'PC'), true, 'PC matches stopId PC')
+assert.equal(matchStation(favStation, 'Plaça Catalunya'), true, 'Name matches normalized')
+assert.equal(getBaseStationCode('PC1', 'fgc'), 'PC', 'Base station code strips trailing digits')
+assert.equal(getBaseStationCode('71801', 'renfe'), '71801', 'Renfe code preserves numeric id')
+console.log('✓ Favorite station matching tests passed')
+
 console.log('ALL NEW FEATURES VALIDATED SUCCESSFULLY!')

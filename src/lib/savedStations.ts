@@ -14,7 +14,7 @@ export interface SavedStation {
 const FAV_STATIONS_KEY = 'andana-fav-stations'
 const SYNC_EVENT = 'andana:fav-stations-change'
 
-import { normalizeSearchText } from '@/lib/searchUtils'
+import { normalizeSearchText } from './searchUtils.ts'
 
 export function getBaseStationCode(stopId: string, operator?: string): string {
   if (!stopId) return ''

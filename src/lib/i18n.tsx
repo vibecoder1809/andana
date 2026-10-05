@@ -357,6 +357,163 @@ const DICT = {
     es: 'Telemetría no disponible',
     en: 'Telemetry unavailable',
   },
+
+  // ── Notifications & Live HUD & Widgets ──
+  notifications: {
+    ca: 'Notificacions',
+    es: 'Notificaciones',
+    en: 'Notifications',
+  },
+  notificationsPermission: {
+    ca: 'Estat dels permisos',
+    es: 'Estado de los permisos',
+    en: 'Permission status',
+  },
+  permissionGranted: {
+    ca: 'Activat',
+    es: 'Activado',
+    en: 'Enabled',
+  },
+  permissionDenied: {
+    ca: 'Bloquejat al navegador',
+    es: 'Bloqueado en el navegador',
+    en: 'Blocked in browser',
+  },
+  permissionDefault: {
+    ca: 'Pendent de permís',
+    es: 'Pendiente de permiso',
+    en: 'Pending permission',
+  },
+  enableNotifications: {
+    ca: 'Activar notificacions',
+    es: 'Activar notificaciones',
+    en: 'Enable notifications',
+  },
+  notifFavStations: {
+    ca: 'Avisos a estacions preferides',
+    es: 'Avisos en estaciones favoritas',
+    en: 'Alerts for favorite stations',
+  },
+  notifFavStationsDesc: {
+    ca: 'Rep un avís immediat quan es produeixi una incidència a les teves estacions preferides.',
+    es: 'Recibe un aviso inmediato cuando se produzca una incidencia en tus estaciones favoritas.',
+    en: 'Get notified immediately when a disruption impacts one of your favorite stations.',
+  },
+  notifLiveTrip: {
+    ca: 'Notificacions de tren entrant (Live HUD)',
+    es: 'Notificaciones de tren entrante (Live HUD)',
+    en: 'Incoming train alerts (Live HUD)',
+  },
+  notifLiveTripDesc: {
+    ca: 'Avisos del tren entrant a l’andana, transbords i arribada a destinació amb la ruta activa.',
+    es: 'Avisos del tren entrante al andén, transbordos y llegada a destino con la ruta activa.',
+    en: 'Alerts for incoming train approaching platform, transfers, and arrival while trip is active.',
+  },
+  notifSound: {
+    ca: 'So i vibració d’avís',
+    es: 'Sonido y vibración de aviso',
+    en: 'Sound & haptic vibration',
+  },
+  testNotification: {
+    ca: 'Provar notificació',
+    es: 'Probar notificación',
+    en: 'Test notification',
+  },
+  testNotificationSent: {
+    ca: 'Notificació de prova enviada!',
+    es: '¡Notificación de prueba enviada!',
+    en: 'Test notification sent!',
+  },
+  testNotificationBody: {
+    ca: 'El sistema de notificacions d’Andana està actiu i llest.',
+    es: 'El sistema de notificaciones de Andana está activo y listo.',
+    en: 'Andana notification system is active and ready.',
+  },
+  trainIncomingTitle: {
+    ca: (line: string | number, st: string | number) => `🚂 Línia ${line}: tren arribant a ${st}`,
+    es: (line: string | number, st: string | number) => `🚂 Línea ${line}: tren llegando a ${st}`,
+    en: (line: string | number, st: string | number) => `🚂 Line ${line}: train approaching ${st}`,
+  },
+  trainIncomingDesc: {
+    ca: (time: string | number) => `El teu tren és a punt d'arribar. Sortida prevista a les ${time}.`,
+    es: (time: string | number) => `Tu tren está a punto de llegar. Salida prevista a las ${time}.`,
+    en: (time: string | number) => `Your train is about to arrive. Scheduled departure at ${time}.`,
+  },
+  transferApproachingTitle: {
+    ca: (st: string | number) => `🔄 Proper transbord: ${st}`,
+    es: (st: string | number) => `🔄 Próximo transbordo: ${st}`,
+    en: (st: string | number) => `🔄 Upcoming transfer: ${st}`,
+  },
+  transferApproachingDesc: {
+    ca: (line: string | number) => `Prepara't per baixar i enllaçar amb la línia ${line}.`,
+    es: (line: string | number) => `Prepárate para bajar y conectar con la línea ${line}.`,
+    en: (line: string | number) => `Prepare to alight and connect with line ${line}.`,
+  },
+  destinationApproachingTitle: {
+    ca: (st: string | number) => `🏁 Arribant a ${st}`,
+    es: (st: string | number) => `🏁 Llegando a ${st}`,
+    en: (st: string | number) => `🏁 Arriving at ${st}`,
+  },
+  destinationApproachingDesc: {
+    ca: 'Propera parada: la teva destinació!',
+    es: 'Próxima parada: ¡tu destino!',
+    en: 'Next stop: your destination!',
+  },
+  stationAlertTitle: {
+    ca: (st: string | number) => `⚠️ Incidència a ${st}`,
+    es: (st: string | number) => `⚠️ Incidencia en ${st}`,
+    en: (st: string | number) => `⚠️ Alert at ${st}`,
+  },
+  hudNotificationsActive: {
+    ca: 'Avisos de tren entrant actius',
+    es: 'Avisos de tren entrante activos',
+    en: 'Incoming train alerts active',
+  },
+  hudNotificationsEnable: {
+    ca: 'Activar avisos de tren entrant',
+    es: 'Activar avisos de tren entrante',
+    en: 'Enable incoming train alerts',
+  },
+  widgetTitle: {
+    ca: 'Giny d’Andana',
+    es: 'Widget de Andana',
+    en: 'Andana Widget',
+  },
+  openWidgetWindow: {
+    ca: 'Obrir giny flotant',
+    es: 'Abrir widget flotante',
+    en: 'Open floating widget',
+  },
+  openWidgetWindowDesc: {
+    ca: 'Finestra compacta sempre visible amb sortides i avisos de les teves estacions preferides.',
+    es: 'Ventana compacta siempre visible con salidas y avisos de tus estaciones favoritas.',
+    en: 'Compact always-visible window with departures and alerts for your favorite stations.',
+  },
+  widgetNoFavorites: {
+    ca: 'Afegeix estacions a preferides (amb l’estrella ⭐) per veure-les aquí.',
+    es: 'Añade estaciones a favoritas (con la estrella ⭐) para verlas aquí.',
+    en: 'Add stations to favorites (with the ⭐ star) to see them here.',
+  },
+  widgetActiveTrip: {
+    ca: 'Ruta en curs (Live HUD)',
+    es: 'Ruta en curso (Live HUD)',
+    en: 'Active Trip (Live HUD)',
+  },
+  minimizeToWidget: {
+    ca: 'Minimitzar a giny',
+    es: 'Minimizar a widget',
+    en: 'Minimize to widget',
+  },
+  expandFromWidget: {
+    ca: 'Maximitzar HUD',
+    es: 'Maximizar HUD',
+    en: 'Maximize HUD',
+  },
+  openFullApp: {
+    ca: 'Obrir Andana complet',
+    es: 'Abrir Andana completo',
+    en: 'Open full Andana',
+  },
 } as const
 
 export type TransKey = keyof typeof DICT
