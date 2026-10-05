@@ -40,6 +40,7 @@ const MapView = dynamic(() => import('./MapView'), { ssr: false })
 
 interface MobileLayoutProps {
   trains: Train[]
+  mapTrains?: Train[]
   allTrains?: Train[]
   stops: Stop[]
   routes: Route[]
@@ -437,7 +438,7 @@ function MobileAlertBanner({ alerts, onSelectAlert, top, networkMode }: { alerts
 }
 
 export function MobileLayout({
-  trains, allTrains, stops, routes, alerts, allAlerts, lines, lineColors,
+  trains, mapTrains, allTrains, stops, routes, alerts, allAlerts, lines, lineColors,
   activeLines, selectedTrain, selectedStop,
   refreshing, lastUpdate, apiError, outages, theme,
   networkMode, onNetworkChange,
@@ -525,9 +526,16 @@ export function MobileLayout({
     members: lines.filter(l => g.prefix.test(l)),
   })).filter(g => g.members.length > 0)
 
-  const filteredTrains = activeLines.has('ALL')
-    ? trains
-    : trains.filter(t => activeLines.has(t.line))
+  const filteredTrains = useMemo(() => (
+    activeLines.has('ALL')
+      ? trains
+      : trains.filter(t => activeLines.has(t.line))
+  ), [trains, activeLines])
+
+  const filteredMapTrains = useMemo(() => {
+    const src = mapTrains ?? trains
+    return activeLines.has('ALL') ? src : src.filter(t => activeLines.has(t.line))
+  }, [mapTrains, trains, activeLines])
 
   const sortedTrains = useMemo(() => {
     return [...filteredTrains].sort((a, b) => {
@@ -666,6 +674,21 @@ export function MobileLayout({
     window.addEventListener('andana-tour-step', handleTourStep)
     return () => window.removeEventListener('andana-tour-step', handleTourStep)
   }, [])
+
+  // Global Escape key handler to dismiss active selections, modals, or filters
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        if (selectedAlert) { setSelectedAlert(null); return }
+        if (networkStatusOpen) { setNetworkStatusOpen(false); return }
+        if (settingsOpen) { setSettingsOpen(false); return }
+        if (selectedTrain || selectedStop) { handleDismissDetail(); return }
+        if (focusedLine) { setFocusedLine(null); return }
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [selectedAlert, networkStatusOpen, settingsOpen, selectedTrain, selectedStop, focusedLine, handleDismissDetail])
 
   const fitPadding = useMemo(() => ({
     top: 90, left: 40, right: 40,
@@ -813,7 +836,7 @@ export function MobileLayout({
       {/* ── Full-Screen Map ── */}
       <div style={{ flex: 1, position: 'relative' }}>
         <MapView
-          trains={filteredTrains}
+          trains={filteredMapTrains}
           stops={stops}
           routes={routes}
           lineColors={lineColors}

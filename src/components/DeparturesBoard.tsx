@@ -1,6 +1,6 @@
 'use client'
  
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import type { Departure, Train } from '@/types'
 import { LINE_COLORS } from '@/lib/constants'
 import { useI18n } from '@/lib/i18n'
@@ -61,10 +61,12 @@ export function DeparturesBoard({ stationCode, lineColors, weatherAlertActive = 
   }, [])
 
   // Unique lines available in departures for this station
-  const availableLines = (departures ?? []).reduce<string[]>((acc, d) => {
-    if (d.line && !acc.includes(d.line)) acc.push(d.line)
-    return acc
-  }, []).sort()
+  const availableLines = useMemo(() => {
+    return (departures ?? []).reduce<string[]>((acc, d) => {
+      if (d.line && !acc.includes(d.line)) acc.push(d.line)
+      return acc
+    }, []).sort()
+  }, [departures])
 
   // Effective departure = schedule + live delay; keep those still upcoming
   // (allow a 30s grace so a train "at the platform" doesn't vanish instantly).
@@ -128,7 +130,27 @@ export function DeparturesBoard({ stationCode, lineColors, weatherAlertActive = 
       </div>
 
       {departures === null ? (
-        <div style={{ fontSize: 12, color: 'var(--muted)', padding: '4px 0' }}>{t('loadingData')}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {[1, 2, 3].map(i => (
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: 'var(--bg3)',
+                borderRadius: 8,
+                padding: '8px 10px',
+                opacity: 0.7,
+                animation: 'pulse 1.5s ease-in-out infinite',
+              }}
+            >
+              <div style={{ width: 30, height: 18, borderRadius: 5, background: 'var(--border2)' }} />
+              <div style={{ flex: 1, height: 14, borderRadius: 4, background: 'var(--border2)', maxWidth: '55%' }} />
+              <div style={{ width: 44, height: 14, borderRadius: 4, background: 'var(--border2)', marginLeft: 'auto' }} />
+            </div>
+          ))}
+        </div>
       ) : upcoming.length === 0 ? (
         <div style={{ fontSize: 12, color: 'var(--muted)', padding: '4px 0' }}>{t('noDepartures')}</div>
       ) : (

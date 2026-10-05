@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { memo } from 'react'
 import type { Train } from '@/types'
 import { LINE_COLORS } from '@/lib/constants'
 import { useI18n } from '@/lib/i18n'
+import { useSharedNow } from '@/lib/timeHooks'
 
 interface TrainCardProps {
   train: Train
@@ -18,13 +19,9 @@ function occStyle(pct: number) {
   return             { bg: 'rgba(34,197,94,0.12)',   color: 'var(--status-green)' }
 }
 
-export function TrainCard({ train, selected, onClick, lineColors }: TrainCardProps) {
+export const TrainCard = memo(function TrainCard({ train, selected, onClick, lineColors }: TrainCardProps) {
   const { t } = useI18n()
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(id)
-  }, [])
+  const now = useSharedNow(15_000)
   const colors = lineColors ?? LINE_COLORS
   const color  = colors[train.line] || '#7a82a0'
   const occ    = Math.round(train.occupancyPercent)
@@ -160,4 +157,4 @@ export function TrainCard({ train, selected, onClick, lineColors }: TrainCardPro
       )}
     </div>
   )
-}
+})

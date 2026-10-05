@@ -380,7 +380,16 @@ function AppInner() {
     [selectedJourney, routes, stops, lineColors],
   )
 
-  const filteredTrains = useMemo(
+  // Filtered trains from API snapshot — stable between 10s polls.
+  // Passed to Sidebar, MobileLayout sheet list, StopPanel, and header badges so they
+  // only re-render on actual data changes rather than 10fps animation ticks.
+  const displayTrains = useMemo(
+    () => activeLines.has('ALL') ? visibleTrains : visibleTrains.filter(t => activeLines.has(t.line)),
+    [visibleTrains, activeLines],
+  )
+
+  // Animated trains at ~10fps — passed strictly to MapView for smooth track movement.
+  const mapTrains = useMemo(
     () => activeLines.has('ALL') ? interpolatedTrains : interpolatedTrains.filter(t => activeLines.has(t.line)),
     [interpolatedTrains, activeLines],
   )
@@ -511,6 +520,22 @@ function AppInner() {
     updateParams({ train: selectedTrain?.id ?? null, stop: selectedStop?.stopId ?? null })
   }, [selectedTrain, selectedStop])
 
+  // Global Escape key handler to dismiss active selections, modals, or filters
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        if (selectedAlert) { setSelectedAlert(null); return }
+        if (networkStatusOpen) { setNetworkStatusOpen(false); return }
+        if (settingsOpen) { setSettingsOpen(false); return }
+        if (selectedTrain) { setSelectedTrain(null); return }
+        if (selectedStop) { setSelectedStop(null); return }
+        if (focusedLine) { setFocusedLine(null); return }
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [selectedAlert, networkStatusOpen, settingsOpen, selectedTrain, selectedStop, focusedLine])
+
   const lineCount = useMemo(() => new Set(visibleTrains.map(t => t.line)).size, [visibleTrains])
 
   const visibleAlerts = useMemo(() => {
@@ -535,7 +560,8 @@ function AppInner() {
     return (
       <div data-theme={theme}>
         <MobileLayout
-          trains={filteredTrains}
+          trains={displayTrains}
+          mapTrains={mapTrains}
           allTrains={trains}
           stops={visibleStops}
           routes={visibleRoutes}
@@ -642,7 +668,7 @@ function AppInner() {
         }}
       >
         <Sidebar
-          trains={filteredTrains}
+          trains={displayTrains}
           stops={visibleStops}
           lines={lines}
           lineColors={lineColors}
@@ -664,7 +690,7 @@ function AppInner() {
 
         <div style={{ position: 'relative', overflow: 'hidden', height: '100%' }}>
           <MapView
-            trains={filteredTrains}
+            trains={mapTrains}
             stops={visibleStops}
             routes={visibleRoutes}
             lineColors={lineColors}
@@ -680,7 +706,7 @@ function AppInner() {
           {/* Nearest-station shortcut → opens its live departures. */}
           <NearMeButton stops={visibleStops} onPick={handleSelectStop} style={{ position: 'absolute', left: 16, bottom: 16, zIndex: 3 }} />
           <DetailPanel train={selectedTrain} lineColors={lineColors} onClose={handleCloseTrain} />
-          <StopPanel stop={selectedStop} onClose={handleCloseStop} lineColors={lineColors} trains={filteredTrains} alerts={visibleAlerts} onSelectTrain={handleSelectTrain} />
+          <StopPanel stop={selectedStop} onClose={handleCloseStop} lineColors={lineColors} trains={displayTrains} alerts={visibleAlerts} onSelectTrain={handleSelectTrain} />
         </div>
       </div>
 
@@ -726,7 +752,7 @@ function AppInner() {
         onClose={() => setSettingsOpen(false)}
         theme={theme}
         onThemeToggle={toggleTheme}
-        trainCount={filteredTrains.length}
+        trainCount={displayTrains.length}
         lineCount={lines.length}
         lastUpdate={lastUpdate}
         refreshing={refreshing}

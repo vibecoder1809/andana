@@ -86,19 +86,22 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
     if (isPlannerLink()) setActiveTab('plan')
   }, [])
 
-  const displayStops = useMemo(() => {
+  const allUniqueStops = useMemo(() => {
     const uniqueMap = new Map<string, Stop>()
     for (const s of stops) {
       if (!uniqueMap.has(s.name)) {
         uniqueMap.set(s.name, s)
       }
     }
-    const all = Array.from(uniqueMap.values())
+    return Array.from(uniqueMap.values())
+  }, [stops])
+
+  const displayStops = useMemo(() => {
     if (!stationQuery.trim()) {
-      return all.sort((a, b) => a.name.localeCompare(b.name))
+      return [...allUniqueStops].sort((a, b) => a.name.localeCompare(b.name, 'ca'))
     }
     const q = stationQuery.trim()
-    return all
+    return allUniqueStops
       .filter(s =>
         matchesSearch(s.name, q) ||
         matchesSearch(s.stopId, q) ||
@@ -111,7 +114,7 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
         if (!aStarts && bStarts) return 1
         return a.name.localeCompare(b.name, 'ca')
       })
-  }, [stops, stationQuery])
+  }, [allUniqueStops, stationQuery])
 
   const lineGroups = useMemo(() =>
     LINE_GROUPS.map(g => ({

@@ -79,3 +79,24 @@ input[type="time"], input[type="date"] { color-scheme: dark; }
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+/* ── Interactive tactile micro-interactions ── */
+button:active:not(:disabled) {
+  transform: scale(0.97);
+  transition: transform 0.05s ease-out;
+}
+
+/* ── Accessibility: Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

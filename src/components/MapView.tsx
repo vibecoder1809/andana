@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useMemo, memo } from 'react'
 import { Map, Marker, NavigationControl, Source, Layer } from 'react-map-gl/maplibre'
 import type { MapRef } from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -37,7 +37,7 @@ interface MapViewProps {
   onClearFocusedLine?: () => void
 }
 
-export default function MapView({ trains, stops, routes, lineColors, selectedTrain, selectedStop, onSelectTrain, onSelectStop, onCloseStop, onBackgroundClick, journeyPath, theme, fitPadding, focusedLine, filterPillTop, onClearFocusedLine }: MapViewProps) {
+export default memo(function MapView({ trains, stops, routes, lineColors, selectedTrain, selectedStop, onSelectTrain, onSelectStop, onCloseStop, onBackgroundClick, journeyPath, theme, fitPadding, focusedLine, filterPillTop, onClearFocusedLine }: MapViewProps) {
   const { t } = useI18n()
   const mapRef = useRef<MapRef>(null)
 
@@ -85,7 +85,7 @@ export default function MapView({ trains, stops, routes, lineColors, selectedTra
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [journeyPath])
 
-  const routesGeoJson = {
+  const routesGeoJson = useMemo(() => ({
     type: 'FeatureCollection' as const,
     features: routes
       .filter(r => r.geometry !== null)
@@ -94,22 +94,22 @@ export default function MapView({ trains, stops, routes, lineColors, selectedTra
         properties: { routeId: r.routeId, color: r.color, line: r.shortName },
         geometry: r.geometry!,
       })),
-  }
+  }), [routes])
 
   // The line of whatever is currently selected or focused — its route is drawn bold.
   const highlightedLine = focusedLine ?? selectedTrain?.line ?? null
 
   // Journey path: one colored LineString per leg (transfers => color changes).
-  const journeyGeoJson = {
+  const journeyGeoJson = useMemo(() => ({
     type: 'FeatureCollection' as const,
     features: (journeyPath?.legs ?? []).map((leg, i) => ({
       type: 'Feature' as const,
       properties: { color: leg.color, line: leg.line, idx: i },
       geometry: { type: 'LineString' as const, coordinates: leg.coords },
     })),
-  }
+  }), [journeyPath])
 
-  const stopsGeoJson = {
+  const stopsGeoJson = useMemo(() => ({
     type: 'FeatureCollection' as const,
     features: stops.map(s => ({
       type: 'Feature' as const,
@@ -121,7 +121,7 @@ export default function MapView({ trains, stops, routes, lineColors, selectedTra
       },
       geometry: { type: 'Point' as const, coordinates: [s.lng, s.lat] },
     })),
-  }
+  }), [stops])
 
   return (
     <Map
@@ -307,7 +307,7 @@ export default function MapView({ trains, stops, routes, lineColors, selectedTra
                 fontWeight:     700,
                 color:          'white',
                 cursor:         'pointer',
-                transition:     'all 0.2s',
+                transition:     'box-shadow 0.2s, opacity 0.2s',
                 fontFamily:     'Space Grotesk, sans-serif',
                 letterSpacing:  '-0.3px',
                 userSelect:     'none',
@@ -382,4 +382,4 @@ export default function MapView({ trains, stops, routes, lineColors, selectedTra
       )}
     </Map>
   )
-}
+})

@@ -177,6 +177,25 @@ Centralized in [`src/lib/externalLinks.ts`](src/lib/externalLinks.ts). Update be
   - Reduced between-poll arrival pause to 6s (`BETWEEN_POLLS_DWELL_MS = 6_000`) and pruned `servicedStops` strictly by upcoming stops instead of wiping on poll.
   - Fixed `resolveSpeed()` fallback: guarded against ETA checkpoint mismatches that yielded walking speeds (< 10 m/s or > 35 m/s) by defaulting to line speed (`19 m/s`).
 - **Files Modified:** `src/lib/interpolate.ts`, `project_memory.md`.
+### Session: 2026-10-05 (Performance & Usability: Decouple 10fps Ticks, GeoJSON Memoization, Shared Timers & Planner Suggestions)
+- **Context:** Decoupled 10fps animation ticks from UI lists, eliminated GeoJSON WebGL buffer thrashing, consolidated per-card timers, and enhanced planner UX.
+- **Key Changes:**
+  - Memoized `routesGeoJson`, `stopsGeoJson`, and `journeyGeoJson` in `MapView.tsx` (wrapped in `React.memo`), eliminating redundant WebGL source re-indexing on every animation frame.
+  - Decoupled 10fps interpolation from DOM lists: `App.tsx` and `MobileLayout.tsx` now pass stable polled `displayTrains` to the desktop Sidebar and mobile bottom sheet, while passing `mapTrains` strictly to `MapView`.
+  - Replaced per-card `setInterval` in `TrainCard.tsx` with a singleton `useSharedNow(15_000)` hook (`src/lib/timeHooks.ts`) and wrapped `TrainCard` with `React.memo`.
+  - Added instant suggestions dropdown in `TripPlanner.tsx` (favorite stations & major hubs on empty focus), plus 1-tap clear button and tactile swap rotation animation.
+  - Added global `Escape` keyboard shortcuts on both desktop and mobile roots to cleanly dismiss modals, panels, and line filters; precomputed `allUniqueStops` in `Sidebar.tsx` for lag-free typing.
+  - Memoized `availableLines` and added animated skeleton loader in `DeparturesBoard.tsx`; added `prefers-reduced-motion` and tactile `:active` styles in `globals.css`; cached `/api/plan-stations`.
+- **Files Modified:** `MapView.tsx`, `App.tsx`, `MobileLayout.tsx`, `TrainCard.tsx`, `timeHooks.ts`, `TripPlanner.tsx`, `DeparturesBoard.tsx`, `Sidebar.tsx`, `globals.css`, `api/plan-stations/route.ts`, `project_memory.md`.
+- **Verification:** `npm test` (30 checks passed), `test-new-features.mts` passed, `npx tsc --noEmit` (0 TS errors), `npm run build` (14/14 routes compiled).
+
+### Session: 2026-10-05 (Physics-Based Train Simulation: Smooth Deceleration, Station Dwells & Jump-Free Rectification)
+- **Context:** Trains were flying over stations without stopping due to exact station string matching failures, and lacked realistic station physics and soft telemetry synchronization.
+- **Key Changes:**
+  - Integrated `normalizeSearchText` into `findStopDist` with per-line distance caching, resolving 100% of FGC and Rodalies stations (handling prefixes, diacritics, and naming variants).
+  - Modeled real-world transit physics in `useInterpolatedTrains`: smooth deceleration on station approach ($150\text{ m}$ braking curve via $v = \sqrt{2ad}$), realistic platform dwell ($17\text{–}23\text{ s}$ intermediate with organic $\pm 3\text{ s}$ variation, indefinite terminus), and smooth acceleration on departure ($1.1\text{ m/s}^2$).
+  - Implemented soft drift rectification: upstream GPS updates gently modulate cruising speed by $\pm 10\text{–}25\%$ over track distance, eliminating teleportation/jumping while keeping the simulation self-sufficient during 2-minute feed lags.
+- **Files Modified:** `src/lib/interpolate.ts`, `project_memory.md`.
 - **Verification:** `npm test` (30 checks passed), `test-new-features.mts` passed, `npx tsc --noEmit` (0 TS errors), `npm run build` (14/14 routes compiled).
 
 

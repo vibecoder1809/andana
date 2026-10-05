@@ -8,6 +8,7 @@ import { useGeolocation } from '@/lib/geolocation'
 import { readParam, updateParams } from '@/lib/urlState'
 import { useI18n, type TransKey } from '@/lib/i18n'
 import { useSavedRoutes, type SavedRoute } from '@/lib/savedRoutes'
+import { useFavoriteStations } from '@/lib/savedStations'
 import { getMetroInterchanges, findDirectMetroConnections } from '@/lib/metroInterchanges'
 import { getStationZone } from '@/lib/fares'
 import { matchesSearch, startsWithSearch } from '@/lib/searchUtils'
@@ -97,8 +98,74 @@ const segmentStyle = (on: boolean): CSSProperties => ({
   transition: 'color 0.15s, background 0.15s',
 })
 
-// A station autocomplete input, optionally with a "use my location" button
-// that resolves the nearest station (via onLocate).
+const MAJOR_HUB_NAMES = [
+  'Barcelona-Sants', 'Pl. Catalunya', 'Provença', 'Pl. Espanya',
+  'Sarrià', 'Sant Cugat', 'Arc de Triomf', 'Passeig de Gràcia'
+]
+
+function StationOptionItem({
+  station,
+  onSelect,
+}: {
+  station: PlannerStation
+  onSelect: () => void
+}) {
+  const metros = getMetroInterchanges(station.code)
+  return (
+    <div
+      onClick={onSelect}
+      style={{ padding: '8px 11px', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}
+      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg3)')}
+      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+    >
+      <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ fontWeight: 500 }}>{station.name}</span>
+        {station.lines && station.lines.length > 0 && (
+          <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>
+            ({station.lines.slice(0, 4).join(', ')}{station.lines.length > 4 ? '…' : ''})
+          </span>
+        )}
+        {metros.length > 0 && (
+          <span style={{ display: 'inline-flex', gap: 3, marginLeft: 6, verticalAlign: 'middle' }}>
+            {metros.map(m => (
+              <span
+                key={m.line}
+                title={m.type === 'metro' ? `Metro ${m.line}` : `Tram ${m.line}`}
+                style={{
+                  fontSize: 8,
+                  fontWeight: 700,
+                  padding: '0 4px',
+                  borderRadius: 3,
+                  background: m.color,
+                  color: '#fff',
+                }}
+              >
+                {m.type === 'metro' ? 'M' : 'T'}{m.line}
+              </span>
+            ))}
+          </span>
+        )}
+      </div>
+      <span style={{
+        fontSize: 9,
+        fontWeight: 700,
+        textTransform: 'uppercase',
+        letterSpacing: '0.5px',
+        padding: '1px 5px',
+        borderRadius: 4,
+        flexShrink: 0,
+        background: station.operator === 'renfe' ? 'rgba(232,119,34,0.15)' : 'rgba(245,158,11,0.15)',
+        color: station.operator === 'renfe' ? '#e87722' : 'var(--accent)',
+        border: `1px solid ${station.operator === 'renfe' ? 'rgba(232,119,34,0.3)' : 'rgba(245,158,11,0.3)'}`,
+      }}>
+        {station.operator === 'renfe' ? 'Rodalies' : 'FGC'}
+      </span>
+    </div>
+  )
+}
+
+// A station autocomplete input, optionally with suggestions on focus,
+// a quick-clear button, and a "use my location" button.
 function StationInput({
   label, value, onChange, stations, placeholder, onLocate, locating,
 }: {
@@ -111,6 +178,7 @@ function StationInput({
   locating?: boolean
 }) {
   const { t } = useI18n()
+  const { favorites } = useFavoriteStations()
   const [query, setQuery] = useState('')
   const [open, setOpen]   = useState(false)
   const ref               = useRef<HTMLDivElement>(null)
@@ -140,6 +208,28 @@ function StationInput({
       .slice(0, 8)
   }, [query, stations, value])
 
+  const suggestedHubs = useMemo(() => {
+    const res: PlannerStation[] = []
+    const seen = new Set<string>()
+    for (const name of MAJOR_HUB_NAMES) {
+      const match = stations.find(s => matchesSearch(s.name, name))
+      if (match && !seen.has(match.code)) {
+        seen.add(match.code)
+        res.push(match)
+      }
+    }
+    return res
+  }, [stations])
+
+  const suggestedFavorites = useMemo(() => {
+    if (favorites.length === 0) return []
+    const favSet = new Set(favorites.map(f => f.stopId))
+    const favNameSet = new Set(favorites.map(f => f.name.toLowerCase()))
+    return stations.filter(s => favSet.has(s.code) || favNameSet.has(s.name.toLowerCase()))
+  }, [stations, favorites])
+
+  const isShowingSuggestions = open && matches.length === 0 && (!query.trim() || (value && matchesSearch(value.name, query.trim())))
+
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <div style={fieldLabelStyle}>
@@ -150,10 +240,49 @@ function StationInput({
         value={query}
         onChange={e => { setQuery(e.target.value); onChange(null); setOpen(true) }}
         onFocus={() => setOpen(true)}
-        onKeyDown={e => { if (e.key === 'Enter' && matches.length > 0) { onChange(matches[0]); setOpen(false) } }}
+        onKeyDown={e => {
+          if (e.key === 'Enter') {
+            if (matches.length > 0) {
+              onChange(matches[0])
+              setOpen(false)
+            } else if (isShowingSuggestions && suggestedHubs.length > 0) {
+              onChange(suggestedHubs[0])
+              setOpen(false)
+            }
+          }
+        }}
         placeholder={placeholder}
-        style={onLocate ? { ...fieldInputStyle, paddingRight: 38 } : fieldInputStyle}
+        style={{
+          ...fieldInputStyle,
+          paddingRight: onLocate && query ? 64 : onLocate ? 38 : query ? 32 : 11,
+        }}
       />
+      {query && (
+        <button
+          type="button"
+          onClick={() => { setQuery(''); onChange(null); setOpen(true) }}
+          aria-label={t('clearSearch')}
+          title={t('clearSearch')}
+          style={{
+            position: 'absolute',
+            right: onLocate ? 36 : 8,
+            top: 26,
+            width: 28,
+            height: 28,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'none',
+            border: 'none',
+            color: 'var(--muted)',
+            cursor: 'pointer',
+            fontSize: 12,
+            padding: 0,
+          }}
+        >
+          ✕
+        </button>
+      )}
       {onLocate && (
         <button
           type="button"
@@ -167,60 +296,44 @@ function StationInput({
           <span style={{ display: 'inline-block', animation: locating ? 'spin 0.8s linear infinite' : 'none' }}>{locating ? '◌' : '📍'}</span>
         </button>
       )}
-      {open && matches.length > 0 && (
-        <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 8, marginTop: 4, maxHeight: 220, overflowY: 'auto', zIndex: 40, boxShadow: '0 10px 25px rgba(0,0,0,0.25)' }}>
-          {matches.map(s => (
-            <div
-              key={s.code}
-              onClick={() => { onChange(s); setOpen(false) }}
-              style={{ padding: '8px 11px', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg3)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-            >
-              <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                <span style={{ fontWeight: 500 }}>{s.name}</span>
-                {s.lines && s.lines.length > 0 && (
-                  <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>
-                    ({s.lines.slice(0, 4).join(', ')}{s.lines.length > 4 ? '…' : ''})
-                  </span>
-                )}
-                {getMetroInterchanges(s.code).length > 0 && (
-                  <span style={{ display: 'inline-flex', gap: 3, marginLeft: 6, verticalAlign: 'middle' }}>
-                    {getMetroInterchanges(s.code).map(m => (
-                      <span
-                        key={m.line}
-                        title={m.type === 'metro' ? `Metro ${m.line}` : `Tram ${m.line}`}
-                        style={{
-                          fontSize: 8,
-                          fontWeight: 700,
-                          padding: '0 4px',
-                          borderRadius: 3,
-                          background: m.color,
-                          color: '#fff',
-                        }}
-                      >
-                        {m.type === 'metro' ? 'M' : 'T'}{m.line}
-                      </span>
-                    ))}
-                  </span>
-                )}
+      {open && (matches.length > 0 || isShowingSuggestions) && (
+        <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 8, marginTop: 4, maxHeight: 240, overflowY: 'auto', zIndex: 40, boxShadow: '0 10px 25px rgba(0,0,0,0.25)' }}>
+          {matches.length > 0 ? (
+            matches.map(s => (
+              <StationOptionItem
+                key={s.code}
+                station={s}
+                onSelect={() => { onChange(s); setOpen(false) }}
+              />
+            ))
+          ) : isShowingSuggestions ? (
+            <div>
+              {suggestedFavorites.length > 0 && (
+                <div>
+                  <div style={{ padding: '6px 11px', fontSize: 10, fontWeight: 700, color: 'var(--yellow)', textTransform: 'uppercase', letterSpacing: '0.6px', background: 'rgba(234,179,8,0.06)' }}>
+                    ⭐ {t('favoriteStations')}
+                  </div>
+                  {suggestedFavorites.slice(0, 4).map(s => (
+                    <StationOptionItem
+                      key={`fav-${s.code}`}
+                      station={s}
+                      onSelect={() => { onChange(s); setOpen(false) }}
+                    />
+                  ))}
+                </div>
+              )}
+              <div style={{ padding: '6px 11px', fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', background: 'rgba(255,255,255,0.03)' }}>
+                🚉 {t('majorHubs')}
               </div>
-              <span style={{
-                fontSize: 9,
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                padding: '1px 5px',
-                borderRadius: 4,
-                flexShrink: 0,
-                background: s.operator === 'renfe' ? 'rgba(232,119,34,0.15)' : 'rgba(245,158,11,0.15)',
-                color: s.operator === 'renfe' ? '#e87722' : 'var(--accent)',
-                border: `1px solid ${s.operator === 'renfe' ? 'rgba(232,119,34,0.3)' : 'rgba(245,158,11,0.3)'}`,
-              }}>
-                {s.operator === 'renfe' ? 'Rodalies' : 'FGC'}
-              </span>
+              {suggestedHubs.map(s => (
+                <StationOptionItem
+                  key={`hub-${s.code}`}
+                  station={s}
+                  onSelect={() => { onChange(s); setOpen(false) }}
+                />
+              ))}
             </div>
-          ))}
+          ) : null}
         </div>
       )}
     </div>
@@ -775,7 +888,12 @@ export function TripPlanner({ lineColors, selectedJourney, onSelectJourney, stop
   // Clear the drawn path when the planner unmounts (e.g. switching tabs away).
   useEffect(() => () => onSelectJourney(null), [onSelectJourney])
 
-  const swap = () => { setOrigin(dest); setDest(origin) }
+  const [swapped, setSwapped] = useState(false)
+  const swap = () => {
+    setSwapped(s => !s)
+    setOrigin(dest)
+    setDest(origin)
+  }
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
@@ -802,6 +920,8 @@ export function TripPlanner({ lineColors, selectedJourney, onSelectJourney, stop
               alignItems: 'center',
               justifyContent: 'center',
               padding: 0,
+              transform: swapped ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
             }}
           >
             ⇅
