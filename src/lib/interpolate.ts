@@ -24,6 +24,8 @@ interface TrainState {
   direction:    1 | -1          // +1 or -1 along polyline
   lat:          number
   lng:          number
+  lastRawLng:   number          // last received raw GPS lng
+  lastRawLat:   number          // last received raw GPS lat
   currentSpeed: number          // current actual velocity (m/s)
   baseSpeed:    number          // cruising speed (m/s) ~19 m/s (~68 km/h)
   dwellUntil:   number          // timestamp (performance.now() ms) until when train dwells
@@ -218,6 +220,8 @@ export function useInterpolatedTrains(
           direction: dir,
           lat: train.lat,
           lng: train.lng,
+          lastRawLng: train.lng,
+          lastRawLat: train.lat,
           currentSpeed: isStationed ? 0 : baseSpeed,
           baseSpeed,
           dwellUntil: isTerminus
@@ -231,15 +235,25 @@ export function useInterpolatedTrains(
         })
       } else {
         existing.polyline = pl
-        existing.targetDist = realDist
 
-        // Large drift check (e.g. line switch / transponder re-initialisation)
-        const drift = haversine(realPt, [existing.lng, existing.lat])
-        if (drift > SNAP_THRESHOLD_M) {
-          existing.distAlong = realDist
-          existing.lat = train.lat
-          existing.lng = train.lng
-          existing.currentSpeed = isStationed ? 0 : existing.baseSpeed
+        const isNewTelemetry =
+          Math.abs(train.lng - existing.lastRawLng) > 1e-5 ||
+          Math.abs(train.lat - existing.lastRawLat) > 1e-5
+
+        if (isNewTelemetry) {
+          existing.lastRawLng = train.lng
+          existing.lastRawLat = train.lat
+          existing.targetDist = realDist
+
+          // Only snap if genuinely NEW telemetry moved > SNAP_THRESHOLD_M
+          // (e.g. line switch / transponder re-initialisation), never on stale repeated GPS!
+          const drift = haversine(realPt, [existing.lng, existing.lat])
+          if (drift > SNAP_THRESHOLD_M) {
+            existing.distAlong = realDist
+            existing.lat = train.lat
+            existing.lng = train.lng
+            existing.currentSpeed = isStationed ? 0 : existing.baseSpeed
+          }
         }
 
         existing.direction = resolveDirection(existing.distAlong, train, stops, pl)

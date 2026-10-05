@@ -198,4 +198,11 @@ Centralized in [`src/lib/externalLinks.ts`](src/lib/externalLinks.ts). Update be
 - **Files Modified:** `src/lib/interpolate.ts`, `project_memory.md`.
 - **Verification:** `npm test` (30 checks passed), `test-new-features.mts` passed, `npx tsc --noEmit` (0 TS errors), `npm run build` (14/14 routes compiled).
 
-
+### Session: 2026-10-05 (Fix Backwards Dot Flying & Stale Telemetry Snapbacks)
+- **Context:** Trains were observed flying backwards and snapping back when GPS coordinates lagged or loops flipped.
+- **Key Changes:**
+  - Resolved 2-way folded loop in `buildPolyline` (`geometry.ts`): FGC lines had 2 segments forming outbound + inbound tracks, doubling track length and flipping projections across the line. Filtered round-trip return segments (`loopDist < 500m`) to maintain single monotonic paths.
+  - Added `lastRawLng`/`lastRawLat` in `interpolate.ts`: ignored stale repeated GPS points from upstream 2-minute lags, preventing trains from snapping backward after advancing along rails.
+  - Enforced forward travel (`move = Math.max(0, currentSpeed * dt)`) and soft speed modulation during drift corrections.
+- **Files Modified:** `src/lib/geometry.ts`, `src/lib/interpolate.ts`, `project_memory.md`.
+- **Verification:** `npm test` (30 checks passed), `test-new-features.mts` passed, `npx tsc --noEmit` (0 TS errors), `npm run build` (14/14 routes compiled).

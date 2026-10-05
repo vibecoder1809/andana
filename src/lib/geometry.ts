@@ -37,12 +37,27 @@ export interface Polyline {
 }
 
 export function buildPolyline(coords: number[][][]): Polyline | null {
-  // Flatten MultiLineString segments into one continuous path.
-  // Adjacent segments that don't share an endpoint get a straight join.
   if (!coords.length) return null
+
+  // If coords contains two segments forming a round trip (the second segment
+  // is just the return direction of the first, ending back near the start),
+  // use only the primary segment so the polyline is a single, clean, monotonic track.
+  let effectiveCoords = coords
+  if (coords.length === 2 && coords[0]?.length && coords[1]?.length) {
+    const seg0 = coords[0]
+    const seg1 = coords[1]
+    const loopDist = haversine(
+      seg1[seg1.length - 1] as [number, number],
+      seg0[0] as [number, number],
+    )
+    if (loopDist < 500) {
+      effectiveCoords = [seg0]
+    }
+  }
+
   const pts: [number, number][] = []
 
-  for (const seg of coords) {
+  for (const seg of effectiveCoords) {
     if (!seg.length) continue
     const start = seg[0] as [number, number]
     // If pts is non-empty and the last point matches this segment's start, skip duplicate
