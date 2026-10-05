@@ -25,6 +25,7 @@ import { MobileSettingsModal } from './MobileSettingsModal'
 import { useUserEngagement } from '@/lib/userEngagement'
 import { useStationAlertNotifier } from '@/lib/useStationAlertNotifier'
 import { NotificationToast } from './NotificationToast'
+import { isSchoolCommuteHours } from '@/lib/serviceTime'
 
 const MapView = dynamic(() => import('./MapView'), { ssr: false })
 
@@ -563,6 +564,8 @@ function AppInner() {
     let list = alerts
     if (networkMode === 'fgc') list = alerts.filter(a => a.operator === 'fgc')
     else if (networkMode === 'renfe') list = alerts.filter(a => a.operator === 'renfe')
+    const isSchoolHours = isSchoolCommuteHours()
+    list = list.filter(a => !a.isSchoolReservation || isSchoolHours)
     return [...list].sort((a, b) => (b.start ?? 0) - (a.start ?? 0))
   }, [alerts, networkMode])
 

@@ -70,6 +70,7 @@ export function NetworkStatusModal({
 
       for (const line of group.lines) {
         const lineAlerts = alerts.filter(a => a.routes.includes(line))
+        const disruptiveAlerts = lineAlerts.filter(a => !a.isInformational)
         const lineTrains = trains.filter(t => t.line === line)
         const delays = lineTrains.map(t => t.delayMinutes).filter(d => d > 0)
         const avgDelay = delays.length > 0 ? Math.round(delays.reduce((a, b) => a + b, 0) / delays.length) : 0
@@ -77,14 +78,20 @@ export function NetworkStatusModal({
         let status: 'normal' | 'delay' | 'disrupted' | 'outage' = 'normal'
         let detail = lang === 'ca' ? 'Servei normal' : lang === 'es' ? 'Servicio normal' : 'Normal service'
 
-        if (lineAlerts.length > 0) {
+        if (disruptiveAlerts.length > 0) {
           status = 'disrupted'
-          detail = lineAlerts[0].header.length > 35
-            ? lineAlerts[0].header.slice(0, 35) + '…'
-            : lineAlerts[0].header
+          detail = disruptiveAlerts[0].header.length > 35
+            ? disruptiveAlerts[0].header.slice(0, 35) + '…'
+            : disruptiveAlerts[0].header
         } else if (avgDelay >= 4) {
           status = 'delay'
           detail = `+${avgDelay} min`
+        } else if (lineAlerts.length > 0) {
+          // Informational notices (e.g. school reservations or links) keep status normal
+          status = 'normal'
+          detail = lineAlerts[0].header.length > 35
+            ? lineAlerts[0].header.slice(0, 35) + '…'
+            : lineAlerts[0].header
         } else if (lineTrains.length > 0) {
           detail = `${lineTrains.length} ${lineTrains.length === 1 ? 'tren' : 'trens'}`
         } else if (isOperatorOutage) {

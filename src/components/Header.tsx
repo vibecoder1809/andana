@@ -457,44 +457,6 @@ export function Header({
           <span>{refreshing ? t('loading') : t('refresh')}</span>
         </button>
 
-        <button
-          onClick={() => {
-            const w = 400
-            const h = 560
-            const left = typeof window !== 'undefined' ? Math.max(0, window.screen.width - w - 40) : 100
-            const top = 60
-            window.open('/widget', 'AndanaWidget', `width=${w},height=${h},top=${top},left=${left},resizable=yes,scrollbars=yes`)
-          }}
-          title={t('openWidgetWindow')}
-          aria-label={t('openWidgetWindow')}
-          style={{
-            background: 'var(--bg3)',
-            border: '1px solid var(--border2)',
-            color: 'var(--text)',
-            height: 34,
-            padding: '0 11px',
-            borderRadius: 10,
-            cursor: 'pointer',
-            fontSize: 13,
-            fontFamily: 'inherit',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
-            transition: 'background 0.15s, border-color 0.15s',
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = 'var(--bg2)'
-            e.currentTarget.style.borderColor = 'var(--border)'
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = 'var(--bg3)'
-            e.currentTarget.style.borderColor = 'var(--border2)'
-          }}
-        >
-          <span>📱</span>
-        </button>
-
         {onOpenSettings && (
           <button
             data-tour="settings"

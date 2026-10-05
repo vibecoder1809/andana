@@ -74,6 +74,8 @@ export interface Alert {
   end?: number
   cause?: string
   effect?: string
+  isInformational?: boolean
+  isSchoolReservation?: boolean
 }
 
 export interface Route {

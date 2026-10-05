@@ -52,7 +52,13 @@ function planErrorMessage(code: string | undefined, t: (key: TransKey, ...args: 
 // later. Re-evaluates every second. Returns null once the train has departed.
 function useDepartureCountdown(depTime: number, liveDelayMin: number | undefined, live: boolean): number | null {
   const target = depTime + (liveDelayMin && liveDelayMin > 0 ? liveDelayMin * 60 : 0)
-  const compute = () => target - nowSecondsOfDay()
+  const compute = () => {
+    let now = nowSecondsOfDay()
+    if (target >= 86400 && now < 4 * 3600) {
+      now += 86400
+    }
+    return target - now
+  }
   const [remaining, setRemaining] = useState(compute)
   useEffect(() => {
     if (!live) return
@@ -239,7 +245,15 @@ function StationInput({
         type="text"
         value={query}
         onChange={e => { setQuery(e.target.value); onChange(null); setOpen(true) }}
-        onFocus={() => setOpen(true)}
+        onFocus={() => {
+          setOpen(true)
+          if (typeof window !== 'undefined') {
+            window.scrollTo(0, 0)
+          }
+          setTimeout(() => {
+            ref.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+          }, 80)
+        }}
         onKeyDown={e => {
           if (e.key === 'Enter') {
             if (matches.length > 0) {
@@ -297,7 +311,7 @@ function StationInput({
         </button>
       )}
       {open && (matches.length > 0 || isShowingSuggestions) && (
-        <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 8, marginTop: 4, maxHeight: 240, overflowY: 'auto', zIndex: 40, boxShadow: '0 10px 25px rgba(0,0,0,0.25)' }}>
+        <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 8, marginTop: 4, maxHeight: 'min(200px, 35vh)', overflowY: 'auto', zIndex: 40, boxShadow: '0 10px 25px rgba(0,0,0,0.25)' }}>
           {matches.length > 0 ? (
             matches.map(s => (
               <StationOptionItem

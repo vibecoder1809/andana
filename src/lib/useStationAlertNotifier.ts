@@ -5,6 +5,7 @@ import type { Alert } from '@/types'
 import { useFavoriteStations, matchStation } from '@/lib/savedStations'
 import { getNotificationSettings, sendAppNotification } from '@/lib/notifications'
 import { useI18n } from '@/lib/i18n'
+import { isNightRestHours } from '@/lib/serviceTime'
 
 const NOTIFIED_KEY = 'andana-notified-station-alerts'
 
@@ -40,6 +41,10 @@ export function useStationAlertNotifier(alerts: Alert[]) {
     const settings = getNotificationSettings()
     if (!settings.favStations) return
 
+    // Suppress station push/audio alerts during nighttime rest hours (01:00 - 05:00)
+    // so automated 3 AM batch notices never wake up users.
+    if (isNightRestHours()) return
+
     const notifiedSet = notifiedSetRef.current
 
     // On the very first check after app launch, mark currently existing alerts as seen
@@ -63,6 +68,8 @@ export function useStationAlertNotifier(alerts: Alert[]) {
       const linesSet = new Set(fav.lines ?? [])
 
       const matchingAlerts = alerts.filter(a => {
+        // Routine notices (school cars, station connections) are purely informational
+        if (a.isInformational) return false
         if (a.stops && a.stops.some(s => matchStation(s, fav))) return true
         if (a.stopCodes && a.stopCodes.some(c => c.replace(/\d+$/, '') === stationCode)) return true
         if (linesSet.size > 0 && a.routes.some(r => linesSet.has(r))) return true

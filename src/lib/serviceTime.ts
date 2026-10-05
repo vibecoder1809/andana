@@ -63,6 +63,18 @@ export function isNightRestHours(at: Date = new Date()): boolean {
   return mins >= 75 && mins < 295
 }
 
+/**
+ * True if current time in Europe/Madrid is within school commute peak hours on a weekday (Mon-Fri):
+ * Morning: 07:30 to 09:00 (450 to 540 minutes)
+ * Afternoon: 13:30 to 15:00 (810 to 900 minutes)
+ */
+export function isSchoolCommuteHours(at: Date = new Date()): boolean {
+  const dayOfWeek = at.toLocaleDateString('en-US', { timeZone: ZONE, weekday: 'short' })
+  if (dayOfWeek === 'Sat' || dayOfWeek === 'Sun') return false
+  const mins = serviceMinutes(at)
+  return (mins >= 450 && mins <= 540) || (mins >= 810 && mins <= 900)
+}
+
 /** `YYYY-MM-DD` for `offset` days from today, in Europe/Madrid. */
 export function serviceDatePlus(offset: number, at: Date = new Date()): string {
   const { year, month, day } = zoned(at)

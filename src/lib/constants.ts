@@ -421,7 +421,7 @@ export const LINE_COLORS: Record<string, string> = {
   WALK: '#f59e0b',
 }
 
-// Car codes of an FGC 4-car unit in physical composition order — M1 (cab
-// motor), M2 (its inseparable pair), then the intermediates — matching the
-// order fetchTrains() emits Train.wagons.
-export const WAGON_LABELS = ['M1', 'M2', 'Mi', 'Ri']
+// Car codes of an FGC 4-car unit in physical composition order:
+// M1 (cab motor, front), Mi (intermediate motor), Ri (intermediate trailer), M2 (cab motor, rear).
+// Matches the official EMU formation (M1-Mi-Ri-M2) and the order fetchTrains() emits Train.wagons.
+export const WAGON_LABELS = ['M1', 'Mi', 'Ri', 'M2']

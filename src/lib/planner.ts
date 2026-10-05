@@ -484,16 +484,38 @@ export async function getDepartures(
   if (!data.stationNames.has(stationCode)) return []
 
   const out: Departure[] = []
-  for (const c of data.connections) {
-    if (c.depTime < afterSeconds) continue
-    if (c.fromParent !== stationCode) continue
-    out.push({ line: c.line, headsign: c.headsign, depTime: c.depTime, tripId: c.tripId })
-    if (out.length >= count) break
+
+  // 1. If after midnight (00:00 to 04:00), first collect remaining late-night departures (depTime >= 86400)
+  if (afterSeconds < 4 * 3600) {
+    const lateAfter = afterSeconds + 86400
+    for (const c of data.connections) {
+      if (c.depTime < lateAfter) continue
+      if (c.fromParent !== stationCode) continue
+      out.push({ line: c.line, headsign: c.headsign, depTime: c.depTime, tripId: c.tripId })
+      if (out.length >= count) break
+    }
   }
 
-  // Check if any late-evening departure (>= 21:00) is the last one of the day for its line & destination
+  // 2. Fill remaining slots with regular/morning departures
+  const startAfter = afterSeconds < 4 * 3600 && out.length > 0 ? 0 : afterSeconds
+  for (const c of data.connections) {
+    if (out.length >= count) break
+    if (afterSeconds < 4 * 3600 && c.depTime >= 86400) continue
+    if (c.depTime < startAfter) continue
+    if (c.fromParent !== stationCode) continue
+    out.push({ line: c.line, headsign: c.headsign, depTime: c.depTime, tripId: c.tripId })
+  }
+
+  // Check if any late departure is the last one of the day for its line & destination
   for (const d of out) {
-    if (d.depTime >= 21 * 3600) {
+    if (d.depTime >= 86400) {
+      const hasLater = data.connections.some(
+        c => c.fromParent === stationCode && c.line === d.line && c.headsign === d.headsign && c.depTime > d.depTime && c.depTime >= 86400
+      )
+      if (!hasLater) {
+        d.isLastService = true
+      }
+    } else if (d.depTime >= 21 * 3600) {
       const hasLater = data.connections.some(
         c => c.fromParent === stationCode && c.line === d.line && c.headsign === d.headsign && c.depTime > d.depTime
       )
@@ -894,8 +916,24 @@ export async function planJourneys(
   stepFree = false,
 ): Promise<Journey[]> {
   const journeys: Journey[] = []
-  let after = afterSeconds
-  for (let i = 0; i < count; i++) {
+
+  // In GTFS timetables (both FGC and Rodalies), service days run past midnight
+  // until ~03:00, with post-midnight departures scheduled at depTime >= 86400 (e.g. 24:47:00).
+  // When planning after midnight (00:00 to 04:00), first scan for remaining late-night departures (depTime >= 86400).
+  if (afterSeconds < 4 * 3600) {
+    let lateAfter = afterSeconds + 86400
+    while (journeys.length < count) {
+      const j = await planJourney(originCode, destCode, lateAfter, lineDelays, date, stepFree)
+      if (!j) break
+      journeys.push(j)
+      const firstTrain = j.legs.find(l => l.operator !== 'walk')
+      lateAfter = (firstTrain ? firstTrain.depTime : j.depTime) + 1
+    }
+  }
+
+  // Scan remaining slots (or daytime requests) from the regular schedule
+  let after = journeys.length > 0 ? 0 : afterSeconds
+  while (journeys.length < count) {
     const j = await planJourney(originCode, destCode, after, lineDelays, date, stepFree)
     if (!j) break
     journeys.push(j)
@@ -903,15 +941,21 @@ export async function planJourneys(
     after = (firstTrain ? firstTrain.depTime : j.depTime) + 1
   }
 
-  // Detect if the final journey found is the last service of the day (especially late evening / night >= 20:30)
-  if (journeys.length > 0) {
-    const last = journeys[journeys.length - 1]
-    if (last.depTime >= 20.5 * 3600) {
-      const firstTrain = last.legs.find(l => l.operator !== 'walk')
-      const nextAfter = (firstTrain ? firstTrain.depTime : last.depTime) + 1
+  // Detect if any journey is the last service of the service day
+  for (let i = 0; i < journeys.length; i++) {
+    const j = journeys[i]
+    if (j.depTime >= 86400) {
+      // Late night departure: last service if the next journey is in the morning (< 86400) or nonexistent
+      const nextJ = journeys[i + 1]
+      if (!nextJ || nextJ.depTime < 86400) {
+        j.isLastService = true
+      }
+    } else if (j.depTime >= 20.5 * 3600 && i === journeys.length - 1) {
+      const firstTrain = j.legs.find(l => l.operator !== 'walk')
+      const nextAfter = (firstTrain ? firstTrain.depTime : j.depTime) + 1
       const later = await planJourney(originCode, destCode, nextAfter, lineDelays, date, stepFree)
-      if (!later) {
-        last.isLastService = true
+      if (!later || later.depTime < j.depTime) {
+        j.isLastService = true
       }
     }
   }

@@ -461,6 +461,42 @@ export function MobileLayout({
   const [focusedLine, setFocusedLine]         = useState<string | null>(null)
   const [activeTrip, setActiveTrip]           = useState<Journey | null>(null)
   const [networkStatusOpen, setNetworkStatusOpen] = useState(false)
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null)
+
+  // Keep window.scrollY locked to 0 and adapt layout height to visualViewport when virtual keyboard opens
+  useEffect(() => {
+    const handleViewport = () => {
+      if (typeof window !== 'undefined') {
+        if (window.visualViewport) {
+          setViewportHeight(window.visualViewport.height)
+        }
+        if (window.scrollY !== 0 || window.scrollX !== 0) {
+          window.scrollTo(0, 0)
+        }
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      if (window.visualViewport) {
+        setViewportHeight(window.visualViewport.height)
+        window.visualViewport.addEventListener('resize', handleViewport)
+        window.visualViewport.addEventListener('scroll', handleViewport)
+      }
+      window.addEventListener('scroll', handleViewport, { passive: true })
+      window.addEventListener('resize', handleViewport, { passive: true })
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        if (window.visualViewport) {
+          window.visualViewport.removeEventListener('resize', handleViewport)
+          window.visualViewport.removeEventListener('scroll', handleViewport)
+        }
+        window.removeEventListener('scroll', handleViewport)
+        window.removeEventListener('resize', handleViewport)
+      }
+    }
+  }, [])
 
   const activeOutageMessage = useMemo(() => {
     if (networkMode === 'renfe' && outages?.renfe) return t('renfeOutageError')
@@ -667,9 +703,14 @@ export function MobileLayout({
   }, [])
 
   // Typing needs the keyboard *and* the results visible: raise the sheet as
-  // high as it goes whenever any input inside it gains focus.
+  // high as it goes whenever any input inside it gains focus, and prevent window scroll.
   const onSheetFocus = useCallback((e: React.FocusEvent) => {
-    if ((e.target as HTMLElement).tagName === 'INPUT') setSheetRatio(sheetCeiling)
+    if ((e.target as HTMLElement).tagName === 'INPUT') {
+      setSheetRatio(sheetCeiling)
+      if (typeof window !== 'undefined') {
+        window.scrollTo(0, 0)
+      }
+    }
   }, [sheetCeiling])
 
   useEffect(() => {
@@ -727,7 +768,20 @@ export function MobileLayout({
   const isItemSelected = selectedTrain !== null || selectedStop !== null
 
   return (
-    <div ref={rootRef} style={{ position: 'fixed', inset: 0, background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
+    <div
+      ref={rootRef}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: viewportHeight ? `${viewportHeight}px` : '100dvh',
+        background: 'var(--bg)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}
+    >
 
       {/* ── Floating Top Bar (Clean, Uncluttered & Spaced) ── */}
       <div ref={topBarRef} style={{
@@ -756,9 +810,9 @@ export function MobileLayout({
             aria-label={t('networkStatus')}
             title={t('networkStatus')}
             style={{
-              background: (allAlerts ?? alerts).length > 0 ? 'rgba(234,179,8,0.2)' : (outages?.renfe || outages?.fgc) ? 'rgba(245,158,11,0.18)' : 'var(--bg2)',
-              border: (allAlerts ?? alerts).length > 0 ? '1px solid rgba(234,179,8,0.4)' : (outages?.renfe || outages?.fgc) ? '1px solid rgba(245,158,11,0.35)' : '1px solid var(--border)',
-              color: (allAlerts ?? alerts).length > 0 || (outages?.renfe || outages?.fgc) ? 'var(--yellow)' : 'var(--green)',
+              background: alerts.length > 0 ? 'rgba(234,179,8,0.2)' : (outages?.renfe || outages?.fgc) ? 'rgba(245,158,11,0.18)' : 'var(--bg2)',
+              border: alerts.length > 0 ? '1px solid rgba(234,179,8,0.4)' : (outages?.renfe || outages?.fgc) ? '1px solid rgba(245,158,11,0.35)' : '1px solid var(--border)',
+              color: alerts.length > 0 || (outages?.renfe || outages?.fgc) ? 'var(--yellow)' : 'var(--green)',
               width: 38,
               height: 38,
               borderRadius: 12,
@@ -1186,6 +1240,11 @@ export function MobileLayout({
                   type="text"
                   value={stationQuery}
                   onChange={e => setStationQuery(e.target.value)}
+                  onFocus={() => {
+                    if (typeof window !== 'undefined') {
+                      window.scrollTo(0, 0)
+                    }
+                  }}
                   placeholder={t('searchStationShort')}
                   style={{
                     width: '100%',

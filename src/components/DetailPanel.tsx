@@ -299,42 +299,124 @@ export function DetailPanel({ train, lineColors, onClose, mobile = false }: Deta
           )}
 
 
-          {/* Per-wagon occupancy — only rendered for real telemetry (fetchTrains
-              suppresses aggregate-copied breakdowns), in physical composition
-              order (M1·M2·Mi·Ri). Cab noses at both ends make the row read as a
-              train: outlined nose = head (M1), filled tail = rear. */}
-          {train.wagons && train.wagons.some(w => w != null && w > 0) && (
-            <>
-              <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{t('occupancyPerCar')}</div>
-              <div style={{ display: 'flex', gap: 4, marginBottom: 14, alignItems: 'flex-start' }}>
-                {/* Head — angled cab nose in front of car M1 */}
-                <svg width="14" height="48" viewBox="0 0 14 48" preserveAspectRatio="none" style={{ flexShrink: 0 }} aria-hidden>
-                  <path d="M13 1 V47 H1 V26 L9 1 Z" fill="var(--bg3)" stroke="var(--muted)" strokeWidth="1.5" strokeLinejoin="round" />
-                </svg>
-                {train.wagons.map((v, i) => {
-                  if (v == null) return null // car not reported (3-car unit)
-                  const label = WAGON_LABELS[i] ?? String(i + 1)
-                  const pct = Math.round(v)
-                  const c = occColor(v)
-                  return (
-                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                      <div style={{ height: 48, borderRadius: 4, background: `${c}25`, border: `1px solid ${c}`, width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 3 }}>
-                        <div style={{ height: `${Math.max(6, Math.min(98, pct))}%`, borderRadius: 3, background: c, width: '70%' }} />
+          {/* Per-wagon occupancy — rendered for real telemetry in physical
+              composition order (M1 · Mi · Ri · M2). Aerodynamic cab noses with
+              front headlights and rear taillights clearly show the train's orientation. */}
+          {train.wagons && train.wagons.some(w => w != null && w > 0) && (() => {
+            const validCars = train.wagons.filter((w): w is number => w != null)
+            const totalCars = validCars.length
+            return (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 4 }}>
+                  <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase' }}>
+                    {t('occupancyPerCar')}
+                  </div>
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: 'var(--accent)',
+                    background: 'rgba(59, 130, 246, 0.1)',
+                    padding: '2px 8px',
+                    borderRadius: 6,
+                    border: '1px solid rgba(59, 130, 246, 0.25)',
+                  }}>
+                    <span style={{ fontSize: 9 }}>◀</span>
+                    <span>{t('travelDirection')}</span>
+                    <span style={{ color: 'var(--muted)', fontWeight: 400 }}>· {t('towards')} {train.destination}</span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 3, alignItems: 'flex-start' }}>
+                  {/* Head cab (M1 side — pointing in direction of travel with headlights) */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                    <svg width="18" height="48" viewBox="0 0 18 48" style={{ flexShrink: 0 }} aria-hidden>
+                      <path d="M18 1 H6 C3 1 1 14 1 24 C1 34 3 47 6 47 H18 V1 Z" fill="var(--bg3)" stroke="var(--border2)" strokeWidth="1.5" strokeLinejoin="round" />
+                      <path d="M12 6 C7 10 5 17 5 24 C5 31 7 38 12 42 Z" fill="rgba(59, 130, 246, 0.25)" stroke="var(--border2)" strokeWidth="1" />
+                      <circle cx="4" cy="16" r="2.2" fill="#facc15" />
+                      <circle cx="4" cy="32" r="2.2" fill="#facc15" />
+                    </svg>
+                    <span style={{ fontSize: 7.5, color: '#facc15', fontWeight: 700, textTransform: 'uppercase' }}>☀</span>
+                  </div>
+
+                  {train.wagons.map((v, i) => {
+                    if (v == null) return null
+                    const label = WAGON_LABELS[i] ?? String(i + 1)
+                    const pct = Math.round(v)
+                    const c = occColor(v)
+                    const isFront = i === 0
+                    const isRear = i === totalCars - 1
+                    const sublabel = isFront
+                      ? t('cabFront')
+                      : isRear
+                      ? t('cabRear')
+                      : i === 1
+                      ? t('carMotor')
+                      : i === 2
+                      ? t('carTrailer')
+                      : ''
+
+                    return (
+                      <div key={i} style={{ flex: 1, display: 'flex', alignItems: 'flex-start', minWidth: 0 }}>
+                        {i > 0 && (
+                          <div style={{ width: 3, height: 16, background: 'var(--border2)', borderRadius: 1.5, marginTop: 16, marginRight: 3, flexShrink: 0 }} />
+                        )}
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                          <div style={{
+                            height: 48,
+                            borderRadius: 6,
+                            background: `${c}22`,
+                            border: `1.5px solid ${c}`,
+                            width: '100%',
+                            display: 'flex',
+                            alignItems: 'flex-end',
+                            justifyContent: 'center',
+                            paddingBottom: 3,
+                            overflow: 'hidden',
+                          }}>
+                            <div style={{ height: `${Math.max(6, Math.min(98, pct))}%`, borderRadius: '0 0 3px 3px', background: c, width: '75%', transition: 'height 0.3s ease' }} />
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, textAlign: 'center', width: '100%' }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: c }}>{pct}%</span>
+                            <span style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-space-grotesk)' }}>{label}</span>
+                            <span style={{
+                              fontSize: 8,
+                              fontWeight: isFront || isRear ? 700 : 500,
+                              color: isFront ? 'var(--accent)' : isRear ? 'var(--red)' : 'var(--muted)',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.2px',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              maxWidth: '100%',
+                            }}>
+                              {sublabel}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: c }}>{pct}%</span>
-                        <span style={{ fontSize: 8, color: 'var(--muted)' }}>{label}</span>
-                      </div>
-                    </div>
-                  )
-                })}
-                {/* Rear — mirrored, filled, behind car M2 */}
-                <svg width="14" height="48" viewBox="0 0 14 48" preserveAspectRatio="none" style={{ flexShrink: 0 }} aria-hidden>
-                  <path d="M1 1 V47 H13 V26 L5 1 Z" fill="var(--border2)" stroke="var(--border2)" strokeWidth="1.5" strokeLinejoin="round" />
-                </svg>
+                    )
+                  })}
+
+                  {/* Rear cab (M2 side — trailing with red taillights) */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                    <svg width="18" height="48" viewBox="0 0 18 48" style={{ flexShrink: 0 }} aria-hidden>
+                      <path d="M0 1 H12 C15 1 17 14 17 24 C17 34 15 47 12 47 H0 V1 Z" fill="var(--bg3)" stroke="var(--border2)" strokeWidth="1.5" strokeLinejoin="round" />
+                      <path d="M6 6 C11 10 13 17 13 24 C13 31 11 38 6 42 Z" fill="rgba(239, 68, 68, 0.2)" stroke="var(--border2)" strokeWidth="1" />
+                      <circle cx="14" cy="16" r="2.2" fill="#ef4444" />
+                      <circle cx="14" cy="32" r="2.2" fill="#ef4444" />
+                    </svg>
+                    <span style={{ fontSize: 7.5, color: '#ef4444', fontWeight: 700, textTransform: 'uppercase' }}>●</span>
+                  </div>
+                </div>
+
+                {/* Track bed line under the train */}
+                <div style={{ marginTop: 6, height: 2, background: 'var(--border2)', borderRadius: 1 }} />
               </div>
-            </>
-          )}
+            )
+          })()}
 
           {/* Route: origin → current → upcoming stops */}
           <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>{t('upcomingStops')}</div>

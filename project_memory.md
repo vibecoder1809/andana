@@ -225,5 +225,38 @@ Centralized in [`src/lib/externalLinks.ts`](src/lib/externalLinks.ts). Update be
   - Enhanced `LiveTripHud.tsx` with incoming train arrival alerts, transfer & destination approach notifications, milestone deduplication, and mini-HUD floating widget mode (🗕).
   - Created standalone `/widget` route, `/api/widget-data`, W3C PWA widget shortcuts in `manifest.ts`, and floating window pop-out in `Header.tsx` and `MobileSettingsModal.tsx`.
 - **Files Modified:** `notifications.ts`, `useStationAlertNotifier.ts`, `NotificationToast.tsx`, `LiveTripHud.tsx`, `App.tsx`, `MobileLayout.tsx`, `MobileSettingsModal.tsx`, `Header.tsx`, `i18n.tsx`, `manifest.ts`, `widget/page.tsx`, `api/widget-data/route.ts`, `sw.js`, `savedStations.ts`, `test-new-features.mts`, `project_memory.md`.
-- **Verification:** `cmd /c npm test` (30 checks passed), `test-new-features.mts` (all checks passed), `npx tsc --noEmit` (0 errors), `npm run build` (15/15 routes compiled).
+### Session: 2026-10-06 (Fix DeparturesBoard Countdown Out-of-Bounds Overflow)
+- **Context:** Multiple status badges (`🟢 Tren a l'estació`, `🌙 Últim servei`) combined on a single line squeezed the headsign and pushed countdowns (3, 5, 9 min) completely out of bounds.
+- **Key Changes:** Restructured `DeparturesBoard.tsx` card rows into a 2-tier layout: top row for line badge and destination headsign, sub-row for badges (`track`, `matchingLive`, `lastService`, `delay`), and a dedicated right column (`flexShrink: 0, textAlign: 'right'`) for countdowns and scheduled departure times with `overflow: 'hidden'` protection.
+### Session: 2026-10-06 (Remove Widget Feature per User Request)
+- **Context:** The user requested the complete removal of the widget feature while keeping the notifications system intact.
+- **Key Changes:** Deleted `/widget` page, `/api/widget-data`, W3C manifest shortcuts, header pop-out button, settings modal section, and HUD minimize widget mode.
+- **Files Modified/Deleted:** `src/app/widget/page.tsx` (deleted), `src/app/api/widget-data/route.ts` (deleted), `manifest.ts`, `Header.tsx`, `MobileSettingsModal.tsx`, `LiveTripHud.tsx`, `i18n.tsx`, `project_memory.md`.
+- **Verification:** `cmd /c npm test` (30 checks passed), `test-new-features.mts` (passed), `npx tsc --noEmit` (0 errors), `npm run build` (14/14 routes compiled).
 
+### Session: 2026-10-06 (School Car Reservations & Night Silence Alert Filtering)
+- **Context:** Automated 3 AM FGC feed batch notices ("cotxes reservats escolars" & Cremallera links) generated station notification spam and all-day banner clutter across the network.
+- **Key Changes:**
+  - Classified routine notices (`escolars / reservats`, `enllaç cremallera`) as `isInformational: true` & `isSchoolReservation: true` in `gtfs.ts` with dedicated friendly explanations.
+  - Added night silence window (`isNightRestHours()`) in `useStationAlertNotifier.ts` to suppress push/sound alerts between 01:00–05:00, and excluded `isInformational` alerts from firing station alarms.
+  - Scoped school reservation notices in `App.tsx` and `MobileLayout.tsx` using `isSchoolCommuteHours()` (Mon–Fri 07:30–09:00, 13:30–15:00), keeping main banners clear of school car notices during off-hours.
+  - Polished `AlertModal.tsx` (`ℹ AVÍS` info badge) and `NetworkStatusModal.tsx` so informational notices never turn entire rail lines orange/red.
+- **Files Modified:** `src/types/index.ts`, `src/lib/gtfs.ts`, `src/lib/serviceTime.ts`, `src/lib/useStationAlertNotifier.ts`, `src/components/App.tsx`, `src/components/MobileLayout.tsx`, `src/components/AlertModal.tsx`, `src/components/NetworkStatusModal.tsx`, `src/lib/i18n.tsx`, `scripts/test-new-features.mts`, `project_memory.md`.
+- **Verification:** `npm test` (30 checks passed), `test-new-features.mts` (passed), `npx tsc --noEmit` (0 TS errors), `npm run build` (Turbopack, 14/14 routes compiled).
+
+### Session: 2026-10-06 (Post-Midnight GTFS Service Day Planner & Departures Fix)
+- **Context:** At 00:43 AM, the trip planner from Terrassa Rambla to Vallparadís showed the first morning train at 05:46 instead of the currently circulating late-night train (00:47).
+- **Key Changes:**
+  - Resolved GTFS service-day cutoff: public transit schedules post-midnight trains (00:00–04:00) with `depTime >= 86400` (e.g. `24:47:00`), whereas standard clocks reset to `00:xx` (`< 14400s`), skipping right-now trains and jumping to 05:46.
+  - Updated `planJourneys` and `getDepartures` in `src/lib/planner.ts`: when `afterSeconds < 4 * 3600`, first query late-night departures (`depTime >= afterSeconds + 86400`), then fill subsequent slots with morning departures.
+  - Normalized relative countdown math in `DeparturesBoard.tsx`, `TripPlanner.tsx`, and `LiveTripHud.tsx` when `target >= 86400 && now < 4 * 3600`.
+- **Files Modified:** `src/lib/planner.ts`, `src/components/DeparturesBoard.tsx`, `src/components/TripPlanner.tsx`, `src/components/LiveTripHud.tsx`, `scripts/test-new-features.mts`, `project_memory.md`.
+### Session: 2026-10-06 (Mobile Keyboard Viewport Fix & FGC EMU Wagon Consist Visuals)
+- **Context:** On mobile, opening the keyboard shifted the app off-screen and hid suggestions. Additionally, user requested EMU car composition order (M1-Mi-Ri-M2) and graphic indicators for train direction and car roles.
+- **Key Changes:**
+  - Fixed mobile keyboard displacement: dynamically adapt root viewport height to `window.visualViewport.height` in `MobileLayout.tsx`, lock `window.scrollY` to 0, clamp `TripPlanner.tsx` autocomplete `maxHeight` to `min(200px, 35vh)`, and auto-scroll inputs cleanly into view.
+  - Corrected FGC 4-car EMU composition order to official formation `M1 - Mi - Ri - M2` in `constants.ts` and `trains.ts`.
+  - Upgraded `DetailPanel.tsx` wagon visualization: added direction header `◀ Sentit de la marxa (cap a Destinació)`, aerodynamic front cab with headlights, rear cab with red taillights, gangway couplings, and car role badges (Capçalera / Motor / Remolc / Cua).
+  - Added trilingual translations (`travelDirection`, `cabFront`, `cabRear`, `carMotor`, `carTrailer`) in `i18n.tsx`.
+- **Files Modified:** `MobileLayout.tsx`, `TripPlanner.tsx`, `DetailPanel.tsx`, `constants.ts`, `trains.ts`, `i18n.tsx`, `project_memory.md`.
+- **Verification:** `npm test` (30 checks passed), `test-new-features.mts` (passed), `npx tsc --noEmit` (0 errors), `npm run build` (Turbopack, 14/14 routes compiled).

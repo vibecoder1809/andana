@@ -42,4 +42,33 @@ assert.equal(getBaseStationCode('PC1', 'fgc'), 'PC', 'Base station code strips t
 assert.equal(getBaseStationCode('71801', 'renfe'), '71801', 'Renfe code preserves numeric id')
 console.log('✓ Favorite station matching tests passed')
 
+console.log('Testing school commute hours...')
+import { isSchoolCommuteHours } from '../src/lib/serviceTime.ts'
+// Monday 2026-10-05 08:15 (in morning commute 07:30 - 09:00)
+assert.equal(isSchoolCommuteHours(new Date('2026-10-05T08:15:00+02:00')), true, 'Mon 08:15 is school commute hours')
+// Monday 2026-10-05 14:15 (in afternoon commute 13:30 - 15:00)
+assert.equal(isSchoolCommuteHours(new Date('2026-10-05T14:15:00+02:00')), true, 'Mon 14:15 is school commute hours')
+// Monday 2026-10-05 03:00 (night rest)
+assert.equal(isSchoolCommuteHours(new Date('2026-10-05T03:00:00+02:00')), false, 'Mon 03:00 is not school hours')
+// Monday 2026-10-05 11:30 (midday)
+assert.equal(isSchoolCommuteHours(new Date('2026-10-05T11:30:00+02:00')), false, 'Mon 11:30 is not school hours')
+// Saturday 2026-10-10 08:15 (weekend)
+assert.equal(isSchoolCommuteHours(new Date('2026-10-10T08:15:00+02:00')), false, 'Sat 08:15 is not school hours (weekend)')
+// Sunday 2026-10-11 14:15 (weekend)
+assert.equal(isSchoolCommuteHours(new Date('2026-10-11T14:15:00+02:00')), false, 'Sun 14:15 is not school hours (weekend)')
+console.log('Testing post-midnight planner and departures...')
+import { planJourneys, getDepartures, formatClock } from '../src/lib/planner.ts'
+// Query post-midnight at 00:43 (2580 seconds). In GTFS, late trains have depTime >= 86400.
+const nightJourneys = await planJourneys('TR', 'VP', 2580, 4)
+assert.ok(nightJourneys.length >= 1, 'Should find at least 1 journey post-midnight')
+// The first journey should be the late-night train at 00:47 (89220s)
+assert.equal(formatClock(nightJourneys[0].depTime), '00:47', 'First departure should be 00:47')
+assert.equal(nightJourneys[0].isLastService, true, '00:47 departure should be flagged as isLastService')
+
+const nightDepartures = await getDepartures('TR', 2580, 4)
+assert.ok(nightDepartures.length >= 1, 'Should find departures post-midnight')
+assert.equal(formatClock(nightDepartures[0].depTime), '00:47', 'First departure from TR should be 00:47')
+assert.equal(nightDepartures[0].isLastService, true, '00:47 departure should be last service')
+console.log('✓ Post-midnight timetable planning passed')
+
 console.log('ALL NEW FEATURES VALIDATED SUCCESSFULLY!')

@@ -82,13 +82,13 @@ export async function fetchTrains(): Promise<Train[]> {
       if (lat == null || lng == null) return []
 
       // Feed-field order is the physical composition order of FGC units:
-      // M1 (cab motor) + M2 (its inseparable pair), then the intermediates.
+      // M1 (cab motor) — Mi (intermediate motor) — Ri (intermediate trailer) — M2 (cab motor).
       // (Keep in sync with WAGON_LABELS in constants.ts.)
       const wagons = [
         parsePct(r.ocupacio_m1_percent),
-        parsePct(r.ocupacio_m2_percent),
         parsePct(r.ocupacio_mi_percent),
         parsePct(r.ocupacio_ri_percent),
+        parsePct(r.ocupacio_m2_percent),
       ]
       const valid = wagons.filter((v): v is number => v !== null)
       const occupancyPercent =

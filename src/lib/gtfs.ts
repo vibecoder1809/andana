@@ -325,9 +325,18 @@ export async function fetchAlerts(): Promise<Alert[]> {
 
     const routes = Array.from(g.routes)
     let explanation: string | undefined
+    let isInformational = false
+    let isSchoolReservation = false
 
     const lower = g.header.toLowerCase()
-    if (lower.includes('autobús') || lower.includes('autobus')) {
+    if (lower.includes('reservat') && lower.includes('escolar')) {
+      isInformational = true
+      isSchoolReservation = true
+      explanation = 'Reserva escolar: en aquest comboi concret, cotxes reservats per a grups escolars. La resta del tren circula amb normalitat.'
+    } else if (lower.includes('cremallera') && (lower.includes('enllaç') || lower.includes('enllac'))) {
+      isInformational = true
+      explanation = 'Avís de connexió informativa amb el Cremallera de Montserrat a Monistrol.'
+    } else if (lower.includes('autobús') || lower.includes('autobus')) {
       if (routes.length === 0) {
         routes.push('R5', 'R6', 'S4', 'S8')
       }
@@ -381,6 +390,8 @@ export async function fetchAlerts(): Promise<Alert[]> {
       end: g.end,
       operator: 'fgc',
       url: 'https://www.fgc.cat/avisos/',
+      isInformational,
+      isSchoolReservation,
     })
   }
 

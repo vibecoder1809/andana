@@ -43,11 +43,10 @@ export function LiveTripHud({
 }: LiveTripHudProps) {
   const { lang, t } = useI18n()
   const [now, setNow] = useState(nowSeconds)
-  const [isWidgetMode, setIsWidgetMode] = useState(false)
   const [notifsEnabled, setNotifsEnabled] = useState(true)
   const notifiedMilestonesRef = useRef<Set<string>>(new Set())
 
-  // Persist active trip for standalone widget / cross-tab synchronization
+  // Persist active trip for cross-tab synchronization
   useEffect(() => {
     if (typeof window === 'undefined') return
     try {
@@ -89,17 +88,18 @@ export function LiveTripHud({
 
   // Determine current active leg & next stop
   const { activeLegIndex, nextStop, isBefore, isAfter } = useMemo(() => {
-    const isBefore = now < journey.depTime
-    const isAfter = now > journey.arrTime
+    const curNow = (journey.depTime >= 86400 && now < 4 * 3600) ? now + 86400 : now
+    const isBefore = curNow < journey.depTime
+    const isAfter = curNow > journey.arrTime
 
     let activeLegIndex = 0
     for (let i = 0; i < journey.legs.length; i++) {
       const leg = journey.legs[i]
-      if (now >= leg.depTime && now <= leg.arrTime) {
+      if (curNow >= leg.depTime && curNow <= leg.arrTime) {
         activeLegIndex = i
         break
       }
-      if (now < leg.depTime) {
+      if (curNow < leg.depTime) {
         activeLegIndex = i
         break
       }
@@ -110,7 +110,7 @@ export function LiveTripHud({
 
     if (curLeg && curLeg.stops) {
       for (const s of curLeg.stops) {
-        if (s.arrTime > now) {
+        if (s.arrTime > curNow) {
           nextStop = { name: s.name, time: s.arrTime }
           break
         }
@@ -134,7 +134,8 @@ export function LiveTripHud({
 
     // 1. Incoming train alert for the current leg
     if (!isWalk && curLeg.line) {
-      const timeToDep = curLeg.depTime - now
+      const curNow = (curLeg.depTime >= 86400 && now < 4 * 3600) ? now + 86400 : now
+      const timeToDep = curLeg.depTime - curNow
 
       // Check if real-time train is approaching or stationed at the departure station
       let isLiveTrainApproaching = false
@@ -216,103 +217,6 @@ export function LiveTripHud({
     onClose()
   }, [onClose])
 
-  // Mini-HUD Floating Widget Mode
-  if (isWidgetMode) {
-    return (
-      <div
-        onClick={() => setIsWidgetMode(false)}
-        title={t('expandFromWidget')}
-        style={{
-          position: 'fixed',
-          bottom: 24,
-          right: 20,
-          left: 'auto',
-          background: 'var(--bg2)',
-          border: '1.5px solid var(--accent)',
-          borderRadius: 24,
-          boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
-          zIndex: 920,
-          padding: '8px 14px',
-          backdropFilter: 'blur(10px)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          cursor: 'pointer',
-          animation: 'fade-in 0.2s ease-out',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--green)', animation: 'pulse 1.5s infinite' }} />
-          {isWalk ? (
-            <span style={{ background: '#f59e0b25', border: '1px dashed #f59e0b', color: '#f59e0b', fontWeight: 700, fontSize: 11, padding: '2px 6px', borderRadius: 4 }}>
-              🚶
-            </span>
-          ) : (
-            <span style={{ background: color, color: '#fff', fontWeight: 700, fontSize: 11, padding: '2px 6px', borderRadius: 4, fontFamily: 'var(--font-space-grotesk)' }}>
-              {curLeg?.line}
-            </span>
-          )}
-        </div>
-
-        <div style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>
-            {nextStop ? nextStop.name : curLeg?.toName}
-          </span>
-          <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 5 }}>
-            {fmtClock(nextStop ? nextStop.time : journey.arrTime)}
-          </span>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              setIsWidgetMode(false)
-            }}
-            title={t('expandFromWidget')}
-            style={{
-              background: 'var(--bg3)',
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              color: 'var(--text)',
-              width: 22,
-              height: 22,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              fontSize: 11,
-            }}
-          >
-            🗖
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              handleClose()
-            }}
-            title={lang === 'ca' ? 'Finalitzar ruta' : lang === 'es' ? 'Finalizar ruta' : 'End trip'}
-            style={{
-              background: 'var(--bg3)',
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              color: 'var(--muted)',
-              width: 22,
-              height: 22,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              fontSize: 11,
-            }}
-          >
-            ✕
-          </button>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div
       style={{
@@ -370,25 +274,6 @@ export function LiveTripHud({
             <span style={{ fontSize: 10, fontWeight: 600 }}>
               {notifsEnabled ? (lang === 'ca' ? 'Avisos actius' : lang === 'es' ? 'Avisos activos' : 'Alerts on') : (lang === 'ca' ? 'Avisos off' : lang === 'es' ? 'Avisos off' : 'Alerts off')}
             </span>
-          </button>
-
-          {/* Minimize into widget button */}
-          <button
-            onClick={() => setIsWidgetMode(true)}
-            title={t('minimizeToWidget')}
-            aria-label={t('minimizeToWidget')}
-            style={{
-              background: 'var(--bg3)',
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              color: 'var(--text)',
-              padding: '3px 7px',
-              fontSize: 11,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            🗕
           </button>
 
           {onCenter && (

@@ -79,14 +79,6 @@ export function MobileSettingsModal({
     setTimeout(() => setTestSent(false), 3000)
   }
 
-  const handleOpenWidget = () => {
-    const w = 400
-    const h = 560
-    const left = typeof window !== 'undefined' ? Math.max(0, window.screen.width - w - 40) : 100
-    const top = 60
-    window.open('/widget', 'AndanaWidget', `width=${w},height=${h},top=${top},left=${left},resizable=yes,scrollbars=yes`)
-  }
-
   useEffect(() => {
     if (typeof window === 'undefined') return
     const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true
@@ -477,48 +469,6 @@ export function MobileSettingsModal({
               >
                 <span>🧪</span>
                 <span>{testSent ? t('testNotificationSent') : t('testNotification')}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Widget Section */}
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8 }}>
-              📱 {t('widgetTitle')}
-            </div>
-            <div style={{
-              background: 'var(--bg3)',
-              borderRadius: 12,
-              padding: '12px 14px',
-              border: '1px solid var(--border)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-            }}>
-              <p style={{ margin: 0, fontSize: 12, color: 'var(--text)', opacity: 0.85, lineHeight: 1.4 }}>
-                {t('openWidgetWindowDesc')}
-              </p>
-              <button
-                onClick={handleOpenWidget}
-                style={{
-                  background: 'var(--accent)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 8,
-                  padding: '8px 14px',
-                  fontWeight: 700,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 6,
-                  marginTop: 4,
-                  fontFamily: 'inherit',
-                }}
-              >
-                <span>🗖</span>
-                <span>{t('openWidgetWindow')}</span>
               </button>
             </div>
           </div>

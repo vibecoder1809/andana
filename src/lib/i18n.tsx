@@ -85,6 +85,11 @@ const DICT = {
   onTime:          { ca: 'Puntual',    es: 'Puntual',     en: 'On time' },
   avgOccupancy:    { ca: 'Ocupació mitjana', es: 'Ocupación media', en: 'Avg. occupancy' },
   occupancyPerCar: { ca: 'Ocupació per cotxe', es: 'Ocupación por coche', en: 'Occupancy per car' },
+  travelDirection: { ca: 'Sentit de la marxa', es: 'Sentido de la marcha', en: 'Direction of travel' },
+  cabFront:        { ca: 'Capçalera', es: 'Cabecera', en: 'Front' },
+  cabRear:         { ca: 'Cua',       es: 'Cola',     en: 'Rear' },
+  carMotor:        { ca: 'Motor',     es: 'Motor',    en: 'Motor' },
+  carTrailer:      { ca: 'Remolc',    es: 'Remolque', en: 'Trailer' },
   carsShort:       { ca: 'Cotxes', es: 'Coches', en: 'Cars' },
   upcomingStops:   { ca: 'Pròximes parades', es: 'Próximas paradas', en: 'Upcoming stops' },
   origin2:         { ca: 'origen',     es: 'origen',      en: 'origin' },
@@ -194,6 +199,7 @@ const DICT = {
 
   // ── Alerts ──
   alert:           { ca: 'ALERTA',     es: 'ALERTA',      en: 'ALERT' },
+  infoNotice:      { ca: 'AVÍS',       es: 'AVISO',       en: 'NOTICE' },
   alertDetails:    { ca: "Detalls de l'avís", es: 'Detalles del aviso', en: 'Alert details' },
   whatIsThisAlert: { ca: 'Què vol dir aquest avís?', es: '¿Qué significa este aviso?', en: 'What does this notice mean?' },
   affectedStations:{ ca: 'Estacions afectades', es: 'Estaciones afectadas', en: 'Affected stations' },
@@ -206,6 +212,8 @@ const DICT = {
   clickForDetails: { ca: 'Prem per a més detalls i canals oficials', es: 'Pulsa para más detalles y canales oficiales', en: 'Tap for details and official channels' },
   busReplacementNotice:{ ca: 'Servei alternatiu per carretera: els trens enllacen amb autobús per obres o incidències en el tram indicat.', es: 'Servicio alternativo por carretera: los trenes enlazan con autobús por obras o incidencias en el tramo indicado.', en: 'Bus replacement service: trains connect with buses due to maintenance or incidents on the indicated corridor.' },
   carsRestrictionNotice:{ ca: 'Embarcament exclusiu als primers 3 cotxes degut a la longitud reduïda de les andanes a les parades indicades.', es: 'Embarque exclusivo en los primeros 3 coches por la longitud reducida de los andenes en las paradas indicadas.', en: 'Boarding restricted to the first 3 cars due to short platform lengths at the indicated stops.' },
+  schoolReservationNotice:{ ca: 'Reserva escolar: en aquest comboi concret, cotxes reservats per a grups escolars. La resta del tren circula amb normalitat.', es: 'Reserva escolar: en este convoy concreto, coches reservados para grupos escolares. El resto del tren circula con normalidad.', en: 'School reservation: on this specific train, cars reserved for school groups. The rest of the train runs normally.' },
+  cremalleraConnectionNotice:{ ca: 'Avís de connexió informativa amb el Cremallera de Montserrat a Monistrol.', es: 'Aviso de conexión informativa con el Cremallera de Montserrat en Monistrol.', en: 'Informational connection notice for the Montserrat Rack Railway in Monistrol.' },
   generalImpact:   { ca: 'Afectació general al corredor', es: 'Afectación general al corredor', en: 'General corridor impact' },
   activeSchedule:  { ca: 'Vigència de l’avís', es: 'Vigencia del aviso', en: 'Notice validity' },
   viewMoreInfo:    { ca: 'Més informació', es: 'Más información', en: 'More info' },
@@ -358,7 +366,7 @@ const DICT = {
     en: 'Telemetry unavailable',
   },
 
-  // ── Notifications & Live HUD & Widgets ──
+  // ── Notifications & Live HUD ──
   notifications: {
     ca: 'Notificacions',
     es: 'Notificaciones',
@@ -473,46 +481,6 @@ const DICT = {
     ca: 'Activar avisos de tren entrant',
     es: 'Activar avisos de tren entrante',
     en: 'Enable incoming train alerts',
-  },
-  widgetTitle: {
-    ca: 'Giny d’Andana',
-    es: 'Widget de Andana',
-    en: 'Andana Widget',
-  },
-  openWidgetWindow: {
-    ca: 'Obrir giny flotant',
-    es: 'Abrir widget flotante',
-    en: 'Open floating widget',
-  },
-  openWidgetWindowDesc: {
-    ca: 'Finestra compacta sempre visible amb sortides i avisos de les teves estacions preferides.',
-    es: 'Ventana compacta siempre visible con salidas y avisos de tus estaciones favoritas.',
-    en: 'Compact always-visible window with departures and alerts for your favorite stations.',
-  },
-  widgetNoFavorites: {
-    ca: 'Afegeix estacions a preferides (amb l’estrella ⭐) per veure-les aquí.',
-    es: 'Añade estaciones a favoritas (con la estrella ⭐) para verlas aquí.',
-    en: 'Add stations to favorites (with the ⭐ star) to see them here.',
-  },
-  widgetActiveTrip: {
-    ca: 'Ruta en curs (Live HUD)',
-    es: 'Ruta en curso (Live HUD)',
-    en: 'Active Trip (Live HUD)',
-  },
-  minimizeToWidget: {
-    ca: 'Minimitzar a giny',
-    es: 'Minimizar a widget',
-    en: 'Minimize to widget',
-  },
-  expandFromWidget: {
-    ca: 'Maximitzar HUD',
-    es: 'Maximizar HUD',
-    en: 'Maximize HUD',
-  },
-  openFullApp: {
-    ca: 'Obrir Andana complet',
-    es: 'Abrir Andana completo',
-    en: 'Open full Andana',
   },
 } as const
 

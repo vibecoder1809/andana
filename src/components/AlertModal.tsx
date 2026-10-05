@@ -28,11 +28,13 @@ export function AlertModal({ alert, onClose, lineColors = {} }: AlertModalProps)
   if (!alert) return null
 
   const isRenfe = alert.operator === 'renfe'
+  const isSchool = alert.isSchoolReservation || (alert.header.toLowerCase().includes('reservat') && alert.header.toLowerCase().includes('escolar'))
+  const isCremallera = alert.header.toLowerCase().includes('cremallera') && (alert.header.toLowerCase().includes('enllaç') || alert.header.toLowerCase().includes('enllac'))
   const isBus = alert.header.toLowerCase().includes('autobús') || alert.header.toLowerCase().includes('autobus')
-  const isCars = alert.header.toLowerCase().includes('primer') && alert.header.toLowerCase().includes('cotxe')
+  const isCars = !isSchool && alert.header.toLowerCase().includes('primer') && alert.header.toLowerCase().includes('cotxe')
 
   // Resolve explanation only when it provides genuine additional context
-  const explanation = alert.explanation || (isBus ? t('busReplacementNotice') : isCars ? t('carsRestrictionNotice') : undefined)
+  const explanation = alert.explanation || (isSchool ? t('schoolReservationNotice') : isCremallera ? t('cremalleraConnectionNotice') : isBus ? t('busReplacementNotice') : isCars ? t('carsRestrictionNotice') : undefined)
   const alertTime = formatAlertDateTime(alert.start, lang, t)
   const validUntilTime = formatAlertDateTime(alert.end, lang, t)
 
@@ -71,15 +73,16 @@ export function AlertModal({ alert, onClose, lineColors = {} }: AlertModalProps)
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{
-              background: 'var(--yellow)',
-              color: '#000',
+              background: alert.isInformational ? 'rgba(59, 130, 246, 0.2)' : 'var(--yellow)',
+              color: alert.isInformational ? 'var(--accent)' : '#000',
+              border: alert.isInformational ? '1px solid rgba(59, 130, 246, 0.4)' : 'none',
               padding: '2px 8px',
               borderRadius: 6,
               fontSize: 11,
               fontWeight: 800,
               letterSpacing: '0.5px',
             }}>
-              ⚠ {t('alert')}
+              {alert.isInformational ? `ℹ ${t('infoNotice')}` : `⚠ ${t('alert')}`}
             </span>
             <span style={{
               fontSize: 11,

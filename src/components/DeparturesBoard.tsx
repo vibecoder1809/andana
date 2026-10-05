@@ -17,6 +17,15 @@ function fmtClock(sec: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
+function computeRemaining(depEff: number, nowSec: number): number {
+  // If departure is past midnight (>= 86400) and current time is post-midnight (< 4 AM),
+  // compare in the same service-day timeline.
+  if (depEff >= 86400 && nowSec < 4 * 3600) {
+    return depEff - (nowSec + 86400)
+  }
+  return depEff - nowSec
+}
+
 const MAX_SHOWN  = 6
 const REFRESH_MS = 60_000   // re-pull schedule + live delays as time passes
 const IMMINENT_S = 30       // within this many seconds → show "now"
@@ -73,7 +82,7 @@ export function DeparturesBoard({ stationCode, lineColors, weatherAlertActive = 
   const upcoming = (departures ?? [])
     .filter(d => lineFilter === 'ALL' || d.line === lineFilter)
     .map(d => ({ ...d, eff: d.depTime + (d.delayMin > 0 ? d.delayMin * 60 : 0) }))
-    .filter(d => d.eff - now >= -IMMINENT_S)
+    .filter(d => computeRemaining(d.eff, now) >= -IMMINENT_S)
     .slice(0, MAX_SHOWN)
 
   return (
@@ -195,7 +204,7 @@ export function DeparturesBoard({ stationCode, lineColors, weatherAlertActive = 
           )}
           {upcoming.map((d, i) => {
             const color     = lineColors[d.line] || LINE_COLORS[d.line] || '#7a82a0'
-            const remaining = d.eff - now
+            const remaining = computeRemaining(d.eff, now)
             const imminent  = remaining <= IMMINENT_S
             const isInactive = d.isSuspended || d.isCancelled
             const matchingLive = passingTrains?.find(p => p.train.line === d.line)
@@ -206,144 +215,170 @@ export function DeparturesBoard({ stationCode, lineColors, weatherAlertActive = 
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
+                  gap: 10,
                   background: 'var(--bg3)',
                   borderRadius: 8,
-                  padding: '7px 10px',
+                  padding: '8px 10px',
                   opacity: isInactive ? 0.75 : 1,
+                  boxSizing: 'border-box',
+                  width: '100%',
+                  overflow: 'hidden',
                 }}
               >
+                {/* Line badge */}
                 <span style={{
                   background: color,
                   color: '#fff',
                   fontWeight: 700,
                   fontSize: 11,
-                  padding: '2px 7px',
+                  padding: '3px 7px',
                   borderRadius: 6,
                   fontFamily: 'var(--font-space-grotesk), sans-serif',
                   flexShrink: 0,
-                  minWidth: 30,
+                  minWidth: 32,
                   textAlign: 'center',
                 }}>
                   {d.line}
                 </span>
-                <span style={{
-                  flex: 1,
-                  minWidth: 0,
-                  fontSize: 12,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  textDecoration: isInactive ? 'line-through' : 'none',
-                }}>
-                  {d.headsign}
-                </span>
-                {matchingLive && !isInactive && (
-                  matchingLive.here ? (
-                    <span
-                      style={{
-                        fontSize: 9,
-                        fontWeight: 700,
-                        padding: '1px 5px',
-                        borderRadius: 4,
-                        background: 'rgba(34, 197, 94, 0.2)',
-                        color: 'var(--green)',
-                        border: '1px solid rgba(34, 197, 94, 0.35)',
-                        flexShrink: 0,
-                      }}
-                      title={t('liveTrainAtPlatform')}
-                    >
-                      🟢 {t('liveTrainAtPlatform')}
-                    </span>
-                  ) : matchingLive.dist <= 3 ? (
-                    <span
-                      style={{
-                        fontSize: 9,
-                        fontWeight: 700,
-                        padding: '1px 5px',
-                        borderRadius: 4,
-                        background: 'rgba(34, 197, 94, 0.15)',
-                        color: 'var(--green)',
-                        border: '1px solid rgba(34, 197, 94, 0.25)',
-                        flexShrink: 0,
-                      }}
-                      title={t('liveTrainApproaching', matchingLive.dist)}
-                    >
-                      🟢 {t('liveTrainApproaching', matchingLive.dist)}
-                    </span>
-                  ) : null
-                )}
-                {d.isLastService && !isInactive && (
-                  <span
-                    style={{
-                      fontSize: 9,
-                      fontWeight: 700,
-                      padding: '1px 5px',
-                      borderRadius: 4,
-                      background: 'rgba(245, 158, 11, 0.2)',
-                      color: 'var(--yellow)',
-                      border: '1px solid rgba(245, 158, 11, 0.35)',
-                      flexShrink: 0,
-                    }}
-                    title={t('lastService')}
-                  >
-                    🌙 {t('lastServiceShort')}
-                  </span>
-                )}
-                {d.accessible && (
-                  <span style={{ fontSize: 11, color: 'var(--accent)', flexShrink: 0 }} title={t('accessibleTrain')}>♿</span>
-                )}
-                {d.track && !isInactive && (
-                  <span style={{
-                    fontSize: 10,
+
+                {/* Main Middle Info: Headsign on top, Badges underneath */}
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <div style={{
+                    fontSize: 12.5,
                     fontWeight: 600,
-                    color: 'var(--muted)',
-                    background: 'var(--bg2)',
-                    padding: '1px 5px',
-                    borderRadius: 4,
-                    border: '1px solid var(--border2)',
-                    flexShrink: 0,
-                    fontFamily: 'var(--font-space-grotesk), monospace',
+                    color: 'var(--text)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    textDecoration: isInactive ? 'line-through' : 'none',
                   }}>
-                    {t('trackLabel')} {d.track}
-                  </span>
-                )}
-                {d.delayMin > 0 && !isInactive && (
-                  <span style={{ color: 'var(--red)', fontWeight: 600, fontSize: 10, flexShrink: 0 }}>+{d.delayMin}m</span>
-                )}
-                {isInactive ? (
-                  <span style={{
-                    flexShrink: 0,
-                    fontFamily: 'var(--font-space-grotesk), monospace',
-                    fontSize: 10,
-                    fontWeight: 800,
-                    letterSpacing: '0.4px',
-                    color: 'var(--red)',
-                    background: 'rgba(239, 68, 68, 0.15)',
-                    padding: '2px 6px',
-                    borderRadius: 4,
-                    textTransform: 'uppercase',
-                  }}>
-                    {d.isCancelled ? t('cancelled') : t('suspended')}
-                  </span>
-                ) : (
-                  <span style={{
-                    flexShrink: 0,
-                    fontFamily: 'var(--font-space-grotesk), monospace',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    fontVariantNumeric: 'tabular-nums',
-                    color: imminent ? 'var(--accent)' : 'var(--text)',
-                    minWidth: 46,
-                    textAlign: 'right',
-                  }}>
-                    {imminent
-                      ? t('etaNow')
-                      : remaining < 3600
-                        ? t('minShort', Math.ceil(remaining / 60))
-                        : fmtClock(d.depTime)}
-                  </span>
-                )}
+                    {d.headsign}
+                  </div>
+
+                  {/* Badges sub-row: track, live train status, last service, delay, accessible */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                    {d.track && !isInactive && (
+                      <span style={{
+                        fontSize: 9.5,
+                        fontWeight: 600,
+                        color: 'var(--muted)',
+                        background: 'var(--bg2)',
+                        padding: '1px 4px',
+                        borderRadius: 3,
+                        border: '1px solid var(--border2)',
+                        fontFamily: 'var(--font-space-grotesk), monospace',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {t('trackLabel')} {d.track}
+                      </span>
+                    )}
+
+                    {matchingLive && !isInactive && (
+                      matchingLive.here ? (
+                        <span
+                          style={{
+                            fontSize: 9,
+                            fontWeight: 700,
+                            padding: '1px 5px',
+                            borderRadius: 4,
+                            background: 'rgba(34, 197, 94, 0.2)',
+                            color: 'var(--green)',
+                            border: '1px solid rgba(34, 197, 94, 0.35)',
+                            whiteSpace: 'nowrap',
+                          }}
+                          title={t('liveTrainAtPlatform')}
+                        >
+                          🟢 {t('liveTrainAtPlatform')}
+                        </span>
+                      ) : matchingLive.dist <= 3 ? (
+                        <span
+                          style={{
+                            fontSize: 9,
+                            fontWeight: 700,
+                            padding: '1px 5px',
+                            borderRadius: 4,
+                            background: 'rgba(34, 197, 94, 0.15)',
+                            color: 'var(--green)',
+                            border: '1px solid rgba(34, 197, 94, 0.25)',
+                            whiteSpace: 'nowrap',
+                          }}
+                          title={t('liveTrainApproaching', matchingLive.dist)}
+                        >
+                          🟢 {t('liveTrainApproaching', matchingLive.dist)}
+                        </span>
+                      ) : null
+                    )}
+
+                    {d.isLastService && !isInactive && (
+                      <span
+                        style={{
+                          fontSize: 9,
+                          fontWeight: 700,
+                          padding: '1px 5px',
+                          borderRadius: 4,
+                          background: 'rgba(245, 158, 11, 0.2)',
+                          color: 'var(--yellow)',
+                          border: '1px solid rgba(245, 158, 11, 0.35)',
+                          whiteSpace: 'nowrap',
+                        }}
+                        title={t('lastService')}
+                      >
+                        🌙 {t('lastServiceShort')}
+                      </span>
+                    )}
+
+                    {d.delayMin > 0 && !isInactive && (
+                      <span style={{ color: 'var(--red)', fontWeight: 600, fontSize: 9.5, whiteSpace: 'nowrap' }}>
+                        +{d.delayMin}m
+                      </span>
+                    )}
+
+                    {d.accessible && (
+                      <span style={{ fontSize: 10, color: 'var(--accent)' }} title={t('accessibleTrain')}>♿</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right: Countdown & Scheduled Time */}
+                <div style={{ flexShrink: 0, textAlign: 'right', minWidth: 46 }}>
+                  {isInactive ? (
+                    <span style={{
+                      fontFamily: 'var(--font-space-grotesk), monospace',
+                      fontSize: 10,
+                      fontWeight: 800,
+                      letterSpacing: '0.4px',
+                      color: 'var(--red)',
+                      background: 'rgba(239, 68, 68, 0.15)',
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      textTransform: 'uppercase',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {d.isCancelled ? t('cancelled') : t('suspended')}
+                    </span>
+                  ) : (
+                    <>
+                      <div style={{
+                        fontFamily: 'var(--font-space-grotesk), monospace',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        fontVariantNumeric: 'tabular-nums',
+                        color: imminent ? 'var(--accent)' : 'var(--text)',
+                        lineHeight: 1.2,
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {imminent
+                          ? t('etaNow')
+                          : remaining < 3600
+                            ? t('minShort', Math.ceil(remaining / 60))
+                            : fmtClock(d.depTime)}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1, fontFamily: 'var(--font-space-grotesk), monospace' }}>
+                        {fmtClock(d.depTime)}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             )
           })}

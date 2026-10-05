@@ -18,14 +18,5 @@ export default function manifest(): MetadataRoute.Manifest {
       { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
       { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
-    shortcuts: [
-      {
-        name: 'Giny de sortides',
-        short_name: 'Giny',
-        description: 'Properes sortides i estat del servei a les teves estacions',
-        url: '/widget',
-        icons: [{ src: '/icon-192.png', sizes: '192x192' }],
-      },
-    ],
   }
 }
