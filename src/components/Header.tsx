@@ -230,7 +230,6 @@ export function Header({
 
   return (
     <header style={{
-      gridColumn: '1 / -1',
       background: 'var(--bg2)',
       borderBottom: '1px solid var(--border)',
       display: 'flex',
@@ -239,6 +238,7 @@ export function Header({
       gap: 16,
       zIndex: 10,
       flexShrink: 0,
+      height: 56,
     }}>
       {/* Logo */}
       <div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>

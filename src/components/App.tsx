@@ -61,7 +61,7 @@ function AlertBanner({ alerts, onSelectAlert, networkMode }: { alerts: Alert[]; 
   return (
     <div
       style={{
-        gridColumn: '1 / -1',
+        flexShrink: 0,
         background: 'rgba(234,179,8,0.1)',
         borderBottom: '1px solid rgba(234,179,8,0.2)',
         color: 'var(--yellow)',
@@ -569,9 +569,8 @@ function AppInner() {
     <div
       data-theme={theme}
       style={{
-        display: 'grid',
-        gridTemplateRows: '56px auto 1fr',
-        gridTemplateColumns: '360px 1fr',
+        display: 'flex',
+        flexDirection: 'column',
         height: '100vh',
         overflow: 'hidden',
         background: 'var(--bg)',
@@ -595,7 +594,7 @@ function AppInner() {
       />
 
       {apiError && (
-        <div style={{ gridColumn: '1 / -1', background: 'rgba(239,68,68,0.1)', borderBottom: '1px solid rgba(239,68,68,0.2)', color: 'var(--red)', padding: '6px 20px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8, fontWeight: 500 }}>
+        <div style={{ flexShrink: 0, background: 'rgba(239,68,68,0.1)', borderBottom: '1px solid rgba(239,68,68,0.2)', color: 'var(--red)', padding: '6px 20px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8, fontWeight: 500 }}>
           <span style={{ background: 'var(--red)', color: '#fff', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700, flexShrink: 0 }}>ERROR</span>
           {apiError}
         </div>
@@ -603,7 +602,7 @@ function AppInner() {
 
       {!apiError && activeOutageMessage && (
         <div style={{
-          gridColumn: '1 / -1',
+          flexShrink: 0,
           background: 'rgba(245,158,11,0.12)',
           borderBottom: '1px solid rgba(245,158,11,0.3)',
           color: 'var(--yellow)',
@@ -633,46 +632,56 @@ function AppInner() {
         <AlertBanner alerts={visibleAlerts} onSelectAlert={setSelectedAlert} networkMode={networkMode} />
       )}
 
-      <Sidebar
-        trains={filteredTrains}
-        stops={visibleStops}
-        lines={lines}
-        lineColors={lineColors}
-        activeLines={activeLines}
-        selectedTrain={selectedTrain}
-        selectedStop={selectedStop}
-        onToggleLine={toggleLine}
-        onSelectTrain={handleSelectTrain}
-        onSelectStop={handleSelectStop}
-        selectedJourney={selectedJourney}
-        onSelectJourney={setSelectedJourney}
-        onStartLiveTrip={(j) => {
-          setActiveTrip(j)
-          setSelectedJourney(j)
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: 'grid',
+          gridTemplateColumns: '360px 1fr',
+          overflow: 'hidden',
         }}
-        outages={outages}
-        networkMode={networkMode}
-      />
-
-      <div style={{ position: 'relative', overflow: 'hidden' }}>
-        <MapView
+      >
+        <Sidebar
           trains={filteredTrains}
           stops={visibleStops}
-          routes={visibleRoutes}
+          lines={lines}
           lineColors={lineColors}
+          activeLines={activeLines}
           selectedTrain={selectedTrain}
           selectedStop={selectedStop}
+          onToggleLine={toggleLine}
           onSelectTrain={handleSelectTrain}
           onSelectStop={handleSelectStop}
-          journeyPath={journeyPath}
-          theme={theme}
-          focusedLine={focusedLine}
-          onClearFocusedLine={() => setFocusedLine(null)}
+          selectedJourney={selectedJourney}
+          onSelectJourney={setSelectedJourney}
+          onStartLiveTrip={(j) => {
+            setActiveTrip(j)
+            setSelectedJourney(j)
+          }}
+          outages={outages}
+          networkMode={networkMode}
         />
-        {/* Nearest-station shortcut → opens its live departures. */}
-        <NearMeButton stops={visibleStops} onPick={handleSelectStop} style={{ position: 'absolute', left: 16, bottom: 16, zIndex: 3 }} />
-        <DetailPanel train={selectedTrain} lineColors={lineColors} onClose={handleCloseTrain} />
-        <StopPanel stop={selectedStop} onClose={handleCloseStop} lineColors={lineColors} trains={filteredTrains} alerts={visibleAlerts} onSelectTrain={handleSelectTrain} />
+
+        <div style={{ position: 'relative', overflow: 'hidden', height: '100%' }}>
+          <MapView
+            trains={filteredTrains}
+            stops={visibleStops}
+            routes={visibleRoutes}
+            lineColors={lineColors}
+            selectedTrain={selectedTrain}
+            selectedStop={selectedStop}
+            onSelectTrain={handleSelectTrain}
+            onSelectStop={handleSelectStop}
+            journeyPath={journeyPath}
+            theme={theme}
+            focusedLine={focusedLine}
+            onClearFocusedLine={() => setFocusedLine(null)}
+          />
+          {/* Nearest-station shortcut → opens its live departures. */}
+          <NearMeButton stops={visibleStops} onPick={handleSelectStop} style={{ position: 'absolute', left: 16, bottom: 16, zIndex: 3 }} />
+          <DetailPanel train={selectedTrain} lineColors={lineColors} onClose={handleCloseTrain} />
+          <StopPanel stop={selectedStop} onClose={handleCloseStop} lineColors={lineColors} trains={filteredTrains} alerts={visibleAlerts} onSelectTrain={handleSelectTrain} />
+        </div>
       </div>
 
       {activeTrip && (

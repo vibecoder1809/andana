@@ -802,7 +802,13 @@ export function MobileLayout({
           theme={theme}
           fitPadding={fitPadding}
           focusedLine={focusedLine}
-          filterPillTop={alerts.length > 0 ? 'calc(env(safe-area-inset-top, 0px) + 104px)' : 'calc(env(safe-area-inset-top, 0px) + 60px)'}
+          filterPillTop={
+            activeOutageMessage && alerts.length > 0
+              ? 'calc(env(safe-area-inset-top, 0px) + 168px)'
+              : (activeOutageMessage || alerts.length > 0)
+                ? 'calc(env(safe-area-inset-top, 0px) + 112px)'
+                : 'calc(env(safe-area-inset-top, 0px) + 60px)'
+          }
           onClearFocusedLine={() => setFocusedLine(null)}
         />
 

@@ -147,3 +147,14 @@ Centralized in [`src/lib/externalLinks.ts`](src/lib/externalLinks.ts). Update be
   - Auto-switched `networkMode` to `'both'` when selecting any line from the modal belonging to an inactive operator.
 - **Files Modified:** `api/trains/route.ts`, `types/index.ts`, `i18n.tsx`, `renfe.ts`, `NetworkStatusModal.tsx`, `App.tsx`, `MobileLayout.tsx`, `Sidebar.tsx`, `project_memory.md`.
 - **Verification:** `npm test` (30 checks passed), `test-new-features.mts` passed, `npx tsc --noEmit` (0 TS errors), `npm run build` (14/14 routes compiled).
+
+### Session: 2026-10-05 (Fix Alert Banner Stretching & Desktop Viewport Layout)
+- **Context:** When the Rodalies telemetry "AVÍS" banner was displayed alongside service alerts, the collapsed alert banner stretched to fill half the screen and pushed the sidebar/map out of the viewport.
+- **Key Changes:**
+  - Diagnosed CSS Grid track collision: `App.tsx` had `gridTemplateRows: '56px auto 1fr'`. Rendering both the AVÍS banner and AlertBanner placed the AlertBanner into the `1fr` row, stretching it vertically over the viewport.
+  - Refactored `App.tsx` root layout to a vertical flex container (`display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden'`) where banners naturally take their compact height with `flexShrink: 0`, and the nested main container (`Sidebar` + `MapView`) takes `flex: 1, minHeight: 0`.
+  - Set explicit `height: 56, flexShrink: 0` on `Header.tsx`.
+  - Dynamically adjusted `filterPillTop` in `MobileLayout.tsx` to prevent line filter pill collisions when both the AVÍS card and alert banner are active.
+- **Files Modified:** `src/components/App.tsx`, `src/components/Header.tsx`, `src/components/MobileLayout.tsx`, `project_memory.md`.
+- **Verification:** `npx tsc --noEmit` (0 TS errors), `npm test` (30 checks passed), `test-new-features.mts` passed, `npm run build` (14/14 routes compiled).
+
