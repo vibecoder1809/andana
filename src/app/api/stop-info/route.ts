@@ -7,7 +7,7 @@ export async function GET(req: Request) {
   if (!stopId || stopId.length > 20 || !/^[A-Za-z0-9_-]+$/.test(stopId))
     return Response.json({ error: 'invalid_stop_id' }, { status: 400 })
 
-  const baseCode = stopId.replace(/\d+$/, '')
+  const baseCode = stopId.replace(/\d+$/, '').replace(/bus\d*$/i, '')
 
   const [airMap, weatherMap] = await Promise.all([
     fetchAirQuality().catch(() => new Map<string, StopDetail['air']>()),

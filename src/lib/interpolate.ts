@@ -8,6 +8,7 @@ import {
   projectOntoPolyline,
 } from './geometry'
 import { normalizeSearchText } from './searchUtils'
+import { resolveStop } from './trains'
 
 // --- Per-train interpolation state ---
 
@@ -48,8 +49,6 @@ const STOP_SNAP_M = 8
 
 // Only teleport when the real position is absurdly far from our animation (e.g. trip re-routed)
 const SNAP_THRESHOLD_M = 2000
-// Gentle drift correction coefficient (exponential glide for remaining error)
-const CORRECTION_PER_S = 0.25
 
 // Stable pseudo-random variation based on train ID and stop name (±3 seconds)
 function hashString(str: string): number {
@@ -65,12 +64,13 @@ function hashString(str: string): number {
 const stopDistCache = new Map<string, number | null>()
 
 function findStopDist(
-  stopName: string,
+  rawStopName: string,
   stops: Stop[],
   pl: Polyline,
   lineKey: string,
 ): number | null {
-  if (!stopName) return null
+  if (!rawStopName) return null
+  const stopName = resolveStop(rawStopName)
   const cacheKey = `${lineKey}::${stopName}`
   if (stopDistCache.has(cacheKey)) return stopDistCache.get(cacheKey)!
 
@@ -81,13 +81,21 @@ function findStopDist(
   if (!stop) {
     stop = stops.find(s => {
       const c = normalizeSearchText(s.name)
+      if (q.length < 3) return c === q
       return c.includes(q) || q.includes(c)
     })
   }
 
-  const dist = stop && stop.lat != null && stop.lng != null
-    ? projectOntoPolyline([stop.lng, stop.lat], pl)
-    : null
+  let dist: number | null = null
+  if (stop && stop.lat != null && stop.lng != null) {
+    const projectedDist = projectOntoPolyline([stop.lng, stop.lat], pl)
+    const [projLng, projLat] = positionAtDistance(pl, projectedDist)
+    // Physical plausibility: verify projected point is within 1200m of the actual station
+    // to avoid false-matching homonym stations on other distant corridors
+    if (haversine([stop.lng, stop.lat], [projLng, projLat]) < 1200) {
+      dist = projectedDist
+    }
+  }
 
   stopDistCache.set(cacheKey, dist)
   return dist
@@ -104,10 +112,16 @@ function resolveUpcomingStops(
     names.push(train.destination)
   }
   const targets: StopTarget[] = []
+  const seen = new Set<string>()
+
   for (const name of names) {
-    const dist = findStopDist(name, stops, pl, train.line)
+    const clean = resolveStop(name)
+    if (seen.has(clean)) continue
+    seen.add(clean)
+
+    const dist = findStopDist(clean, stops, pl, train.line)
     if (dist != null) {
-      targets.push({ name, dist })
+      targets.push({ name: clean, dist })
     }
   }
   return targets
@@ -119,18 +133,33 @@ function resolveDirection(
   train: Train,
   stops: Stop[],
   pl: Polyline,
+  prevDirection?: 1 | -1,
 ): 1 | -1 {
+  const targetDists: number[] = []
   for (const stopName of train.upcomingStops) {
     const d = findStopDist(stopName, stops, pl, train.line)
-    if (d == null) continue
-    const diff = d - currentDistAlong
-    if (Math.abs(diff) > 80) return diff > 0 ? 1 : -1
+    if (d != null) targetDists.push(d)
   }
   const destD = findStopDist(train.destination, stops, pl, train.line)
-  if (destD != null) {
-    const diff = destD - currentDistAlong
-    if (Math.abs(diff) > 80) return diff > 0 ? 1 : -1
+  if (destD != null && !targetDists.includes(destD)) {
+    targetDists.push(destD)
   }
+
+  // 1. If we have at least 2 distinct upcoming stops along the track,
+  // their progression gives an unambiguous polyline vector independent of train noise
+  if (targetDists.length >= 2) {
+    const diff = targetDists[targetDists.length - 1] - targetDists[0]
+    if (Math.abs(diff) > 100) return diff > 0 ? 1 : -1
+  }
+
+  // 2. Otherwise check distance relative to current position
+  for (const d of targetDists) {
+    const diff = d - currentDistAlong
+    if (Math.abs(diff) > 50) return diff > 0 ? 1 : -1
+  }
+
+  // 3. Fallback: preserve previous established direction to avoid jitter at termini
+  if (prevDirection) return prevDirection
   return 1
 }
 
@@ -145,7 +174,8 @@ function resolveBaseSpeed(
   const secsLeft = train.nextStopEta - Date.now() / 1000
   if (secsLeft <= 1) return SPEED_MS
 
-  const nextStopD = findStopDist(train.upcomingStops[0], stops, pl, train.line)
+  const nextStopName = resolveStop(train.upcomingStops[0])
+  const nextStopD = findStopDist(nextStopName, stops, pl, train.line)
   if (nextStopD == null) return SPEED_MS
   const gap = Math.abs(nextStopD - currentDistAlong)
   if (gap < STOP_SNAP_M) return SPEED_MS
@@ -256,7 +286,7 @@ export function useInterpolatedTrains(
           }
         }
 
-        existing.direction = resolveDirection(existing.distAlong, train, stops, pl)
+        existing.direction = resolveDirection(existing.distAlong, train, stops, pl, existing.direction)
         existing.baseSpeed = resolveBaseSpeed(existing.distAlong, train, stops, pl)
         existing.stops = upcomingTargets
 
@@ -267,8 +297,6 @@ export function useInterpolatedTrains(
         }
 
         // Upstream telemetry stationing sync:
-        // If reported stationed, hold at platform. If intermediate station and feed is slow,
-        // intermediate dwell allows train to depart after realistic boarding time.
         if (isStationed) {
           if (isTerminus) {
             existing.dwellUntil = Number.POSITIVE_INFINITY
@@ -282,10 +310,17 @@ export function useInterpolatedTrains(
           }
           // If already dwelling at same intermediate station, let countdown continue smoothly
         } else {
-          // Train is moving in the feed: immediately release station hold
-          existing.stationedAt = null
-          if (existing.dwellUntil === Number.POSITIVE_INFINITY || existing.dwellUntil > now) {
+          // If train was dwelling, only release if it was held at terminus OR genuine fresh telemetry
+          // confirms it has departed the platform area (> 80m away)
+          if (existing.dwellUntil === Number.POSITIVE_INFINITY) {
             existing.dwellUntil = 0
+            existing.stationedAt = null
+          } else if (isNewTelemetry && existing.stationedAt) {
+            const distFromStation = haversine(realPt, [existing.lng, existing.lat])
+            if (distFromStation > 80) {
+              existing.dwellUntil = 0
+              existing.stationedAt = null
+            }
           }
         }
       }
@@ -323,8 +358,18 @@ export function useInterpolatedTrains(
           continue
         }
 
-        // 2. Identify the immediate next upcoming station
-        const nextStop = state.stops.find(s => !state.servicedStops.has(s.name))
+        // 2. Identify the immediate next upcoming station along travel direction
+        const nextStop = state.stops.find(s => {
+          if (state.servicedStops.has(s.name)) return false
+          const d = (s.dist - state.distAlong) * state.direction
+          // If station is already behind the train (> 35m past platform), mark serviced and skip
+          if (d < -35) {
+            state.servicedStops.add(s.name)
+            return false
+          }
+          return true
+        })
+
         const distToStop = nextStop
           ? (nextStop.dist - state.distAlong) * state.direction
           : Number.POSITIVE_INFINITY
@@ -360,11 +405,11 @@ export function useInterpolatedTrains(
         }
 
         // 5. Soft Drift Rectification: gently adjust speed to close gaps with real API telemetry
-        // Never jump! Just run ~15-20% faster or slower along the rails until synchronized.
+        // Never jump! Just run up to ±25% faster or slower along the rails until synchronized.
         const error = (state.targetDist - state.distAlong) * state.direction
         if (Math.abs(error) > 15 && Math.abs(error) < SNAP_THRESHOLD_M) {
           const speedMod = Math.max(-0.25, Math.min(0.25, error / 200)) * state.baseSpeed
-          desiredSpeed = Math.max(3, desiredSpeed + speedMod)
+          desiredSpeed = Math.max(2.5, desiredSpeed + speedMod)
         }
 
         // 6. Acceleration / Deceleration smoothing
@@ -374,11 +419,9 @@ export function useInterpolatedTrains(
           state.currentSpeed = Math.max(desiredSpeed, state.currentSpeed - DECEL_MS2 * dt)
         }
 
-        // 7. Advance position along polyline
-        const move = state.currentSpeed * dt * state.direction
-        const targetIsAhead = error > 0
-        const correction = targetIsAhead ? (state.targetDist - state.distAlong) * Math.min(1, CORRECTION_PER_S * dt) : 0
-        const next = state.distAlong + move + correction
+        // 7. Advance position along polyline (strictly forward in direction of travel)
+        const forwardMove = Math.max(0, state.currentSpeed * dt) * state.direction
+        const next = state.distAlong + forwardMove
 
         // Clamp to polyline limits
         const clamped = Math.max(0, Math.min(next, state.polyline.totalLen))

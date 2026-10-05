@@ -26,10 +26,13 @@ function parsePct(v: string | null): number | null {
   return isNaN(n) ? null : n
 }
 
-function resolveStop(code: string | null | undefined): string {
+export function resolveStop(code: string | null | undefined): string {
   if (!code) return ''
-  const base = code.replace(/\d+$/, '')
-  return STATION_CODES[code] ?? STATION_CODES[base] ?? code
+  const trimmed = code.trim()
+  if (STATION_CODES[trimmed]) return STATION_CODES[trimmed]
+  // Strip trailing platform numbers (e.g. PC2 -> PC) and bus suffixes (e.g. GRbus -> GR, GRbus1 -> GR)
+  const base = trimmed.replace(/\d+$/, '').replace(/bus\d*$/i, '')
+  return STATION_CODES[base] ?? trimmed.replace(/bus\d*$/i, '')
 }
 
 function parseUpcomingStops(raw: string | null): string[] {

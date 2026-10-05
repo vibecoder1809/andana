@@ -84,12 +84,13 @@ export function formatClock(sec: number): string {
 }
 
 function parentOf(row: RawTimetableRow): string {
-  if (row.parent_station) return row.parent_station
-  return row.stop_id.replace(/\d+$/, '')
+  const p = row.parent_station || row.stop_id.replace(/\d+$/, '')
+  return p.replace(/bus\d*$/i, '')
 }
 
 function displayName(parent: string, fallback: string): string {
-  return STATION_CODES[parent] ?? fallback
+  const cleanParent = parent.replace(/bus\d*$/i, '')
+  return STATION_CODES[parent] ?? STATION_CODES[cleanParent] ?? (fallback.replace(/bus\d*$/i, '').trim() || fallback)
 }
 
 // ---- build (cached per service date) ------------------------------------

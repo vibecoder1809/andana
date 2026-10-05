@@ -74,8 +74,8 @@ function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColo
   // reference stations by display name, so resolve the parent-station name
   // from the stop code.
   const isRenfe = stop.operator === 'renfe' || /^\d+$/.test(stop.stopId)
-  const stationCode = isRenfe ? stop.stopId : stop.stopId.replace(/\d+$/, '')
-  const stationName = isRenfe ? stop.name : (STATION_CODES[stationCode] ?? stop.name)
+  const stationCode = isRenfe ? stop.stopId : stop.stopId.replace(/\d+$/, '').replace(/bus\d*$/i, '')
+  const stationName = isRenfe ? stop.name : (STATION_CODES[stationCode] ?? stop.name.replace(/bus\d*$/i, ''))
 
   const normTarget1 = useMemo(() => normalizeSearchText(stationName), [stationName])
   const normTarget2 = useMemo(() => normalizeSearchText(stop.name), [stop.name])

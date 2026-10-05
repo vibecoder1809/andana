@@ -206,3 +206,13 @@ Centralized in [`src/lib/externalLinks.ts`](src/lib/externalLinks.ts). Update be
   - Enforced forward travel (`move = Math.max(0, currentSpeed * dt)`) and soft speed modulation during drift corrections.
 - **Files Modified:** `src/lib/geometry.ts`, `src/lib/interpolate.ts`, `project_memory.md`.
 - **Verification:** `npm test` (30 checks passed), `test-new-features.mts` passed, `npx tsc --noEmit` (0 TS errors), `npm run build` (14/14 routes compiled).
+
+### Session: 2026-10-05 (Resolve GRbus & Comprehensive Interpolation Engine Polish)
+- **Context:** Gràcia surfaced as raw operational code "GRbus"; audited interpolation for edge-case traps, jitter, and dwell drops.
+- **Key Changes:**
+  - Mapped bus codes (`GRbus`, `SGbus`, etc.) in `STATION_CODES` (`constants.ts`) and enhanced `resolveStop` (`trains.ts`) to strip `/bus\d*$/i`. Filtered street bus substitution pins from `fetchStops` (`gtfs.ts`) and cleaned `planner.ts`, `StopPanel.tsx`, and `api/stop-info`.
+  - Fixed "Perpetual Next Stop Trap" in `interpolate.ts`: stops behind train ($< -35\text{m}$) are automatically marked serviced, preventing trains from getting locked on passed stations.
+  - Fixed direction inversion near termini: multi-stop vector progression (`last - first`) and fallback preservation prevent flipping to `+1` within 80m of arrival.
+  - Added track plausibility filter in `findStopDist` ($< 1200\text{m}$) preventing homonyms from projecting onto distant lines; protected active platform dwell from premature cancellation during stale feed polls.
+- **Files Modified:** `constants.ts`, `trains.ts`, `gtfs.ts`, `planner.ts`, `StopPanel.tsx`, `api/stop-info/route.ts`, `interpolate.ts`, `project_memory.md`.
+- **Verification:** `npm test` passed, `test-new-features.mts` passed, `npx tsc --noEmit` (0 errors), `npm run build` (14/14 routes compiled).

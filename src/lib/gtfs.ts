@@ -16,12 +16,18 @@ export async function fetchStops(): Promise<Stop[]> {
   const all = await fgcAllRecords<RawStop>('gtfs_stops', undefined, 86400)
 
   return all.flatMap(r => {
+    // Filter out street bus substitution / feeder stops (e.g. GRbus, SGbus)
+    // so they do not duplicate rail platforms or surface raw operational tags
+    if (/bus\d*$/i.test(r.stop_id) || /bus\b/i.test(r.stop_name)) return []
+
     const lat = finiteNum(r.stop_coordinates?.lat)
     const lng = finiteNum(r.stop_coordinates?.lon)
     if (lat == null || lng == null) return []
+    const baseCode = r.stop_id.replace(/\d+$/, '')
+    const cleanName = STATION_CODES[baseCode] ?? r.stop_name
     return [{
       stopId: r.stop_id,
-      name: r.stop_name,
+      name: cleanName,
       lat,
       lng,
       wheelchairBoarding: r.wheelchair_boarding === 1,
@@ -228,10 +234,16 @@ export async function fetchStopArrivals(
     })
     .map(stu => {
       const stopId = stu.stopId ?? ''
-      const baseCode = stopId.replace(/\d+$/, '')
+      const baseCode = stopId.replace(/\d+$/, '').replace(/bus\d*$/i, '')
+      const cleanName =
+        stopNameMap.get(stopId) ??
+        stopNameMap.get(baseCode) ??
+        STATION_CODES[stopId] ??
+        STATION_CODES[baseCode] ??
+        stopId.replace(/bus\d*$/i, '')
       return {
         stopId,
-        name: stopNameMap.get(stopId) ?? stopNameMap.get(baseCode) ?? stopId,
+        name: cleanName,
         arrivalTime: (stu.arrival?.time as number) ?? 0,
         departureTime: (stu.departure?.time as number) ?? 0,
       }
