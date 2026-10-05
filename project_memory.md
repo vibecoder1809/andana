@@ -158,3 +158,25 @@ Centralized in [`src/lib/externalLinks.ts`](src/lib/externalLinks.ts). Update be
 - **Files Modified:** `src/components/App.tsx`, `src/components/Header.tsx`, `src/components/MobileLayout.tsx`, `project_memory.md`.
 - **Verification:** `npx tsc --noEmit` (0 TS errors), `npm test` (30 checks passed), `test-new-features.mts` passed, `npm run build` (14/14 routes compiled).
 
+### Session: 2026-10-05 (Tutorial 3-Click Navigation Tabs & Settings Walk-through)
+- **Context:** The onboarding tour lumped all three tabs (Trens, Estacions, Planificador) into a single step and lacked coverage of app settings/preferences.
+- **Key Changes:**
+  - Split the tabs tour into 3 distinct sequential steps: `tab-trains` (live tracking, delay, occupancy), `tab-stations` (departures board, countdowns, track numbers, favorites), and `tab-plan` (CSA multimodal route planner, transfers, ATM zones).
+  - Added a dedicated 7th tour step for `settings` (`[data-tour="settings"]`) highlighting the configuration button on both desktop (`Header.tsx`) and mobile (`MobileLayout.tsx`), with a direct "Obrir configuració ⚙️" shortcut.
+  - Implemented reactive `andana-tour-step` event synchronization: automatically switches active tabs and snaps the mobile bottom sheet (`SNAP_HALF` for tabs, `SNAP_PEEK` for map/header buttons) so the spotlight target is perfectly centered and visible.
+  - Added trilingual i18n copy (`ca`, `es`, `en`) in `DICT` for all new steps.
+- **Files Modified:** `i18n.tsx`, `OnboardingModal.tsx`, `Sidebar.tsx`, `Header.tsx`, `MobileLayout.tsx`, `App.tsx`, `project_memory.md`.
+- **Verification:** `npx tsc --noEmit` (0 TS errors), `npm test` (30 checks passed), `test-new-features.mts` passed, `npm run build` (14/14 routes compiled).
+
+### Session: 2026-10-05 (Fix Train Interpolation Perpetual Dwell, Feed Stale Lag & Walking Speed)
+- **Context:** Trains appeared stopped most of the time due to perpetual dwell loops and ETA mismatches; feed latency (up to 2 mins) risked freezing trains at platforms.
+- **Key Changes:**
+  - Diagnosed infinite dwell loop: `DWELL_MS = 20s` with `servicedStops.clear()` on every 10s poll caused trains to repeatedly re-trigger station dwells at the same station.
+  - Added intermediate dwell timeout (`INTERMEDIATE_DWELL_MS = 25s`): holds trains at intermediate platforms while tracking `stationedAt`. If FGC/Renfe feed lags without updating, the timer expires and the train automatically resumes rolling toward the next stop at line speed rather than staying stuck for 2+ minutes. Terminus stations hold indefinitely.
+  - Released station dwell immediately whenever upstream telemetry reports departure (`!isStationed`).
+  - Reduced between-poll arrival pause to 6s (`BETWEEN_POLLS_DWELL_MS = 6_000`) and pruned `servicedStops` strictly by upcoming stops instead of wiping on poll.
+  - Fixed `resolveSpeed()` fallback: guarded against ETA checkpoint mismatches that yielded walking speeds (< 10 m/s or > 35 m/s) by defaulting to line speed (`19 m/s`).
+- **Files Modified:** `src/lib/interpolate.ts`, `project_memory.md`.
+- **Verification:** `npm test` (30 checks passed), `test-new-features.mts` passed, `npx tsc --noEmit` (0 TS errors), `npm run build` (14/14 routes compiled).
+
+

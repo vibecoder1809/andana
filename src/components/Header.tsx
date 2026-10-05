@@ -459,8 +459,10 @@ export function Header({
 
         {onOpenSettings && (
           <button
+            data-tour="settings"
             onClick={onOpenSettings}
             title={t('settings')}
+            aria-label={t('settings')}
             style={{
               background: 'var(--bg3)',
               border: '1px solid var(--border2)',

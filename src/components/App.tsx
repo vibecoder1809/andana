@@ -740,6 +740,7 @@ function AppInner() {
       <OnboardingModal
         open={showTutorial}
         onClose={dismissTutorial}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
 
       <DonationModal

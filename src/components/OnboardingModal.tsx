@@ -1,19 +1,20 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useI18n } from '@/lib/i18n'
+import { useI18n, type TransKey } from '@/lib/i18n'
 
 interface OnboardingModalProps {
   open: boolean
   onClose: () => void
+  onOpenSettings?: () => void
 }
 
 type Stage = 'prompt' | 'tour'
 
 interface TourStep {
   selector: string
-  titleKey: 'tourStepNetworkTitle' | 'tourStepTabsTitle' | 'tourStepStatusTitle' | 'tourStepNearMeTitle'
-  descKey: 'tourStepNetworkDesc' | 'tourStepTabsDesc' | 'tourStepStatusDesc' | 'tourStepNearMeDesc'
+  titleKey: TransKey
+  descKey: TransKey
   preferredPlacement?: 'top' | 'bottom'
 }
 
@@ -25,9 +26,21 @@ const TOUR_STEPS: TourStep[] = [
     preferredPlacement: 'bottom',
   },
   {
-    selector: '[data-tour="tabs"]',
-    titleKey: 'tourStepTabsTitle',
-    descKey: 'tourStepTabsDesc',
+    selector: '[data-tour="tab-trains"]',
+    titleKey: 'tourStepTrainsTitle',
+    descKey: 'tourStepTrainsDesc',
+    preferredPlacement: 'bottom',
+  },
+  {
+    selector: '[data-tour="tab-stations"]',
+    titleKey: 'tourStepStationsTitle',
+    descKey: 'tourStepStationsDesc',
+    preferredPlacement: 'bottom',
+  },
+  {
+    selector: '[data-tour="tab-plan"]',
+    titleKey: 'tourStepPlanTitle',
+    descKey: 'tourStepPlanDesc',
     preferredPlacement: 'bottom',
   },
   {
@@ -42,9 +55,15 @@ const TOUR_STEPS: TourStep[] = [
     descKey: 'tourStepNearMeDesc',
     preferredPlacement: 'top',
   },
+  {
+    selector: '[data-tour="settings"]',
+    titleKey: 'tourStepSettingsTitle',
+    descKey: 'tourStepSettingsDesc',
+    preferredPlacement: 'bottom',
+  },
 ]
 
-export function OnboardingModal({ open, onClose }: OnboardingModalProps) {
+export function OnboardingModal({ open, onClose, onOpenSettings }: OnboardingModalProps) {
   const { t, lang, setLang } = useI18n()
   const [stage, setStage] = useState<Stage>('prompt')
   const [currentStepIdx, setCurrentStepIdx] = useState(0)
@@ -110,16 +129,24 @@ export function OnboardingModal({ open, onClose }: OnboardingModalProps) {
 
   useEffect(() => {
     if (stage === 'tour') {
+      const step = TOUR_STEPS[currentStepIdx]
+      if (step) {
+        window.dispatchEvent(new CustomEvent('andana-tour-step', {
+          detail: { selector: step.selector, idx: currentStepIdx }
+        }))
+      }
       updateTargetPosition()
       const onResize = () => updateTargetPosition()
       const onScroll = () => updateTargetPosition()
       window.addEventListener('resize', onResize)
       window.addEventListener('scroll', onScroll, true)
-      const timer = setTimeout(updateTargetPosition, 100)
+      const timer = setTimeout(updateTargetPosition, 80)
+      const timer2 = setTimeout(updateTargetPosition, 260)
       return () => {
         window.removeEventListener('resize', onResize)
         window.removeEventListener('scroll', onScroll, true)
         clearTimeout(timer)
+        clearTimeout(timer2)
       }
     }
   }, [stage, currentStepIdx, updateTargetPosition])
@@ -435,7 +462,7 @@ export function OnboardingModal({ open, onClose }: OnboardingModalProps) {
         </div>
 
         {/* Footer Navigation */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 4, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
           {currentStepIdx > 0 ? (
             <button
               onClick={() => setCurrentStepIdx(i => i - 1)}
@@ -457,31 +484,57 @@ export function OnboardingModal({ open, onClose }: OnboardingModalProps) {
             <div />
           )}
 
-          <button
-            onClick={() => {
-              if (isLast) onClose()
-              else setCurrentStepIdx(i => i + 1)
-            }}
-            style={{
-              background: 'var(--accent)',
-              border: 'none',
-              color: '#fff',
-              padding: '7px 16px',
-              borderRadius: 8,
-              fontSize: 12.5,
-              fontWeight: 700,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              marginLeft: 'auto',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
-            }}
-          >
-            <span>{isLast ? t('tourFinish') : t('nextStep')}</span>
-            <span>{isLast ? '✨' : '→'}</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+            {isLast && onOpenSettings && (
+              <button
+                onClick={() => {
+                  onClose()
+                  onOpenSettings()
+                }}
+                style={{
+                  background: 'var(--bg3)',
+                  border: '1px solid var(--border2)',
+                  color: 'var(--text)',
+                  padding: '7px 12px',
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                }}
+              >
+                <span>{t('openSettingsNow')}</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => {
+                if (isLast) onClose()
+                else setCurrentStepIdx(i => i + 1)
+              }}
+              style={{
+                background: 'var(--accent)',
+                border: 'none',
+                color: '#fff',
+                padding: '7px 16px',
+                borderRadius: 8,
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+              }}
+            >
+              <span>{isLast ? t('tourFinish') : t('nextStep')}</span>
+              <span>{isLast ? '✨' : '→'}</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

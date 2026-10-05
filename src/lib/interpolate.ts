@@ -19,6 +19,8 @@ interface TrainState {
   targetDist: number
   // If dwelling at a station, until when (performance.now() ms)
   dwellUntil: number
+  // Name of the station currently being dwelled at
+  stationedAt: string | null
   // Direction: +1 or -1 along the polyline
   direction:  1 | -1
   lat:        number
@@ -34,9 +36,10 @@ interface TrainState {
 
 // Typical FGC inter-city speed in m/s (~80 km/h for mainline, ~60 for urban)
 const SPEED_MS = 19 // ~68 km/h — closer to FGC peak running speed
-const DWELL_MS = 20_000 // 20 s station dwell
+const INTERMEDIATE_DWELL_MS = 25_000 // 25 s intermediate stop dwell timeout before resuming motion if feed lags
+const BETWEEN_POLLS_DWELL_MS = 6_000 // 6 s brief pause when reaching an upcoming station between polls
 // How close (m) the animated train must get to a stop to trigger a dwell
-const STOP_TRIGGER_M = 60
+const STOP_TRIGGER_M = 40
 // Only teleport when the real position is absurdly far from our animation —
 // e.g. the train re-appeared on a different part of the line. Below this we
 // glide toward the real position instead of snapping (see CORRECTION_PER_S).
@@ -85,8 +88,10 @@ function resolveSpeed(
   if (gap < STOP_TRIGGER_M) return SPEED_MS  // already essentially there
 
   const speed = gap / secsLeft
-  // Guard against absurd values from bad data (e.g. wrong stop match).
-  if (!Number.isFinite(speed) || speed < 1 || speed > 45) return SPEED_MS
+  // Commuter train running speeds are typically 10-35 m/s (36-126 km/h).
+  // Speeds outside this range mean nextStopEta was for a distant corridor
+  // checkpoint rather than upcomingStops[0], so fall back to normal cruising speed.
+  if (!Number.isFinite(speed) || speed < 10 || speed > 35) return SPEED_MS
   return speed
 }
 
@@ -152,6 +157,16 @@ export function useInterpolatedTrains(
 
       const existing = stateMap.current.get(train.id)
 
+      const isStationed = train.operationalStatus === 'stationed' || Boolean(train.currentStop)
+      const currentStopName = train.currentStop || (isStationed ? (train.upcomingStops[0] ?? 'station') : null)
+      const isTerminus = Boolean(
+        train.currentStop && (
+          train.currentStop === train.destination ||
+          train.upcomingStops.length === 0
+        )
+      )
+      const freshStopDists = upcomingStopDists(train, stops, pl)
+
       if (!existing) {
         // New train — seed from real position
         const dir = resolveDirection(realDist, train, stops, pl)
@@ -160,12 +175,17 @@ export function useInterpolatedTrains(
           polyline: pl,
           distAlong: realDist,
           targetDist: realDist,
-          dwellUntil: train.currentStop ? now + DWELL_MS : 0,
+          dwellUntil: isTerminus
+            ? Number.POSITIVE_INFINITY
+            : isStationed
+              ? now + INTERMEDIATE_DWELL_MS
+              : 0,
+          stationedAt: isStationed ? currentStopName : null,
           direction: dir,
           lat: train.lat,
           lng: train.lng,
           speed: resolveSpeed(realDist, train, stops, pl),
-          stopDists: upcomingStopDists(train, stops, pl),
+          stopDists: freshStopDists,
           servicedStops: new Set(),
         })
       } else {
@@ -190,14 +210,34 @@ export function useInterpolatedTrains(
         // the API actually predicts.
         existing.speed = resolveSpeed(existing.distAlong, train, stops, pl)
 
-        // Refresh the upcoming-stop distances from the new snapshot, and forget
-        // serviced stops that are no longer upcoming.
-        existing.stopDists = upcomingStopDists(train, stops, pl)
-        existing.servicedStops.clear()
+        // Refresh the upcoming-stop distances from the new snapshot, and prune
+        // serviced stops that are no longer upcoming (never clear actively visited stops).
+        existing.stopDists = freshStopDists
+        const freshSet = new Set(freshStopDists)
+        for (const sd of existing.servicedStops) {
+          if (!freshSet.has(sd)) existing.servicedStops.delete(sd)
+        }
 
-        // If newly at a station, start dwell
-        if (train.currentStop && existing.dwellUntil < now) {
-          existing.dwellUntil = now + DWELL_MS
+        // If the train is reported stationed by upstream telemetry:
+        // - At a terminus, hold indefinitely until dispatched.
+        // - At an intermediate station, dwell up to INTERMEDIATE_DWELL_MS (25s).
+        //   If upstream feed lags without updating, the timer expires and the train
+        //   smoothly departs toward the next stop instead of staying frozen for 2+ mins.
+        if (isStationed) {
+          if (isTerminus) {
+            existing.dwellUntil = Number.POSITIVE_INFINITY
+            existing.stationedAt = currentStopName
+          } else if (existing.stationedAt !== currentStopName) {
+            existing.stationedAt = currentStopName
+            existing.dwellUntil = now + INTERMEDIATE_DWELL_MS
+          }
+          // If already dwelling at the same intermediate station, let existing countdown continue
+        } else {
+          // Upstream reports train is moving: release any station hold immediately
+          existing.stationedAt = null
+          if (existing.dwellUntil === Number.POSITIVE_INFINITY || existing.dwellUntil > now + BETWEEN_POLLS_DWELL_MS) {
+            existing.dwellUntil = 0
+          }
         }
       }
     }
@@ -229,7 +269,7 @@ export function useInterpolatedTrains(
       let anyMoved = false
 
       for (const state of stateMap.current.values()) {
-        if (now < state.dwellUntil) continue   // dwelling at station
+        if (now < state.dwellUntil) continue   // dwelling at station or stationed
         const move = state.speed * dt * state.direction
         // Smoothly close any gap to the real position on top of normal motion.
         // Only correct toward a target that's *ahead* of us in our travel
@@ -263,7 +303,7 @@ export function useInterpolatedTrains(
           // Snap to the stop, mark serviced, and dwell.
           state.distAlong = dwellHit
           state.servicedStops.add(dwellHit)
-          state.dwellUntil = now + DWELL_MS
+          state.dwellUntil = now + BETWEEN_POLLS_DWELL_MS
           const [lng, lat] = positionAtDistance(state.polyline, dwellHit)
           state.lat = lat
           state.lng = lng

@@ -50,6 +50,19 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
   const [filterOpen, setFilterOpen]         = useState(true)
   const [stationQuery, setStationQuery]     = useState('')
 
+  useEffect(() => {
+    function handleTourStep(e: Event) {
+      const custom = e as CustomEvent<{ selector: string; idx: number }>
+      if (!custom.detail) return
+      const sel = custom.detail.selector
+      if (sel === '[data-tour="tab-trains"]') setActiveTab('trains')
+      else if (sel === '[data-tour="tab-stations"]') setActiveTab('stations')
+      else if (sel === '[data-tour="tab-plan"]') setActiveTab('plan')
+    }
+    window.addEventListener('andana-tour-step', handleTourStep)
+    return () => window.removeEventListener('andana-tour-step', handleTourStep)
+  }, [])
+
   const favoriteStops = useMemo(() => {
     if (favorites.length === 0) return []
     const favSet = new Set(favorites.map(f => f.stopId))
@@ -136,7 +149,7 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
       {/* Tab buttons */}
       <div data-tour="tabs" style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'rgba(0,0,0,0.05)' }}>
         {(['trains', 'stations', 'plan'] as Tab[]).map(tab => (
-          <button key={tab} style={tabStyle(tab)} onClick={() => setActiveTab(tab)}>
+          <button key={tab} data-tour={`tab-${tab}`} style={tabStyle(tab)} onClick={() => setActiveTab(tab)}>
             {tab === 'trains' ? t('tabTrains') : tab === 'stations' ? t('tabStations') : t('tabPlan')}
           </button>
         ))}

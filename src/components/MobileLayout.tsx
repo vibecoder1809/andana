@@ -643,6 +643,30 @@ export function MobileLayout({
     if ((e.target as HTMLElement).tagName === 'INPUT') setSheetRatio(sheetCeiling)
   }, [sheetCeiling])
 
+  useEffect(() => {
+    function handleTourStep(e: Event) {
+      const custom = e as CustomEvent<{ selector: string; idx: number }>
+      if (!custom.detail) return
+      const sel = custom.detail.selector
+      if (sel === '[data-tour="tab-trains"]') {
+        setActiveTab('trains')
+        setSheetRatio(SNAP_HALF)
+      } else if (sel === '[data-tour="tab-stations"]') {
+        setActiveTab('stations')
+        setSheetRatio(SNAP_HALF)
+      } else if (sel === '[data-tour="tab-plan"]') {
+        setActiveTab('plan')
+        setSheetRatio(SNAP_HALF)
+      } else if (sel === '[data-tour="near-me"]') {
+        setSheetRatio(SNAP_PEEK)
+      } else if (sel === '[data-tour="network-switch"]' || sel === '[data-tour="network-status"]' || sel === '[data-tour="settings"]') {
+        setSheetRatio(SNAP_PEEK)
+      }
+    }
+    window.addEventListener('andana-tour-step', handleTourStep)
+    return () => window.removeEventListener('andana-tour-step', handleTourStep)
+  }, [])
+
   const fitPadding = useMemo(() => ({
     top: 90, left: 40, right: 40,
     bottom: Math.round((typeof window === 'undefined' ? 800 : window.innerHeight) * (SNAP_HALF + 0.06)),
@@ -728,6 +752,7 @@ export function MobileLayout({
           </button>
 
           <button
+            data-tour="settings"
             onClick={() => setSettingsOpen(true)}
             aria-label={t('settings')}
             style={{
@@ -941,6 +966,7 @@ export function MobileLayout({
                 return (
                   <button
                     key={tab.key}
+                    data-tour={`tab-${tab.key}`}
                     onMouseDown={e => e.stopPropagation()}
                     onTouchStart={e => e.stopPropagation()}
                     onClick={() => { setActiveTab(tab.key); expandSheet(); if (tab.key === 'trains') setStationQuery('') }}
@@ -1409,6 +1435,7 @@ export function MobileLayout({
       <OnboardingModal
         open={showTutorial}
         onClose={dismissTutorial}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
 
       {/* ── Donation / Support Modal ── */}
