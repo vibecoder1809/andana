@@ -18,7 +18,13 @@ export async function GET() {
       console.error('Renfe alerts fetch failed:', renfeResult.reason)
     }
 
-    return Response.json([...fgcAlerts, ...renfeAlerts])
+    const allAlerts = [...fgcAlerts, ...renfeAlerts].sort((a, b) => {
+      const diff = (b.start ?? 0) - (a.start ?? 0)
+      if (diff !== 0) return diff
+      return a.id.localeCompare(b.id)
+    })
+
+    return Response.json(allAlerts)
   } catch (err) {
     console.error('Alerts fetch failed:', err)
     return Response.json([])

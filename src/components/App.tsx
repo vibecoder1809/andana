@@ -507,9 +507,10 @@ function AppInner() {
   const lineCount = useMemo(() => new Set(visibleTrains.map(t => t.line)).size, [visibleTrains])
 
   const visibleAlerts = useMemo(() => {
-    if (networkMode === 'fgc') return alerts.filter(a => a.operator === 'fgc')
-    if (networkMode === 'renfe') return alerts.filter(a => a.operator === 'renfe')
-    return alerts
+    let list = alerts
+    if (networkMode === 'fgc') list = alerts.filter(a => a.operator === 'fgc')
+    else if (networkMode === 'renfe') list = alerts.filter(a => a.operator === 'renfe')
+    return [...list].sort((a, b) => (b.start ?? 0) - (a.start ?? 0))
   }, [alerts, networkMode])
 
   if (isMobile) {
@@ -620,7 +621,7 @@ function AppInner() {
         {/* Nearest-station shortcut → opens its live departures. */}
         <NearMeButton stops={visibleStops} onPick={handleSelectStop} style={{ position: 'absolute', left: 16, bottom: 16, zIndex: 3 }} />
         <DetailPanel train={selectedTrain} lineColors={lineColors} onClose={handleCloseTrain} />
-        <StopPanel stop={selectedStop} onClose={handleCloseStop} lineColors={lineColors} trains={filteredTrains} onSelectTrain={handleSelectTrain} />
+        <StopPanel stop={selectedStop} onClose={handleCloseStop} lineColors={lineColors} trains={filteredTrains} alerts={visibleAlerts} onSelectTrain={handleSelectTrain} />
       </div>
 
       {activeTrip && (
@@ -638,6 +639,7 @@ function AppInner() {
         alerts={alerts}
         trains={trains}
         lineColors={lineColors}
+        focusedLine={focusedLine}
         onSelectLine={(line) => {
           setFocusedLine(line)
           setNetworkStatusOpen(false)

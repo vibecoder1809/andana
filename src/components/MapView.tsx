@@ -7,6 +7,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import type { Train, Stop, Route, Theme } from '@/types'
 import type { JourneyPath } from '@/lib/journeyPath'
 import { LINE_COLORS, getStationCode } from '@/lib/constants'
+import { useI18n } from '@/lib/i18n'
 
 const MAP_STYLES: Record<Theme, string> = {
   dark:  'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
@@ -32,10 +33,12 @@ interface MapViewProps {
   // object so the path clears the bottom sheet.
   fitPadding?: number | { top: number; bottom: number; left: number; right: number }
   focusedLine?: string | null
+  filterPillTop?: string | number
   onClearFocusedLine?: () => void
 }
 
-export default function MapView({ trains, stops, routes, lineColors, selectedTrain, selectedStop, onSelectTrain, onSelectStop, onCloseStop, onBackgroundClick, journeyPath, theme, fitPadding, focusedLine, onClearFocusedLine }: MapViewProps) {
+export default function MapView({ trains, stops, routes, lineColors, selectedTrain, selectedStop, onSelectTrain, onSelectStop, onCloseStop, onBackgroundClick, journeyPath, theme, fitPadding, focusedLine, filterPillTop, onClearFocusedLine }: MapViewProps) {
+  const { t } = useI18n()
   const mapRef = useRef<MapRef>(null)
 
   // Fly in when a train is first selected (uses the position at click time).
@@ -322,20 +325,20 @@ export default function MapView({ trains, stops, routes, lineColors, selectedTra
         <div
           style={{
             position: 'absolute',
-            top: 14,
+            top: filterPillTop ?? 14,
             left: 14,
             zIndex: 30,
             background: 'var(--bg2)',
-            border: '1px solid var(--accent)',
+            border: '1.5px solid var(--accent)',
             borderRadius: 20,
-            padding: '5px 12px',
+            padding: '5px 10px 5px 12px',
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            boxShadow: '0 4px 15px rgba(0,0,0,0.35)',
+            boxShadow: '0 4px 15px rgba(0,0,0,0.45)',
           }}
         >
-          <span style={{ fontSize: 11, color: 'var(--muted)' }}>Filtre:</span>
+          <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>{t('filterLine')}</span>
           <span
             style={{
               background: lineColors[focusedLine] || LINE_COLORS[focusedLine] || '#7a82a0',
@@ -352,16 +355,24 @@ export default function MapView({ trains, stops, routes, lineColors, selectedTra
           {onClearFocusedLine && (
             <button
               onClick={onClearFocusedLine}
-              title="Treure filtre"
+              title={t('clearFilter')}
+              aria-label={t('clearFilter')}
               style={{
-                background: 'none',
-                border: 'none',
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid var(--border2)',
+                borderRadius: '50%',
                 color: 'var(--muted)',
                 cursor: 'pointer',
-                fontSize: 13,
-                lineHeight: 1,
+                fontSize: 12,
+                fontWeight: 700,
+                width: 22,
+                height: 22,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
                 padding: 0,
                 marginLeft: 2,
+                transition: 'all 0.15s ease',
               }}
             >
               ✕

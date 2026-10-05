@@ -18,22 +18,32 @@ Official transit maps often only show static schedules or raw dot markers on a m
   - Upstream feeds report discrete fixes every 20–30s. Andana projects trains onto their route polylines and dead-reckons velocity based on distance to the upcoming stop and live ETA, ensuring trains glide smoothly instead of jumping.
 - **Station Departures Board with Real-Time Delay Countdowns**
   - View upcoming departures per station with live countdown clocks that combine scheduled GTFS timetable times with each line's current median real-time delay.
-- **Connection Scan Algorithm (CSA) Trip Planner**
-  - Ultra-fast routing over full GTFS timetable feeds.
-  - Applies boarding transfer penalties to avoid redundant train-hopping on parallel corridors.
-  - Enriched with live per-line delays for same-day trips, step-free accessibility preferences, and calendar window lookahead.
+- **Connection Scan Algorithm (CSA) Multi-Modal Trip Planner**
+  - Ultra-fast routing merging FGC timetables and Rodalies GTFS into a unified timeline.
+  - Authentic walking footpaths connecting FGC and Rodalies interchange hubs (Pl. Catalunya, Terrassa, Sabadell, Martorell, Bellvitge/Gornal, Provença, L'Hospitalet).
+  - Integrated official ATM Barcelona tariff zones (Zones 1–6) and fare pricing (Bitllet Senzill, T-casual, T-usual).
+  - Smart direct TMB Metro / Tram recommendations (e.g. L3 between Sants and Pl. Espanya) when no direct rail route exists.
+  - Expandable stop sequence accordion with intermediate passing times and connection badges.
+  - Live Trip HUD («Mode En ruta») with step-by-step progress tracking.
+  - Last service detection («Últim servei») flagging the final trains of the day.
+- **Universal Accent- & Diacritic-Insensitive Search**
+  - Search stations and planner autocomplete seamlessly without accents ("rubi" → "Rubí", "sarria" → "Sarrià", "placa" → "Plaça Catalunya").
+- **Station Departures Board with Real-Time Delay Countdowns**
+  - Live countdown clocks combining scheduled GTFS departure times with line delays, platform track numbers, and suspended service alerts.
+- **Network Status & Contextual Night Rest**
+  - Network health overview modal (`NetworkStatusModal`).
+  - Contextual night rest card («Xarxa en descans nocturn») displaying friendly reopening guidance during overnight service closures (01:15–04:55).
 - **Corridor-Deduplicated Service Alerts**
-  - Alerts are grouped by transport corridor with publication timestamps, plain-language disruption details, and direct links to official operator advisories.
-- **Per-Car Occupancy (FGC)**
-  - Visual passenger load percentages for individual train cars (M1 / M2 / Mi / Ri) so passengers know where on the platform to board.
-- **Station Amenity & Accessibility Details**
-  - Step-free accessibility itineraries, local weather forecasts, and real-time environmental air quality (NO₂, O₃, PM10, IQAM) per station.
-- **Overhauled Mobile UX & Installable PWA**
-  - Velocity-aware bottom sheet with notch-aware ceiling clamping so handle controls never slip under the top navigation bar.
-  - Installable Progressive Web App (PWA) with offline shell caching via Service Worker.
+  - Alerts grouped by transport corridor with timestamps, plain-language explanations, and direct links to official operator advisories.
+- **Per-Car Occupancy (FGC) & Station Telemetry**
+  - Visual passenger load percentages for individual train cars (M1 / M2 / Mi / Ri).
+  - Step-free accessibility itineraries, weather forecasts, and real-time environmental air quality (NO₂, O₃, PM10, IQAM).
+- **Mobile UX & Installable PWA**
+  - Velocity-aware bottom sheet with notch-aware ceiling clamping.
+  - Installable Progressive Web App (PWA) with offline shell caching.
 - **Trilingual & Themed**
   - Full native support for Catalan (`ca`, canonical), Spanish (`es`), and English (`en`).
-  - Dark and light theme modes.
+  - High-contrast dark and light theme modes.
 
 ---
 

@@ -1,7 +1,7 @@
 'use client'
  
 import { useEffect, useState } from 'react'
-import type { Departure } from '@/types'
+import type { Departure, Train } from '@/types'
 import { LINE_COLORS } from '@/lib/constants'
 import { useI18n } from '@/lib/i18n'
 
@@ -21,10 +21,17 @@ const MAX_SHOWN  = 6
 const REFRESH_MS = 60_000   // re-pull schedule + live delays as time passes
 const IMMINENT_S = 30       // within this many seconds → show "now"
 
+export interface DeparturesBoardProps {
+  stationCode: string
+  lineColors: Record<string, string>
+  weatherAlertActive?: boolean
+  passingTrains?: Array<{ train: Train; here: boolean; dist: number }>
+}
+
 // Live next-departures board for a station. Scheduled times come from the GTFS
 // timetable (via /api/departures) and are pushed later by each line's current
 // median delay; a per-second countdown ticks client-side.
-export function DeparturesBoard({ stationCode, lineColors }: { stationCode: string; lineColors: Record<string, string> }) {
+export function DeparturesBoard({ stationCode, lineColors, weatherAlertActive = false, passingTrains }: DeparturesBoardProps) {
   const { t } = useI18n()
   const [departures, setDepartures] = useState<Departure[] | null>(null)
   const [now, setNow]               = useState(nowSecondsOfDay())
@@ -126,6 +133,25 @@ export function DeparturesBoard({ stationCode, lineColors }: { stationCode: stri
         <div style={{ fontSize: 12, color: 'var(--muted)', padding: '4px 0' }}>{t('noDepartures')}</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {weatherAlertActive && (
+            <div style={{
+              background: 'rgba(234, 179, 8, 0.1)',
+              border: '1px solid rgba(234, 179, 8, 0.25)',
+              borderRadius: 8,
+              padding: '6px 10px',
+              color: 'var(--yellow)',
+              fontSize: 11,
+              fontWeight: 500,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              marginBottom: 4,
+              lineHeight: 1.35,
+            }}>
+              <span style={{ fontSize: 13, flexShrink: 0 }}>⚠️</span>
+              <span>{t('theoreticalScheduleNotice')}</span>
+            </div>
+          )}
           {upcoming.some(d => d.isSuspended) && (
             <div style={{
               background: 'rgba(239, 68, 68, 0.12)',
@@ -150,6 +176,7 @@ export function DeparturesBoard({ stationCode, lineColors }: { stationCode: stri
             const remaining = d.eff - now
             const imminent  = remaining <= IMMINENT_S
             const isInactive = d.isSuspended || d.isCancelled
+            const matchingLive = passingTrains?.find(p => p.train.line === d.line)
 
             return (
               <div
@@ -189,6 +216,41 @@ export function DeparturesBoard({ stationCode, lineColors }: { stationCode: stri
                 }}>
                   {d.headsign}
                 </span>
+                {matchingLive && !isInactive && (
+                  matchingLive.here ? (
+                    <span
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 700,
+                        padding: '1px 5px',
+                        borderRadius: 4,
+                        background: 'rgba(34, 197, 94, 0.2)',
+                        color: 'var(--green)',
+                        border: '1px solid rgba(34, 197, 94, 0.35)',
+                        flexShrink: 0,
+                      }}
+                      title={t('liveTrainAtPlatform')}
+                    >
+                      🟢 {t('liveTrainAtPlatform')}
+                    </span>
+                  ) : matchingLive.dist <= 3 ? (
+                    <span
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 700,
+                        padding: '1px 5px',
+                        borderRadius: 4,
+                        background: 'rgba(34, 197, 94, 0.15)',
+                        color: 'var(--green)',
+                        border: '1px solid rgba(34, 197, 94, 0.25)',
+                        flexShrink: 0,
+                      }}
+                      title={t('liveTrainApproaching', matchingLive.dist)}
+                    >
+                      🟢 {t('liveTrainApproaching', matchingLive.dist)}
+                    </span>
+                  ) : null
+                )}
                 {d.isLastService && !isInactive && (
                   <span
                     style={{

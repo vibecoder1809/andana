@@ -219,6 +219,14 @@ const DICT = {
   yesterdayAt:     { ca: (time: string | number) => `Ahir a les ${time}`, es: (time: string | number) => `Ayer a las ${time}`, en: (time: string | number) => `Yesterday at ${time}` },
   tomorrowAt:      { ca: (time: string | number) => `Demà a les ${time}`, es: (time: string | number) => `Mañana a las ${time}`, en: (time: string | number) => `Tomorrow at ${time}` },
   dateTimeAt:      { ca: (date: string | number, time: string | number) => `${date} a les ${time}`, es: (date: string | number, time: string | number) => `${date} a las ${time}`, en: (date: string | number, time: string | number) => `${date} at ${time}` },
+  filterLine:      { ca: 'Filtre:',    es: 'Filtro:',     en: 'Filter:' },
+  clearFilter:     { ca: 'Treure filtre', es: 'Quitar filtro', en: 'Clear filter' },
+  activeFilter:    { ca: (line: string) => `Filtre actiu: ${line}`, es: (line: string) => `Filtro activo: ${line}`, en: (line: string) => `Active filter: ${line}` },
+  weatherFrequencyAlertTitle: { ca: 'Freqüència alterada per meteorologia', es: 'Frecuencia alterada por meteorología', en: 'Frequency altered due to weather' },
+  weatherFrequencyAlertDesc: { ca: 'A causa de condicions meteorològiques adverses, els trens poden circular fora del seu horari habitual. Consulteu els trens en circulació a dalt.', es: 'Debido a condiciones meteorológicas adversas, los trenes pueden circular fuera de su horario habitual. Consulte los trenes en circulación arriba.', en: 'Due to severe weather conditions, trains may run off their scheduled timetable. Check live circulating trains above.' },
+  liveTrainApproaching: { ca: (dist: number) => `Tren a ${dist} ${dist === 1 ? 'parada' : 'parades'}`, es: (dist: number) => `Tren a ${dist} ${dist === 1 ? 'parada' : 'paradas'}`, en: (dist: number) => `Train ${dist} ${dist === 1 ? 'stop' : 'stops'} away` },
+  liveTrainAtPlatform:  { ca: "Tren a l'estació", es: 'Tren en la estación', en: 'Train at station' },
+  theoreticalScheduleNotice: { ca: 'Horaris teòrics: consulteu els trens en circulació a dalt per al pas en temps real.', es: 'Horarios teóricos: consulte los trenes en circulación arriba para el paso en tiempo real.', en: 'Scheduled timetable: check circulating trains above for real-time arrivals.' },
 
   // ── Mobile UX & Settings ──
   settings:        { ca: 'Configuració', es: 'Configuración', en: 'Settings' },

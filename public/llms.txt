@@ -12,12 +12,13 @@ Source code: https://github.com/vibecoder1809/andana
 - **Interactive Live Map**: Real-time positions of moving trains on a high-performance MapLibre GL map. Trains are projected along route geometries using dead-reckoned interpolation, providing smooth 60fps animations between feed updates rather than jumpy 30-second teleports.
 - **Unified Multi-Network Support**: Switch effortlessly between FGC, Rodalies de Catalunya (Renfe), or both concurrently on the same map and board.
 - **Live Departures Board**: Next departures by station with live countdowns combining scheduled GTFS departure times with current median per-line delays.
-- **Connection Scan Algorithm (CSA) Journey Planner**: Fast timetable routing over GTFS data featuring transfer penalties to avoid redundant train hops across parallel corridors, step-free accessibility preferences, and live delay integration for same-day trips.
+- **Multi-Modal CSA Journey Planner**: Fast timetable routing combining FGC and Rodalies GTFS feeds with authentic inter-operator walking transfers (footpaths) at Catalonia transit hubs (Catalunya, Terrassa, Sabadell, Martorell, Bellvitge, Provença, L'Hospitalet).
+- **ATM Fares & Metro Recommendations**: Integrated official ATM Barcelona tariff zones (1–6) with ticket pricing, and direct TMB Metro / Tram recommendations (e.g. L3 between Sants and Pl. Espanya) when no direct rail route exists.
+- **Universal Accent-Insensitive Search**: Diacritic- and accent-insensitive search across stations and autocomplete ("rubi" -> "Rubí", "sarria" -> "Sarrià", "placa" -> "Plaça Catalunya").
+- **Transit Progress HUD & Last Train Alerts**: Live Trip HUD («Mode En ruta») with active step tracking and last train of the day («Últim servei») detection.
 - **Service Alerts**: Corridor-grouped service incidents and scheduled maintenance with published timestamps, severity indicators, and direct links to official operator advisories.
-- **Per-Car Occupancy**: Displays individual car passenger load percentages (M1, M2, Mi, Ri) for supported FGC trainsets.
-- **Station Enrichment**: Step-free accessibility routes, air quality readings (NO₂, PM10, O₃), and local weather forecasts.
-- **Trilingual Interface**: Native support for Catalan (source), Spanish, and English with dark and light theme options.
-- **Progressive Web App**: Installable PWA with service worker caching for instant offline shell launch.
+- **Per-Car Occupancy & Station Telemetry**: Individual car load percentages (M1, M2, Mi, Ri) for FGC trainsets, step-free accessibility itineraries, air quality (NO₂, PM10, O₃), and local weather forecasts.
+- **Trilingual & PWA**: Full native support for Catalan (source), Spanish, and English with dark/light themes and installable offline shell caching.
 
 ## Networks & Lines Covered
 

@@ -11,7 +11,8 @@ interface NetworkStatusModalProps {
   alerts: Alert[]
   trains: Train[]
   lineColors: Record<string, string>
-  onSelectLine?: (line: string) => void
+  focusedLine?: string | null
+  onSelectLine?: (line: string | null) => void
 }
 
 interface LineGroup {
@@ -44,6 +45,7 @@ export function NetworkStatusModal({
   alerts,
   trains,
   lineColors,
+  focusedLine,
   onSelectLine,
 }: NetworkStatusModalProps) {
   const { lang, t } = useI18n()
@@ -126,9 +128,36 @@ export function NetworkStatusModal({
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 20 }}>🚦</span>
             <div>
-              <h2 style={{ fontFamily: 'var(--font-space-grotesk)', fontSize: 17, margin: 0, fontWeight: 700 }}>
-                {lang === 'ca' ? 'Estat del servei per línia' : lang === 'es' ? 'Estado del servicio por línea' : 'Line Service Status'}
-              </h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h2 style={{ fontFamily: 'var(--font-space-grotesk)', fontSize: 17, margin: 0, fontWeight: 700 }}>
+                  {lang === 'ca' ? 'Estat del servei per línia' : lang === 'es' ? 'Estado del servicio por línea' : 'Line Service Status'}
+                </h2>
+                {focusedLine && (
+                  <button
+                    onClick={() => {
+                      onSelectLine?.(null)
+                      onClose()
+                    }}
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: 12,
+                      background: 'rgba(239, 68, 68, 0.15)',
+                      border: '1px solid rgba(239, 68, 68, 0.35)',
+                      color: 'var(--red)',
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      fontFamily: 'inherit',
+                    }}
+                    title={t('clearFilter')}
+                  >
+                    <span>✕ {t('clearFilter')} ({focusedLine})</span>
+                  </button>
+                )}
+              </div>
               <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
                 {lang === 'ca' ? 'Clica sobre una línia per filtrar-la al mapa' : lang === 'es' ? 'Haz clic en una línea para filtrarla en el mapa' : 'Click a line to highlight it on the map'}
               </div>
@@ -167,12 +196,13 @@ export function NetworkStatusModal({
                   const color = lineColors[line] || LINE_COLORS[line] || '#7a82a0'
                   const isDisrupted = info?.status === 'disrupted'
                   const isDelay = info?.status === 'delay'
+                  const isSelected = focusedLine === line
 
                   return (
                     <div
                       key={line}
                       onClick={() => {
-                        onSelectLine?.(line)
+                        onSelectLine?.(isSelected ? null : line)
                         onClose()
                       }}
                       style={{
@@ -180,14 +210,17 @@ export function NetworkStatusModal({
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         padding: '8px 10px',
-                        background: 'var(--bg3)',
-                        border: `1px solid ${isDisrupted ? 'rgba(239,68,68,0.4)' : isDelay ? 'rgba(245,158,11,0.4)' : 'var(--border)'}`,
+                        background: isSelected ? 'rgba(59, 130, 246, 0.14)' : 'var(--bg3)',
+                        border: isSelected
+                          ? '1.5px solid var(--accent)'
+                          : `1px solid ${isDisrupted ? 'rgba(239,68,68,0.4)' : isDelay ? 'rgba(245,158,11,0.4)' : 'var(--border)'}`,
                         borderRadius: 8,
                         cursor: 'pointer',
                         transition: 'background 0.15s, border-color 0.15s',
+                        boxShadow: isSelected ? '0 0 0 1px var(--accent)' : 'none',
                       }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'var(--bg3)')}
+                      onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'var(--bg)' }}
+                      onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'var(--bg3)' }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                         <span

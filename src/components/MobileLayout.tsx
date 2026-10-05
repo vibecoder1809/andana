@@ -574,6 +574,7 @@ export function MobileLayout({
   const handleDismissDetail = useCallback(() => {
     onCloseTrain()
     onCloseStop()
+    setFocusedLine(null)
   }, [onCloseTrain, onCloseStop])
 
   // ── Sheet drag tracking ──
@@ -776,6 +777,7 @@ export function MobileLayout({
           theme={theme}
           fitPadding={fitPadding}
           focusedLine={focusedLine}
+          filterPillTop={alerts.length > 0 ? 'calc(env(safe-area-inset-top, 0px) + 104px)' : 'calc(env(safe-area-inset-top, 0px) + 60px)'}
           onClearFocusedLine={() => setFocusedLine(null)}
         />
 
@@ -950,7 +952,7 @@ export function MobileLayout({
           {selectedTrain ? (
             <DetailPanel train={selectedTrain} lineColors={lineColors} onClose={onCloseTrain} mobile />
           ) : selectedStop ? (
-            <StopPanel stop={selectedStop} onClose={onCloseStop} lineColors={lineColors} mobile trains={filteredTrains} onSelectTrain={handleSelectTrain} />
+            <StopPanel stop={selectedStop} onClose={onCloseStop} lineColors={lineColors} mobile trains={filteredTrains} alerts={alerts} onSelectTrain={handleSelectTrain} />
           ) : activeTab === 'plan' ? (
             <TripPlanner
               lineColors={lineColors}
@@ -967,10 +969,47 @@ export function MobileLayout({
             <div>
               {/* Line filter chips (scrolls away naturally with trains list) */}
               <div style={{ padding: '0 0 8px', borderBottom: '1px solid var(--border)', marginBottom: 8 }}>
+                {focusedLine && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '6px 10px',
+                    background: 'rgba(59, 130, 246, 0.12)',
+                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                    borderRadius: 8,
+                    marginBottom: 8,
+                  }}>
+                    <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>
+                      {t('activeFilter', focusedLine)}
+                    </span>
+                    <button
+                      onClick={() => setFocusedLine(null)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--red)',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        padding: '2px 6px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 3,
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      ✕ {t('clearFilter')}
+                    </button>
+                  </div>
+                )}
                 <div style={{ overflowX: 'auto', display: 'flex', gap: 6, paddingBottom: expandedGroups.size ? 6 : 0, scrollbarWidth: 'none' }}>
                   <span
-                    onClick={() => onToggleLine('ALL')}
-                    style={{ flexShrink: 0, padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: `1.5px solid ${activeLines.has('ALL') ? 'var(--text)' : 'transparent'}`, background: 'var(--bg3)', color: 'var(--text)', opacity: activeLines.has('ALL') ? 1 : 0.5, fontFamily: 'var(--font-space-grotesk), sans-serif' }}
+                    onClick={() => {
+                      setFocusedLine(null)
+                      onToggleLine('ALL')
+                    }}
+                    style={{ flexShrink: 0, padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: `1.5px solid ${activeLines.has('ALL') && !focusedLine ? 'var(--text)' : 'transparent'}`, background: 'var(--bg3)', color: 'var(--text)', opacity: activeLines.has('ALL') && !focusedLine ? 1 : 0.5, fontFamily: 'var(--font-space-grotesk), sans-serif' }}
                   >
                     {t('all')}
                   </span>
@@ -996,7 +1035,10 @@ export function MobileLayout({
                       return (
                         <span
                           key={l}
-                          onClick={() => onToggleLine(l)}
+                          onClick={() => {
+                            setFocusedLine(null)
+                            onToggleLine(l)
+                          }}
                           style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: `1.5px solid ${active ? color : 'transparent'}`, background: `${color}20`, color, opacity: active ? 1 : 0.5, fontFamily: 'var(--font-space-grotesk), sans-serif' }}
                         >
                           {l}
@@ -1297,6 +1339,7 @@ export function MobileLayout({
         alerts={alerts}
         trains={trains}
         lineColors={lineColors}
+        focusedLine={focusedLine}
         onSelectLine={(line) => {
           setFocusedLine(line)
           setNetworkStatusOpen(false)

@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
-import type { Stop, StopDetail, Train } from '@/types'
+import { useEffect, useState, useMemo, useCallback } from 'react'
+import type { Stop, StopDetail, Train, Alert } from '@/types'
 import { LINE_COLORS, STATION_CODES } from '@/lib/constants'
 import { useI18n, type TransKey } from '@/lib/i18n'
 import { useFavoriteStations } from '@/lib/savedStations'
 import { getStationZone } from '@/lib/fares'
 import { getMetroInterchanges } from '@/lib/metroInterchanges'
+import { normalizeSearchText } from '@/lib/searchUtils'
 import { DeparturesBoard } from './DeparturesBoard'
 
 interface StopPanelProps {
@@ -18,6 +19,7 @@ interface StopPanelProps {
   // (its only extended station view); desktop omits them — the sidebar's
   // Stations tab already shows the same list.
   trains?: Train[]
+  alerts?: Alert[]
   onSelectTrain?: (train: Train) => void
 }
 
@@ -50,7 +52,7 @@ function Metric({ label, value, unit }: { label: string; value: number | null; u
   )
 }
 
-function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColors, trains, onSelectTrain }: {
+function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColors, trains, alerts, onSelectTrain }: {
   stop: Stop
   detail: StopDetail | null
   loading: boolean
@@ -58,6 +60,7 @@ function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColo
   showCloseButton: boolean
   lineColors: Record<string, string>
   trains?: Train[]
+  alerts?: Alert[]
   onSelectTrain?: (train: Train) => void
 }) {
   const { t } = useI18n()
@@ -73,17 +76,50 @@ function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColo
   const isRenfe = stop.operator === 'renfe' || /^\d+$/.test(stop.stopId)
   const stationCode = isRenfe ? stop.stopId : stop.stopId.replace(/\d+$/, '')
   const stationName = isRenfe ? stop.name : (STATION_CODES[stationCode] ?? stop.name)
+
+  const normTarget1 = useMemo(() => normalizeSearchText(stationName), [stationName])
+  const normTarget2 = useMemo(() => normalizeSearchText(stop.name), [stop.name])
+
+  const matchesStation = useCallback((name: string | null | undefined): boolean => {
+    if (!name) return false
+    const n = normalizeSearchText(name)
+    return (
+      n === normTarget1 ||
+      n === normTarget2 ||
+      (normTarget1.length >= 4 && (n.startsWith(normTarget1) || normTarget1.startsWith(n))) ||
+      (normTarget2.length >= 4 && (n.startsWith(normTarget2) || normTarget2.startsWith(n)))
+    )
+  }, [normTarget1, normTarget2])
+
   const passing = useMemo(() =>
     (trains ?? [])
       .map(tr => {
-        if (tr.currentStop === stationName) return { train: tr, here: true, dist: 0 }
-        const idx = tr.upcomingStops.indexOf(stationName)
+        if (matchesStation(tr.currentStop)) return { train: tr, here: true, dist: 0 }
+        const idx = tr.upcomingStops.findIndex(s => matchesStation(s))
         return idx !== -1 ? { train: tr, here: false, dist: idx + 1 } : null
       })
       .filter((x): x is NonNullable<typeof x> => x !== null)
       .sort((a, b) => a.dist - b.dist)
       .slice(0, 6),
-    [trains, stationName])
+    [trains, matchesStation])
+
+  const stationAlerts = useMemo(() => {
+    if (!alerts || alerts.length === 0) return []
+    const linesSet = new Set(stop.lines ?? [])
+    return alerts.filter(a => {
+      if (a.stops && a.stops.some(s => matchesStation(s))) return true
+      if (a.stopCodes && a.stopCodes.some(c => c.replace(/\d+$/, '') === stationCode)) return true
+      if (linesSet.size > 0 && a.routes.some(r => linesSet.has(r))) return true
+      return false
+    })
+  }, [alerts, matchesStation, stationCode, stop.lines])
+
+  const weatherAlert = useMemo(() => {
+    return stationAlerts.find(a => {
+      const text = (a.header + ' ' + (a.description ?? '')).toLowerCase()
+      return text.includes('meteorol') || text.includes('freqüència') || text.includes('frequencia') || text.includes('inclemències') || text.includes('temporal')
+    })
+  }, [stationAlerts])
 
   const [copied, setCopied] = useState(false)
 
@@ -279,8 +315,36 @@ function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColo
         </div>
       )}
 
+      {/* Contextual Weather / Frequency Disruption Alert Banner */}
+      {weatherAlert && (
+        <div style={{
+          background: 'rgba(234, 179, 8, 0.12)',
+          border: '1px solid rgba(234, 179, 8, 0.3)',
+          borderRadius: 8,
+          padding: '8px 12px',
+          marginBottom: 12,
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 8,
+          fontSize: 11.5,
+          lineHeight: 1.4,
+          color: 'var(--yellow)',
+        }}>
+          <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>⚠️</span>
+          <div>
+            <div style={{ fontWeight: 700, marginBottom: 2 }}>{t('weatherFrequencyAlertTitle')}</div>
+            <div style={{ fontSize: 11, opacity: 0.9 }}>{t('weatherFrequencyAlertDesc')}</div>
+          </div>
+        </div>
+      )}
+
       {/* Live next-departures board */}
-      <DeparturesBoard stationCode={stationCode} lineColors={lineColors} />
+      <DeparturesBoard
+        stationCode={stationCode}
+        lineColors={lineColors}
+        weatherAlertActive={Boolean(weatherAlert)}
+        passingTrains={passing}
+      />
 
       {loading && (
         <div style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 0' }}>{t('loadingData')}</div>
@@ -329,7 +393,7 @@ function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColo
   )
 }
 
-export function StopPanel({ stop, onClose, lineColors = {}, mobile = false, trains, onSelectTrain }: StopPanelProps) {
+export function StopPanel({ stop, onClose, lineColors = {}, mobile = false, trains, alerts, onSelectTrain }: StopPanelProps) {
   const [detail, setDetail] = useState<StopDetail | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -348,7 +412,7 @@ export function StopPanel({ stop, onClose, lineColors = {}, mobile = false, trai
   if (mobile) {
     return (
       <div style={{ padding: '0 20px 20px' }}>
-        {stop && <StopContent stop={stop} detail={detail} loading={loading} onClose={onClose} showCloseButton={false} lineColors={lineColors} trains={trains} onSelectTrain={onSelectTrain} />}
+        {stop && <StopContent stop={stop} detail={detail} loading={loading} onClose={onClose} showCloseButton={false} lineColors={lineColors} trains={trains} alerts={alerts} onSelectTrain={onSelectTrain} />}
       </div>
     )
   }
@@ -373,7 +437,7 @@ export function StopPanel({ stop, onClose, lineColors = {}, mobile = false, trai
       boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
       pointerEvents: open ? 'auto' : 'none',
     }}>
-      {stop && <StopContent stop={stop} detail={detail} loading={loading} onClose={onClose} showCloseButton lineColors={lineColors} trains={trains} onSelectTrain={onSelectTrain} />}
+      {stop && <StopContent stop={stop} detail={detail} loading={loading} onClose={onClose} showCloseButton lineColors={lineColors} trains={trains} alerts={alerts} onSelectTrain={onSelectTrain} />}
     </div>
   )
 }

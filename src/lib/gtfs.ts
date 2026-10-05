@@ -325,6 +325,31 @@ export async function fetchAlerts(): Promise<Alert[]> {
         routes.push('R5', 'R6')
       }
       explanation = "Embarcament als tres primers cotxes: en combois de doble composició a la línia Llobregat-Anoia, cal viatjar als cotxes davanters perquè algunes estacions del trajecte tenen andanes curtes on els cotxes posteriors no obren portes o la segona unitat no admet passatge."
+    } else if (lower.includes('meteorol') || lower.includes('freqüència') || lower.includes('frequencia') || lower.includes('inclemències') || lower.includes('inclemencies') || lower.includes('temporal')) {
+      if (routes.length === 0) {
+        const vallesStops = new Set(['PC','PR','GR','SG','PD','EP','MN','BN','TT','PM','SR','RE','TB','AV','PF','VR','VS','VL','LF','VD','SC','MS','VO','SJ','BT','UN','UA','HG','RB','FN','TR','VP','EN','TE','NA','TN','CF','CT','PJ','NO','PN','SPF','SQ'])
+        const llobregatStops = new Set(['PE','MG','IC','GO','SP','LH','EU','AL','CO','BO','SB'])
+        const hasValles = stopCodes.some(c => vallesStops.has(c.replace(/\d+$/, '')))
+        const hasLlobregat = stopCodes.some(c => llobregatStops.has(c.replace(/\d+$/, '')) || /^(R5|R6|S8|S4)/.test(c))
+
+        if (hasValles && hasLlobregat) {
+          routes.push('S1', 'S2', 'L6', 'L7', 'L12', 'R5', 'R6', 'R50', 'R60', 'S3', 'S4', 'S8', 'S9', 'L8')
+        } else if (hasValles) {
+          routes.push('S1', 'S2', 'L6', 'L7', 'L12')
+        } else if (hasLlobregat) {
+          routes.push('R5', 'R6', 'R50', 'R60', 'S3', 'S4', 'S8', 'S9', 'L8')
+        } else {
+          routes.push('S1', 'S2', 'L6', 'L7', 'L12', 'R5', 'R6', 'R50', 'R60', 'S3', 'S4', 'S8', 'S9', 'L8')
+        }
+      }
+      explanation = 'Freqüència de pas alterada per condicions meteorològiques adverses. Els intervals i horaris habituals poden no complir-se.'
+    } else if (routes.length === 0 && stopCodes.length > 0) {
+      const vallesStops = new Set(['PC','PR','GR','SG','PD','EP','MN','BN','TT','PM','SR','RE','TB','AV','PF','VR','VS','VL','LF','VD','SC','MS','VO','SJ','BT','UN','UA','HG','RB','FN','TR','VP','EN','TE','NA','TN','CF','CT','PJ','NO','PN','SPF','SQ'])
+      const llobregatStops = new Set(['PE','MG','IC','GO','SP','LH','EU','AL','CO','BO','SB'])
+      const hasValles = stopCodes.some(c => vallesStops.has(c.replace(/\d+$/, '')))
+      const hasLlobregat = stopCodes.some(c => llobregatStops.has(c.replace(/\d+$/, '')))
+      if (hasValles) routes.push('S1', 'S2', 'L6', 'L7', 'L12')
+      if (hasLlobregat) routes.push('R5', 'R6', 'S3', 'S4', 'S8', 'S9', 'L8')
     }
 
     let header = g.header
