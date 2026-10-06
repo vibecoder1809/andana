@@ -76,6 +76,7 @@ export interface Alert {
   effect?: string
   isInformational?: boolean
   isSchoolReservation?: boolean
+  isShortPlatform?: boolean
 }
 
 export interface Route {

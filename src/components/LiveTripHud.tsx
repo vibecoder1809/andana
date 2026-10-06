@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import type { Journey, Train } from '@/types'
-import { LINE_COLORS } from '@/lib/constants'
+import { LINE_COLORS, getStationCode } from '@/lib/constants'
 import { useI18n } from '@/lib/i18n'
 import {
   isNotificationSupported,
@@ -44,6 +44,7 @@ export function LiveTripHud({
   const { lang, t } = useI18n()
   const [now, setNow] = useState(nowSeconds)
   const [notifsEnabled, setNotifsEnabled] = useState(true)
+  const [isMinimized, setIsMinimized] = useState(false)
   const notifiedMilestonesRef = useRef<Set<string>>(new Set())
 
   // Persist active trip for cross-tab synchronization
@@ -65,7 +66,7 @@ export function LiveTripHud({
   useEffect(() => {
     if (!isNotificationSupported()) return
     const settings = getNotificationSettings()
-    if (!settings.liveTrip) {
+    if (!settings.enabled || !settings.liveTrip) {
       setNotifsEnabled(false)
       return
     }
@@ -128,7 +129,7 @@ export function LiveTripHud({
   useEffect(() => {
     if (!notifsEnabled || !curLeg) return
     const settings = getNotificationSettings()
-    if (!settings.liveTrip) return
+    if (!settings.enabled || !settings.liveTrip) return
 
     const notified = notifiedMilestonesRef.current
 
@@ -169,7 +170,7 @@ export function LiveTripHud({
     }
 
     // 2. Transfer alert approaching
-    if (activeLegIndex < journey.legs.length - 1 && curLeg.arrTime - now <= 120 && curLeg.arrTime - now >= 0) {
+    if (settings.alightAlarm !== false && activeLegIndex < journey.legs.length - 1 && curLeg.arrTime - now <= 120 && curLeg.arrTime - now >= 0) {
       const nextLeg = journey.legs[activeLegIndex + 1]
       const key = `transfer_leg_${activeLegIndex}_${curLeg.toName}`
       if (!notified.has(key)) {
@@ -177,21 +178,21 @@ export function LiveTripHud({
         sendAppNotification({
           title: t('transferApproachingTitle', curLeg.toName),
           body: t('transferApproachingDesc', nextLeg.operator === 'walk' ? 'a peu' : nextLeg.line),
-          type: 'info',
+          type: 'warning',
           tag: key,
         })
       }
     }
 
-    // 3. Final destination approaching alert
-    if (activeLegIndex === journey.legs.length - 1 && curLeg.arrTime - now <= 120 && curLeg.arrTime - now >= 0) {
+    // 3. Final destination approaching alert (wake-up alight alarm)
+    if (settings.alightAlarm !== false && activeLegIndex === journey.legs.length - 1 && curLeg.arrTime - now <= 120 && curLeg.arrTime - now >= 0) {
       const key = `destination_arrival_${curLeg.toName}`
       if (!notified.has(key)) {
         notified.add(key)
         sendAppNotification({
           title: t('destinationApproachingTitle', curLeg.toName),
           body: t('destinationApproachingDesc'),
-          type: 'info',
+          type: 'warning',
           tag: key,
         })
       }
@@ -216,6 +217,125 @@ export function LiveTripHud({
     } catch {}
     onClose()
   }, [onClose])
+
+  if (isMinimized) {
+    const originLeg = journey.legs[0]
+    const destLeg = journey.legs[journey.legs.length - 1]
+    const fromAbbr = getStationCode(originLeg?.fromCode || '', originLeg?.fromName)
+    const toAbbr = getStationCode(destLeg?.toCode || '', destLeg?.toName)
+
+    const curNow = (journey.depTime >= 86400 && now < 4 * 3600) ? now + 86400 : now
+    const isDeparted = curNow >= journey.depTime
+    const remainingSec = isDeparted ? (journey.arrTime - curNow) : (journey.depTime - curNow)
+    const remainingMin = Math.max(0, Math.ceil(remainingSec / 60))
+    const timeText = isDeparted && remainingMin === 0
+      ? (lang === 'ca' ? 'Arribat' : lang === 'es' ? 'Llegado' : 'Arrived')
+      : `${remainingMin} min`
+
+    return (
+      <div
+        onClick={() => setIsMinimized(false)}
+        role="button"
+        tabIndex={0}
+        aria-label={`${t('currentTrip')}: ${fromAbbr} → ${toAbbr}`}
+        style={{
+          position: 'fixed',
+          bottom: 'calc(env(safe-area-inset-bottom, 0px) + 14px)',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 'calc(100% - 28px)',
+          maxWidth: 420,
+          background: 'rgba(15, 23, 42, 0.94)',
+          border: '1px solid rgba(59, 130, 246, 0.7)',
+          borderRadius: 22,
+          boxShadow: '0 0 16px rgba(59, 130, 246, 0.45), 0 6px 20px rgba(0, 0, 0, 0.4)',
+          zIndex: 950,
+          padding: '8px 14px',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 10,
+          cursor: 'pointer',
+          animation: 'hudGlow 2.5s infinite alternate ease-in-out',
+          userSelect: 'none',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
+          <span style={{
+            display: 'inline-block',
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            background: isDeparted ? '#22c55e' : '#3b82f6',
+            boxShadow: isDeparted ? '0 0 8px #22c55e' : '0 0 8px #3b82f6',
+            flexShrink: 0,
+            animation: 'pulse 1.5s infinite',
+          }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--muted)' }}>
+              {t('currentTrip')}:
+            </span>
+            <span style={{
+              fontSize: 12.5,
+              fontWeight: 800,
+              fontFamily: 'var(--font-space-grotesk), sans-serif',
+              color: 'var(--text)',
+              letterSpacing: '0.4px',
+            }}>
+              {fromAbbr} → {toAbbr}
+            </span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <span style={{
+            fontSize: 13,
+            fontWeight: 800,
+            fontFamily: 'var(--font-space-grotesk), sans-serif',
+            color: isDeparted ? 'var(--green)' : 'var(--accent)',
+            fontVariantNumeric: 'tabular-nums',
+          }}>
+            {timeText}
+          </span>
+
+          <span style={{ color: 'var(--muted)', display: 'flex', alignItems: 'center' }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="18 15 12 9 6 15" />
+            </svg>
+          </span>
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              handleClose()
+            }}
+            title={lang === 'ca' ? 'Finalitzar ruta' : lang === 'es' ? 'Finalizar ruta' : 'End trip'}
+            aria-label="Tancar viatge"
+            style={{
+              background: 'rgba(255,255,255,0.08)',
+              border: 'none',
+              borderRadius: '50%',
+              color: 'var(--muted)',
+              width: 20,
+              height: 20,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              fontSize: 10,
+              padding: 0,
+              marginLeft: 2,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -243,7 +363,7 @@ export function LiveTripHud({
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--green)', animation: 'pulse 1.5s infinite' }} />
           <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--accent)' }}>
-            {lang === 'ca' ? 'En ruta' : lang === 'es' ? 'En ruta' : 'Live tracking'}
+            {t('modeEnMarxa')}
           </span>
           <span style={{ fontSize: 11, color: 'var(--muted)' }}>
             ({activeLegIndex + 1}/{journey.legs.length} {lang === 'ca' ? 'trams' : lang === 'es' ? 'tramos' : 'legs'})
@@ -294,6 +414,30 @@ export function LiveTripHud({
               📍
             </button>
           )}
+
+          {/* Minimize button */}
+          <button
+            onClick={() => setIsMinimized(true)}
+            title={t('minimize')}
+            aria-label={t('minimize')}
+            style={{
+              background: 'var(--bg3)',
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              color: 'var(--muted)',
+              width: 24,
+              height: 24,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
 
           <button
             onClick={handleClose}

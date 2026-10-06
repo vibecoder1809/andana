@@ -24,8 +24,10 @@ import { DonationModal } from './DonationModal'
 import { MobileSettingsModal } from './MobileSettingsModal'
 import { useUserEngagement } from '@/lib/userEngagement'
 import { useStationAlertNotifier } from '@/lib/useStationAlertNotifier'
+import { useLineAlertNotifier } from '@/lib/useLineAlertNotifier'
 import { NotificationToast } from './NotificationToast'
 import { isSchoolCommuteHours } from '@/lib/serviceTime'
+import { useFontSize } from '@/lib/fontSize'
 
 const MapView = dynamic(() => import('./MapView'), { ssr: false })
 
@@ -287,6 +289,7 @@ export function App() {
 
 function AppInner() {
   const { t } = useI18n()
+  useFontSize()
   const [trains, setTrains]               = useState<Train[]>([])
   const [stops, setStops]                 = useState<Stop[]>([])
   const [routes, setRoutes]               = useState<Route[]>([])
@@ -540,6 +543,7 @@ function AppInner() {
   }, [selectedAlert, networkStatusOpen, settingsOpen, selectedTrain, selectedStop, focusedLine])
 
   useStationAlertNotifier(alerts)
+  useLineAlertNotifier(alerts)
 
   const handleToastNavigate = useCallback((url: string) => {
     try {

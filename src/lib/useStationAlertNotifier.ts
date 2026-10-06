@@ -39,7 +39,7 @@ export function useStationAlertNotifier(alerts: Alert[]) {
     if (!alerts || alerts.length === 0 || favorites.length === 0) return
 
     const settings = getNotificationSettings()
-    if (!settings.favStations) return
+    if (!settings.enabled || !settings.favStations) return
 
     // Suppress station push/audio alerts during nighttime rest hours (01:00 - 05:00)
     // so automated 3 AM batch notices never wake up users.

@@ -605,7 +605,7 @@ function JourneyCard({
               transition: 'opacity 0.15s ease',
             }}
           >
-            <span>🧭</span>
+            <span>▶</span>
             <span>{t('trackLive')}</span>
           </button>
         )}

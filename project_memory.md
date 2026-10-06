@@ -260,3 +260,49 @@ Centralized in [`src/lib/externalLinks.ts`](src/lib/externalLinks.ts). Update be
   - Added trilingual translations (`travelDirection`, `cabFront`, `cabRear`, `carMotor`, `carTrailer`) in `i18n.tsx`.
 - **Files Modified:** `MobileLayout.tsx`, `TripPlanner.tsx`, `DetailPanel.tsx`, `constants.ts`, `trains.ts`, `i18n.tsx`, `project_memory.md`.
 - **Verification:** `npm test` (30 checks passed), `test-new-features.mts` (passed), `npx tsc --noEmit` (0 errors), `npm run build` (Turbopack, 14/14 routes compiled).
+
+### Session: 2026-10-06 (Fix FGC Upstream Shifted Records & Night Rest Ghost Train)
+- **Context:** At 01:20 AM, a ghost train with no line, empty destination, and moving status appeared on the map at Terrassa.
+- **Key Changes:**
+  - Diagnosed upstream FGC Open Data CSV column shift where `id` shifted into `ocupacio_mi_percent` and `line` into `ocupacio_mi_tram`, leaving `id` & `lin` undefined.
+  - Added `normalizeTrainRecord()` in `trains.ts` to detect and realign shifted columns, and strictly reject any record without a valid `id` or recognized `line`.
+  - Filtered out inactive/sleeping units during `isNightRestHours()` (01:15–04:55 weeknights) when commercial service is closed, allowing `NightRestCard` to show properly.
+  - Updated `isNightRestHours()` in `serviceTime.ts` to account for Saturday all-night service and Friday late-night schedules.
+  - Guarded `feed.entity ?? []` across `gtfs.ts` to prevent empty-feed type errors during overnight hours.
+- **Files Modified:** `src/lib/trains.ts`, `src/lib/serviceTime.ts`, `src/lib/gtfs.ts`, `project_memory.md`.
+- **Verification:** `npm test` (passed), `test-new-features.mts` (passed), `npx tsc --noEmit` (0 errors), `npm run build` (Turbopack, 14/14 compiled). Verified live `/api/trains` returns 0 ghost trains during night rest.
+
+### Session: 2026-10-06 (Notification Expansion, Favorite Lines, Alight Alarms & Departure Reminders)
+- **Context:** Expanded notification system with master/granular config toggles, favorite line disruption alerts, departure reminders, and alight alarms.
+- **Key Changes:**
+  - Added full notification settings toggles in `MobileSettingsModal.tsx`: master switch, favorite stations, favorite lines with line pill selector chips, 5-min departure reminders, live trip incoming train alerts, alight/transfer wake-up alarms, and sound/vibration.
+  - Implemented `useFavoriteLines.ts` and `useLineAlertNotifier.ts` to alert commuters when active disruptions affect subscribed lines.
+  - Built `useDepartureReminders.ts` and added interactive 🔔 bell toggle to `DeparturesBoard.tsx` (and `StopPanel.tsx`) providing 5-minute pre-departure reminders.
+  - Wired alight and transfer proximity alarms into `LiveTripHud.tsx` (`type: 'warning'`, audio chime & haptics).
+  - Maintained 100% desktop/mobile dual-root parity by mounting hooks in both `App.tsx` and `MobileLayout.tsx`. Added full trilingual i18n copy in `DICT`.
+- **Files Modified:** `notifications.ts`, `MobileSettingsModal.tsx`, `savedLines.ts`, `useLineAlertNotifier.ts`, `departureReminders.ts`, `DeparturesBoard.tsx`, `StopPanel.tsx`, `LiveTripHud.tsx`, `App.tsx`, `MobileLayout.tsx`, `i18n.tsx`, `test-new-features.mts`, `project_memory.md`.
+- **Verification:** `npm test` passed (30/30), `test-new-features.mts` passed, `npx tsc --noEmit` (0 errors), `npm run build` (Turbopack, 14/14 routes compiled).
+
+### Session: 2026-10-06 (Notification Toggle Switches, Compact Lines Selector, Remove Reminders & Fix Font Scaling)
+- **Context:** Notification settings used raw checkboxes instead of iOS toggle switches; sub-settings were visible when master toggle was off; line selector consumed excessive space; user requested complete removal of departure reminders; font size setting didn't scale pixel-styled UI.
+- **Key Changes:**
+  - Redesigned notifications configuration with iOS-style toggle switches; sub-settings are completely hidden when master switch is off.
+  - Implemented collapsible compact line alerts selector grouped by network (FGC Vallès, Llobregat, Rodalies, Regionals) showing active count when collapsed.
+  - Removed departure reminders feature completely: deleted `src/lib/departureReminders.ts`, removed reminder bells from `DeparturesBoard.tsx`, unmounted hooks in `App.tsx` & `MobileLayout.tsx`, cleaned settings and `i18n.tsx`.
+  - Fixed font size scaling by adding proportional zoom levels (`zoom: 0.88`, `zoom: 1`, `zoom: 1.12`) to `data-font` attributes in `globals.css`, and injected immediate script in `layout.tsx` `<head>` for instant font restoration without flash.
+- **Files Modified:** `MobileSettingsModal.tsx`, `DeparturesBoard.tsx`, `notifications.ts`, `i18n.tsx`, `App.tsx`, `MobileLayout.tsx`, `globals.css`, `layout.tsx`, `project_memory.md`.
+- **Verification:** `npm test` (30 checks passed), `test-new-features.mts` (passed), `npx tsc --noEmit` (0 errors), `npm run build` (Turbopack, 14/14 compiled).
+
+### Session: 2026-10-06 (Mode En Marxa, Glowing Minimized Bar, Line Alerts Fallback & Universal Font Scaling)
+- **Context:** User requested renaming Live HUD to Mode «En marxa», changing trip button to start journey clearly, fixing broken minimize glyph with a discrete glowing bottom bar showing live station abbreviation countdown, setting line alerts to none when empty, and fixing font size scaling across all browsers.
+- **Key Changes:**
+  - Renamed "Live HUD" to native Catalan "Mode «En marxa»" across `i18n.tsx`, `LiveTripHud.tsx`, and notification settings; updated planner action button to `▶ Comença el viatge` in `TripPlanner.tsx`.
+  - Upgraded `LiveTripHud.tsx`: replaced broken minimize icon with clean cross-platform SVG chevron, and implemented a sleek glowing bottom bar when minimized: `Viatge actual: PC → VP   5 min` (showing minutes to departure while waiting, then minutes to destination arrival once rolling; tap expands). Added `hudGlow` keyframe animation in `globals.css`.
+  - Fixed line alert subscription fallback in `MobileSettingsModal.tsx`: displays `⚪ Cap línia seleccionada` when `favoriteLines.length === 0` (preventing false "all lines" implication).
+  - Resolved font size scaling across iOS WebKit & Blink: mapped all 24 inline pixel font sizes to scaled values via `html[data-font="small|large"] [style*="font-size: ..."] !important` rules in `globals.css`, eliminating Safari `zoom` root ignoring and fixed viewport clipping.
+  - Added `suppressHydrationWarning` to `<html>` and `<body>` in `src/app/layout.tsx` to eliminate React hydration mismatch warnings caused by pre-hydration font size and theme bootstrap attributes.
+- **Files Modified:** `src/lib/i18n.tsx`, `src/components/TripPlanner.tsx`, `src/components/LiveTripHud.tsx`, `src/components/MobileSettingsModal.tsx`, `src/app/globals.css`, `src/app/layout.tsx`, `project_memory.md`.
+- **Verification:** `npm test` (30 checks passed), `test-new-features.mts` (all passed), `npx tsc --noEmit` (0 errors), `npm run build` (Turbopack, 14/14 compiled cleanly).
+
+
+

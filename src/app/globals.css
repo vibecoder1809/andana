@@ -50,7 +50,124 @@ html {
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
+  font-size: 16px;
+  --font-scale: 1;
+  transition: font-size 0.15s ease;
 }
+
+html[data-font="small"] {
+  font-size: 14px;
+  --font-scale: 0.86;
+}
+
+html[data-font="medium"] {
+  font-size: 16px;
+  --font-scale: 1;
+}
+
+html[data-font="large"] {
+  font-size: 18px;
+  --font-scale: 1.16;
+}
+
+/* ── Universal Font Scaling for Inline Styles (~86% small, ~116% large) ── */
+html[data-font="small"] [style*="font-size: 7.5px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:7.5px"]:not([data-no-font-scale]) { font-size: 6.5px !important; }
+html[data-font="small"] [style*="font-size: 8px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:8px"]:not([data-no-font-scale]) { font-size: 7px !important; }
+html[data-font="small"] [style*="font-size: 8.5px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:8.5px"]:not([data-no-font-scale]) { font-size: 7.5px !important; }
+html[data-font="small"] [style*="font-size: 9px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:9px"]:not([data-no-font-scale]) { font-size: 7.5px !important; }
+html[data-font="small"] [style*="font-size: 9.5px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:9.5px"]:not([data-no-font-scale]) { font-size: 8px !important; }
+html[data-font="small"] [style*="font-size: 10px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:10px"]:not([data-no-font-scale]) { font-size: 8.5px !important; }
+html[data-font="small"] [style*="font-size: 10.5px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:10.5px"]:not([data-no-font-scale]) { font-size: 9px !important; }
+html[data-font="small"] [style*="font-size: 11px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:11px"]:not([data-no-font-scale]) { font-size: 9.5px !important; }
+html[data-font="small"] [style*="font-size: 11.5px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:11.5px"]:not([data-no-font-scale]) { font-size: 10px !important; }
+html[data-font="small"] [style*="font-size: 12px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:12px"]:not([data-no-font-scale]) { font-size: 10.5px !important; }
+html[data-font="small"] [style*="font-size: 12.5px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:12.5px"]:not([data-no-font-scale]) { font-size: 11px !important; }
+html[data-font="small"] [style*="font-size: 13px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:13px"]:not([data-no-font-scale]) { font-size: 11px !important; }
+html[data-font="small"] [style*="font-size: 13.5px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:13.5px"]:not([data-no-font-scale]) { font-size: 11.5px !important; }
+html[data-font="small"] [style*="font-size: 14px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:14px"]:not([data-no-font-scale]) { font-size: 12px !important; }
+html[data-font="small"] [style*="font-size: 15px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:15px"]:not([data-no-font-scale]) { font-size: 13px !important; }
+html[data-font="small"] [style*="font-size: 16px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:16px"]:not([data-no-font-scale]) { font-size: 14px !important; }
+html[data-font="small"] [style*="font-size: 17px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:17px"]:not([data-no-font-scale]) { font-size: 14.5px !important; }
+html[data-font="small"] [style*="font-size: 18px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:18px"]:not([data-no-font-scale]) { font-size: 15.5px !important; }
+html[data-font="small"] [style*="font-size: 19px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:19px"]:not([data-no-font-scale]) { font-size: 16.5px !important; }
+html[data-font="small"] [style*="font-size: 20px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:20px"]:not([data-no-font-scale]) { font-size: 17px !important; }
+html[data-font="small"] [style*="font-size: 24px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:24px"]:not([data-no-font-scale]) { font-size: 20.5px !important; }
+html[data-font="small"] [style*="font-size: 26px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:26px"]:not([data-no-font-scale]) { font-size: 22.5px !important; }
+html[data-font="small"] [style*="font-size: 28px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:28px"]:not([data-no-font-scale]) { font-size: 24px !important; }
+html[data-font="small"] [style*="font-size: 32px"]:not([data-no-font-scale]),
+html[data-font="small"] [style*="font-size:32px"]:not([data-no-font-scale]) { font-size: 27.5px !important; }
+
+html[data-font="large"] [style*="font-size: 7.5px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:7.5px"]:not([data-no-font-scale]) { font-size: 8.5px !important; }
+html[data-font="large"] [style*="font-size: 8px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:8px"]:not([data-no-font-scale]) { font-size: 9.5px !important; }
+html[data-font="large"] [style*="font-size: 8.5px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:8.5px"]:not([data-no-font-scale]) { font-size: 10px !important; }
+html[data-font="large"] [style*="font-size: 9px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:9px"]:not([data-no-font-scale]) { font-size: 10.5px !important; }
+html[data-font="large"] [style*="font-size: 9.5px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:9.5px"]:not([data-no-font-scale]) { font-size: 11px !important; }
+html[data-font="large"] [style*="font-size: 10px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:10px"]:not([data-no-font-scale]) { font-size: 11.5px !important; }
+html[data-font="large"] [style*="font-size: 10.5px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:10.5px"]:not([data-no-font-scale]) { font-size: 12px !important; }
+html[data-font="large"] [style*="font-size: 11px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:11px"]:not([data-no-font-scale]) { font-size: 13px !important; }
+html[data-font="large"] [style*="font-size: 11.5px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:11.5px"]:not([data-no-font-scale]) { font-size: 13.5px !important; }
+html[data-font="large"] [style*="font-size: 12px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:12px"]:not([data-no-font-scale]) { font-size: 14px !important; }
+html[data-font="large"] [style*="font-size: 12.5px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:12.5px"]:not([data-no-font-scale]) { font-size: 14.5px !important; }
+html[data-font="large"] [style*="font-size: 13px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:13px"]:not([data-no-font-scale]) { font-size: 15px !important; }
+html[data-font="large"] [style*="font-size: 13.5px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:13.5px"]:not([data-no-font-scale]) { font-size: 15.5px !important; }
+html[data-font="large"] [style*="font-size: 14px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:14px"]:not([data-no-font-scale]) { font-size: 16px !important; }
+html[data-font="large"] [style*="font-size: 15px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:15px"]:not([data-no-font-scale]) { font-size: 17.5px !important; }
+html[data-font="large"] [style*="font-size: 16px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:16px"]:not([data-no-font-scale]) { font-size: 18.5px !important; }
+html[data-font="large"] [style*="font-size: 17px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:17px"]:not([data-no-font-scale]) { font-size: 19.5px !important; }
+html[data-font="large"] [style*="font-size: 18px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:18px"]:not([data-no-font-scale]) { font-size: 21px !important; }
+html[data-font="large"] [style*="font-size: 19px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:19px"]:not([data-no-font-scale]) { font-size: 22px !important; }
+html[data-font="large"] [style*="font-size: 20px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:20px"]:not([data-no-font-scale]) { font-size: 23px !important; }
+html[data-font="large"] [style*="font-size: 24px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:24px"]:not([data-no-font-scale]) { font-size: 28px !important; }
+html[data-font="large"] [style*="font-size: 26px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:26px"]:not([data-no-font-scale]) { font-size: 30px !important; }
+html[data-font="large"] [style*="font-size: 28px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:28px"]:not([data-no-font-scale]) { font-size: 32.5px !important; }
+html[data-font="large"] [style*="font-size: 32px"]:not([data-no-font-scale]),
+html[data-font="large"] [style*="font-size:32px"]:not([data-no-font-scale]) { font-size: 37px !important; }
 
 body {
   background: var(--bg);
@@ -92,6 +209,17 @@ input[type="time"], input[type="date"] { color-scheme: dark; }
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.4; }
+}
+
+@keyframes hudGlow {
+  0% {
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.35), 0 4px 16px rgba(0, 0, 0, 0.4);
+    border-color: rgba(59, 130, 246, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.65), 0 4px 20px rgba(0, 0, 0, 0.5);
+    border-color: rgba(96, 165, 250, 0.85);
+  }
 }
 
 /* ── Interactive tactile micro-interactions ── */

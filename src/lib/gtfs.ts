@@ -96,7 +96,7 @@ export async function fetchTripInfo(): Promise<Map<string, TripInfo>> {
   const now = Date.now() / 1000
   const result = new Map<string, TripInfo>()
 
-  for (const entity of feed.entity) {
+  for (const entity of feed.entity ?? []) {
     if (!entity.tripUpdate) continue
     const tu = entity.tripUpdate
     const tripId = tu.trip?.tripId
@@ -134,7 +134,7 @@ export async function fetchCanceledTrips(): Promise<Set<string>> {
   try {
     const feed = await fgcFeed('trip-updates-gtfs_realtime')
     const canceled = new Set<string>()
-    for (const e of feed.entity) {
+    for (const e of feed.entity ?? []) {
       if (e.tripUpdate?.trip?.scheduleRelationship === 3 && e.tripUpdate.trip.tripId) {
         canceled.add(e.tripUpdate.trip.tripId)
       }
@@ -196,7 +196,7 @@ export interface VehiclePosition {
 export async function fetchVehiclePositions(): Promise<VehiclePosition[]> {
   const feed = await fgcFeed('vehicle-positions-gtfs_realtime')
   const out: VehiclePosition[] = []
-  for (const e of feed.entity) {
+  for (const e of feed.entity ?? []) {
     const v = e.vehicle
     if (!v?.position || !v.trip?.tripId) continue
     const lat = finiteNum(v.position.latitude)
@@ -223,7 +223,7 @@ export async function fetchStopArrivals(
 ): Promise<StopArrival[]> {
   const feed = await fgcFeed('trip-updates-gtfs_realtime')
 
-  const entity = feed.entity.find(e => e.tripUpdate?.trip?.tripId === tripId)
+  const entity = feed.entity?.find(e => e.tripUpdate?.trip?.tripId === tripId)
   if (!entity?.tripUpdate) return []
 
   const now = Date.now() / 1000
@@ -270,7 +270,7 @@ export async function fetchAlerts(): Promise<Alert[]> {
 
   const defaultAlertTime = feed.header?.timestamp != null ? Number(feed.header.timestamp) : Math.floor(Date.now() / 1000)
 
-  for (const e of feed.entity) {
+  for (const e of feed.entity ?? []) {
     if (!e.alert) continue
     const a = e.alert
     const rawHeader = pickText(a.headerText)
@@ -328,11 +328,21 @@ export async function fetchAlerts(): Promise<Alert[]> {
     let isInformational = false
     let isSchoolReservation = false
 
+    let isShortPlatform = false
+
     const lower = g.header.toLowerCase()
     if (lower.includes('reservat') && lower.includes('escolar')) {
       isInformational = true
       isSchoolReservation = true
       explanation = 'Reserva escolar: en aquest comboi concret, cotxes reservats per a grups escolars. La resta del tren circula amb normalitat.'
+    } else if (lower.includes('primer') && lower.includes('cotxe')) {
+      // Platform length restriction (andanes curtes a estacions com Martorell Enllaç, Olesa, etc.)
+      isInformational = true
+      isShortPlatform = true
+      if (routes.length === 0) {
+        routes.push('R5', 'R6')
+      }
+      explanation = "Embarcament als tres primers cotxes: a causa de la longitud reduïda de les andanes a determinades estacions del trajecte, cal viatjar als cotxes davanters perquè els cotxes posteriors queden fora de l'andana i no obren portes."
     } else if (lower.includes('cremallera') && (lower.includes('enllaç') || lower.includes('enllac'))) {
       isInformational = true
       explanation = 'Avís de connexió informativa amb el Cremallera de Montserrat a Monistrol.'
@@ -341,11 +351,6 @@ export async function fetchAlerts(): Promise<Alert[]> {
         routes.push('R5', 'R6', 'S4', 'S8')
       }
       explanation = 'Servei substitutori per carretera: els trens enllacen amb autobús degut a treballs o incidències en el tram indicat.'
-    } else if (lower.includes('primer') && lower.includes('cotxe')) {
-      if (routes.length === 0) {
-        routes.push('R5', 'R6')
-      }
-      explanation = "Embarcament als tres primers cotxes: en combois de doble composició a la línia Llobregat-Anoia, cal viatjar als cotxes davanters perquè algunes estacions del trajecte tenen andanes curtes on els cotxes posteriors no obren portes o la segona unitat no admet passatge."
     } else if (lower.includes('meteorol') || lower.includes('freqüència') || lower.includes('frequencia') || lower.includes('inclemències') || lower.includes('inclemencies') || lower.includes('temporal')) {
       if (routes.length === 0) {
         const vallesStops = new Set(['PC','PR','GR','SG','PD','EP','MN','BN','TT','PM','SR','RE','TB','AV','PF','VR','VS','VL','LF','VD','SC','MS','VO','SJ','BT','UN','UA','HG','RB','FN','TR','VP','EN','TE','NA','TN','CF','CT','PJ','NO','PN','SPF','SQ'])
@@ -392,6 +397,7 @@ export async function fetchAlerts(): Promise<Alert[]> {
       url: 'https://www.fgc.cat/avisos/',
       isInformational,
       isSchoolReservation,
+      isShortPlatform,
     })
   }
 

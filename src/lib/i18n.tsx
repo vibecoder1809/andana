@@ -183,7 +183,7 @@ const DICT = {
   stepFreeRoute:   { ca: 'Itinerari accessible', es: 'Itinerario accesible', en: 'Step-free route' },
   showStepFree:    { ca: 'Veure itinerari sense escales', es: 'Ver itinerario sin escalones', en: 'Show step-free route' },
   hideStepFree:    { ca: 'Amagar itinerari', es: 'Ocultar itinerario', en: 'Hide route' },
-  trackLive:       { ca: 'En ruta',    es: 'En ruta',     en: 'Track live' },
+  trackLive:       { ca: 'Comença el viatge', es: 'Iniciar viaje', en: 'Start journey' },
   showStops:       { ca: '▼ Veure parades', es: '▼ Ver paradas', en: '▼ View stops' },
   hideStops:       { ca: '▲ Amagar parades', es: '▲ Ocultar paradas', en: '▲ Hide stops' },
   preferStepFree:  { ca: 'Prioritza transbords accessibles', es: 'Priorizar transbordos accesibles', en: 'Prefer step-free transfers' },
@@ -247,6 +247,10 @@ const DICT = {
   themeDark:       { ca: 'Fosc',       es: 'Oscuro',      en: 'Dark' },
   themeLight:      { ca: 'Clar',       es: 'Claro',       en: 'Light' },
   appearance:      { ca: 'Aparença',   es: 'Apariencia',  en: 'Appearance' },
+  fontSize:        { ca: 'Mida de lletra', es: 'Tamaño de letra', en: 'Font size' },
+  fontSmall:       { ca: 'Petita',     es: 'Pequeña',     en: 'Small' },
+  fontMedium:      { ca: 'Mitjana',    es: 'Mediana',     en: 'Medium' },
+  fontLarge:       { ca: 'Gran',       es: 'Grande',      en: 'Large' },
   activeAlertsCount: { ca: (n: number) => `${n} ${n === 1 ? 'avís actiu' : 'avisos actius'}`, es: (n: number) => `${n} ${n === 1 ? 'aviso activo' : 'avisos activos'}`, en: (n: number) => `${n} active ${n === 1 ? 'alert' : 'alerts'}` },
 
   // ── Favorite Stations ──
@@ -397,6 +401,16 @@ const DICT = {
     es: 'Activar notificaciones',
     en: 'Enable notifications',
   },
+  notifMasterToggle: {
+    ca: 'Permetre notificacions',
+    es: 'Permitir notificaciones',
+    en: 'Allow notifications',
+  },
+  notifMasterToggleDesc: {
+    ca: 'Activa o pausa tots els avisos emergents, sons i alertes.',
+    es: 'Activa o pausa todos los avisos emergentes, sonidos y alertas.',
+    en: 'Enable or pause all popups, sounds, and alerts.',
+  },
   notifFavStations: {
     ca: 'Avisos a estacions preferides',
     es: 'Avisos en estaciones favoritas',
@@ -408,9 +422,9 @@ const DICT = {
     en: 'Get notified immediately when a disruption impacts one of your favorite stations.',
   },
   notifLiveTrip: {
-    ca: 'Notificacions de tren entrant (Live HUD)',
-    es: 'Notificaciones de tren entrante (Live HUD)',
-    en: 'Incoming train alerts (Live HUD)',
+    ca: 'Mode «En marxa» (avisos en ruta)',
+    es: 'Modo «En marcha» (avisos en ruta)',
+    en: '«On the move» mode (live trip alerts)',
   },
   notifLiveTripDesc: {
     ca: 'Avisos del tren entrant a l’andana, transbords i arribada a destinació amb la ruta activa.',
@@ -481,6 +495,76 @@ const DICT = {
     ca: 'Activar avisos de tren entrant',
     es: 'Activar avisos de tren entrante',
     en: 'Enable incoming train alerts',
+  },
+  notifFavLines: {
+    ca: 'Avisos de línies preferides',
+    es: 'Avisos de líneas favoritas',
+    en: 'Alerts for favorite lines',
+  },
+  notifFavLinesDesc: {
+    ca: 'Rep alertes quan es detectin incidències a les línies que utilitzes habitualment.',
+    es: 'Recibe alertas cuando se detecten incidencias en las líneas que utilizas habitualmente.',
+    en: 'Get notified when disruptions are reported on lines you commute on.',
+  },
+  selectLinesForAlerts: {
+    ca: 'Línies subscrites a alertes:',
+    es: 'Líneas suscritas a alertas:',
+    en: 'Lines subscribed for alerts:',
+  },
+  allLinesSubscribed: {
+    ca: 'Totes les línies',
+    es: 'Todas las líneas',
+    en: 'All lines',
+  },
+  customLinesCount: {
+    ca: (n: number) => `${n} ${n === 1 ? 'línia triada' : 'línies triades'}`,
+    es: (n: number) => `${n} ${n === 1 ? 'línea elegida' : 'líneas elegidas'}`,
+    en: (n: number) => `${n} ${n === 1 ? 'line selected' : 'lines selected'}`,
+  },
+  chooseLines: {
+    ca: 'Tria línies…',
+    es: 'Elegir líneas…',
+    en: 'Choose lines…',
+  },
+  lineAlertTitle: {
+    ca: (line: string | number) => `⚠️ Incidència a la línia ${line}`,
+    es: (line: string | number) => `⚠️ Incidencia en la línea ${line}`,
+    en: (line: string | number) => `⚠️ Disruption on line ${line}`,
+  },
+  notifAlightAlarm: {
+    ca: 'Alarma de baixada i transbord (Mode «En marxa»)',
+    es: 'Alarma de bajada y transbordo (Modo «En marcha»)',
+    en: 'Alight & transfer alarm («On the move» mode)',
+  },
+  notifAlightAlarmDesc: {
+    ca: 'Avís acústic i vibració en aproximar-se a la teva parada de baixada o transbord.',
+    es: 'Aviso acústico y vibración al aproximarse a tu parada de bajada o transbordo.',
+    en: 'Chime and wake-up vibration when approaching your transfer or destination stop.',
+  },
+  modeEnMarxa: {
+    ca: 'Mode «En marxa»',
+    es: 'Modo «En marcha»',
+    en: '«On the move» mode',
+  },
+  currentTrip: {
+    ca: 'Viatge actual',
+    es: 'Viaje actual',
+    en: 'Current trip',
+  },
+  minimize: {
+    ca: 'Minimitzar',
+    es: 'Minimizar',
+    en: 'Minimize',
+  },
+  maximize: {
+    ca: 'Ampliar',
+    es: 'Ampliar',
+    en: 'Expand',
+  },
+  noLinesSubscribed: {
+    ca: 'Cap línia seleccionada',
+    es: 'Ninguna línea seleccionada',
+    en: 'No lines selected',
   },
 } as const
 

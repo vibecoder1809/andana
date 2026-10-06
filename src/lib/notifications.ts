@@ -17,15 +17,21 @@ export interface NotificationPayload {
 }
 
 export interface NotificationSettings {
+  enabled: boolean
   favStations: boolean
+  favLines: boolean
   liveTrip: boolean
+  alightAlarm: boolean
   sound: boolean
 }
 
 const SETTINGS_KEY = 'andana-notification-settings'
 const DEFAULT_SETTINGS: NotificationSettings = {
+  enabled: true,
   favStations: true,
+  favLines: true,
   liveTrip: true,
+  alightAlarm: true,
   sound: true,
 }
 
@@ -55,8 +61,11 @@ export function getNotificationSettings(): NotificationSettings {
     if (!raw) return DEFAULT_SETTINGS
     const parsed = JSON.parse(raw)
     return {
+      enabled: parsed.enabled !== false,
       favStations: parsed.favStations !== false,
+      favLines: parsed.favLines !== false,
       liveTrip: parsed.liveTrip !== false,
+      alightAlarm: parsed.alightAlarm !== false,
       sound: parsed.sound !== false,
     }
   } catch {
@@ -170,6 +179,9 @@ export function triggerHaptic(type: NotificationType = 'info'): void {
  * Dispatches an in-app visual toast, system notification, and auditory/haptic feedback.
  */
 export async function sendAppNotification(payload: NotificationPayload): Promise<void> {
+  const settings = getNotificationSettings()
+  if (!settings.enabled) return
+
   const { title, body, icon = '/icon-192.png', tag, url = '/', type = 'info', playSound = true } = payload
 
   // 1. Always dispatch in-app toast event for reactive UI presentation

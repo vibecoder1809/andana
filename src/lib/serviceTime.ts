@@ -59,8 +59,15 @@ export function serviceMinutes(at: Date = new Date()): number {
  * (01:15 to 04:55), when regular passenger trains are not in service.
  */
 export function isNightRestHours(at: Date = new Date()): boolean {
+  const dayOfWeek = at.toLocaleDateString('en-US', { timeZone: ZONE, weekday: 'short' })
+  // Saturday night into Sunday morning: continuous night service operates on S1/S2 network
+  if (dayOfWeek === 'Sun') {
+    return false
+  }
   const mins = serviceMinutes(at)
-  return mins >= 75 && mins < 295
+  // Friday night into Saturday morning operates until ~02:00
+  const startMins = dayOfWeek === 'Sat' ? 120 : 75
+  return mins >= startMins && mins < 295
 }
 
 /**

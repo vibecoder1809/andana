@@ -32,6 +32,7 @@ const IMMINENT_S = 30       // within this many seconds → show "now"
 
 export interface DeparturesBoardProps {
   stationCode: string
+  stationName?: string
   lineColors: Record<string, string>
   weatherAlertActive?: boolean
   passingTrains?: Array<{ train: Train; here: boolean; dist: number }>
@@ -40,7 +41,7 @@ export interface DeparturesBoardProps {
 // Live next-departures board for a station. Scheduled times come from the GTFS
 // timetable (via /api/departures) and are pushed later by each line's current
 // median delay; a per-second countdown ticks client-side.
-export function DeparturesBoard({ stationCode, lineColors, weatherAlertActive = false, passingTrains }: DeparturesBoardProps) {
+export function DeparturesBoard({ stationCode, stationName = '', lineColors, weatherAlertActive = false, passingTrains }: DeparturesBoardProps) {
   const { t } = useI18n()
   const [departures, setDepartures] = useState<Departure[] | null>(null)
   const [now, setNow]               = useState(nowSecondsOfDay())
@@ -341,44 +342,44 @@ export function DeparturesBoard({ stationCode, lineColors, weatherAlertActive = 
 
                 {/* Right: Countdown & Scheduled Time */}
                 <div style={{ flexShrink: 0, textAlign: 'right', minWidth: 46 }}>
-                  {isInactive ? (
-                    <span style={{
-                      fontFamily: 'var(--font-space-grotesk), monospace',
-                      fontSize: 10,
-                      fontWeight: 800,
-                      letterSpacing: '0.4px',
-                      color: 'var(--red)',
-                      background: 'rgba(239, 68, 68, 0.15)',
-                      padding: '2px 6px',
-                      borderRadius: 4,
-                      textTransform: 'uppercase',
-                      whiteSpace: 'nowrap',
-                    }}>
-                      {d.isCancelled ? t('cancelled') : t('suspended')}
-                    </span>
-                  ) : (
-                    <>
-                      <div style={{
+                    {isInactive ? (
+                      <span style={{
                         fontFamily: 'var(--font-space-grotesk), monospace',
-                        fontSize: 13,
-                        fontWeight: 700,
-                        fontVariantNumeric: 'tabular-nums',
-                        color: imminent ? 'var(--accent)' : 'var(--text)',
-                        lineHeight: 1.2,
+                        fontSize: 10,
+                        fontWeight: 800,
+                        letterSpacing: '0.4px',
+                        color: 'var(--red)',
+                        background: 'rgba(239, 68, 68, 0.15)',
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        textTransform: 'uppercase',
                         whiteSpace: 'nowrap',
                       }}>
-                        {imminent
-                          ? t('etaNow')
-                          : remaining < 3600
-                            ? t('minShort', Math.ceil(remaining / 60))
-                            : fmtClock(d.depTime)}
-                      </div>
-                      <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1, fontFamily: 'var(--font-space-grotesk), monospace' }}>
-                        {fmtClock(d.depTime)}
-                      </div>
-                    </>
-                  )}
-                </div>
+                        {d.isCancelled ? t('cancelled') : t('suspended')}
+                      </span>
+                    ) : (
+                      <>
+                        <div style={{
+                          fontFamily: 'var(--font-space-grotesk), monospace',
+                          fontSize: 13,
+                          fontWeight: 700,
+                          fontVariantNumeric: 'tabular-nums',
+                          color: imminent ? 'var(--accent)' : 'var(--text)',
+                          lineHeight: 1.2,
+                          whiteSpace: 'nowrap',
+                        }}>
+                          {imminent
+                            ? t('etaNow')
+                            : remaining < 3600
+                              ? t('minShort', Math.ceil(remaining / 60))
+                              : fmtClock(d.depTime)}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1, fontFamily: 'var(--font-space-grotesk), monospace' }}>
+                          {fmtClock(d.depTime)}
+                        </div>
+                      </>
+                    )}
+                  </div>
               </div>
             )
           })}

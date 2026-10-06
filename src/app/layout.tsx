@@ -73,14 +73,19 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ca" className={`${inter.variable} ${spaceGrotesk.variable}`}>
+    <html lang="ca" className={`${inter.variable} ${spaceGrotesk.variable}`} suppressHydrationWarning>
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var f=localStorage.getItem('andana-font-size');if(f)document.documentElement.setAttribute('data-font',f);var t=localStorage.getItem('andana-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`,
+          }}
+        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         {children}
         <ServiceWorkerRegister />
       </body>

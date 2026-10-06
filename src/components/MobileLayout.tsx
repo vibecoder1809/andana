@@ -24,9 +24,11 @@ import { DonationModal } from './DonationModal'
 import { useUserEngagement } from '@/lib/userEngagement'
 import { matchesSearch, startsWithSearch } from '@/lib/searchUtils'
 import { useStationAlertNotifier } from '@/lib/useStationAlertNotifier'
+import { useLineAlertNotifier } from '@/lib/useLineAlertNotifier'
 import { NotificationToast } from './NotificationToast'
 import { NightRestCard } from './NightRestCard'
 import { isNightRestHours } from '@/lib/serviceTime'
+import { useFontSize } from '@/lib/fontSize'
 
 const LINE_GROUPS: { key: string; labelKey: TransKey; prefix: RegExp }[] = [
   { key: 'L',          labelKey: 'groupUrbanShort',     prefix: /^L\d/ },
@@ -448,6 +450,7 @@ export function MobileLayout({
   onCloseTrain, onCloseStop, onRefresh, onThemeToggle,
 }: MobileLayoutProps) {
   const { t } = useI18n()
+  useFontSize()
   const rootRef = useRef<HTMLDivElement>(null)
   const topBarRef = useRef<HTMLDivElement>(null)
   // Tallest the sheet may grow without hiding its handle under the top bar.
@@ -520,6 +523,7 @@ export function MobileLayout({
   } = useUserEngagement()
 
   useStationAlertNotifier(allAlerts ?? alerts)
+  useLineAlertNotifier(allAlerts ?? alerts)
 
   const handleToastNavigate = useCallback((url: string) => {
     try {

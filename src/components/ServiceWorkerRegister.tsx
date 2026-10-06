@@ -9,16 +9,70 @@ export function ServiceWorkerRegister() {
   useEffect(() => {
     if (process.env.NODE_ENV !== 'production') return
     if (!('serviceWorker' in navigator)) return
-    const onLoad = () => { navigator.serviceWorker.register('/sw.js').catch(() => {}) }
-    // Hydration normally finishes *after* window.load has already fired, and a
-    // listener added at that point never runs — which left the SW permanently
-    // unregistered. Only wait for the event if the page is still loading.
+
+    let registration: ServiceWorkerRegistration | null = null
+    let refreshing = false
+
+    // When a new service worker takes control (via skipWaiting), reload the page once
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return
+      refreshing = true
+      window.location.reload()
+    })
+
+    const checkForUpdate = () => {
+      if (registration) {
+        registration.update().catch(() => {})
+      }
+    }
+
+    const onLoad = () => {
+      navigator.serviceWorker.register('/sw.js')
+        .then((reg) => {
+          registration = reg
+
+          // If a worker is already waiting, trigger skipWaiting immediately
+          if (reg.waiting) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' })
+          }
+
+          // If an incoming update is installed, activate it
+          reg.addEventListener('updatefound', () => {
+            const newWorker = reg.installing
+            if (newWorker) {
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  newWorker.postMessage({ type: 'SKIP_WAITING' })
+                }
+              })
+            }
+          })
+        })
+        .catch(() => {})
+    }
+
+    // Hydration normally finishes *after* window.load has already fired.
     if (document.readyState === 'complete') {
       onLoad()
-      return
+    } else {
+      window.addEventListener('load', onLoad, { once: true })
     }
-    window.addEventListener('load', onLoad, { once: true })
-    return () => window.removeEventListener('load', onLoad)
+
+    // Check for updates periodically (every 10 minutes)
+    const interval = setInterval(checkForUpdate, 10 * 60 * 1000)
+
+    // Check for updates when user returns to the app / opens tab
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkForUpdate()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [])
   return null
 }

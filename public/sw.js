@@ -8,7 +8,7 @@
 //   • other /api/*            → network-first, fall back to last-seen response
 //
 // Bump CACHE_VERSION to invalidate everything on a breaking change.
-const CACHE_VERSION = 'andana-v1'
+const CACHE_VERSION = 'andana-v2'
 const SHELL_CACHE = `${CACHE_VERSION}-shell`
 const ASSET_CACHE = `${CACHE_VERSION}-assets`
 const DATA_CACHE  = `${CACHE_VERSION}-data`
@@ -27,6 +27,12 @@ self.addEventListener('install', (event) => {
       .then(() => self.skipWaiting())
       .catch(() => {}),
   )
+})
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting()
+  }
 })
 
 self.addEventListener('activate', (event) => {

@@ -2,6 +2,7 @@ import type { Train } from '@/types'
 import { STATION_CODES } from './constants'
 import { fgcAllRecords } from './fgc'
 import { finiteNum } from './validate'
+import { isNightRestHours } from './serviceTime'
 
 interface TrainPositionRecord {
   id: string
@@ -18,6 +19,51 @@ interface TrainPositionRecord {
   ocupacio_m2_percent: string | null
   ocupacio_mi_percent: string | null
   ocupacio_ri_percent: string | null
+}
+
+function normalizeTrainRecord(raw: any): TrainPositionRecord | null {
+  if (!raw) return null
+
+  // Standard record where id and lin are properly populated
+  if (typeof raw.id === 'string' && raw.id.trim() && typeof raw.lin === 'string' && raw.lin.trim()) {
+    return raw as TrainPositionRecord
+  }
+
+  // Upstream FGC Open Data CSV column-shift recovery:
+  // When upstream export misaligns columns, the fields are shifted:
+  // - id is in raw.ocupacio_mi_percent (hash with '|')
+  // - lin is in raw.ocupacio_mi_tram (e.g. 'S1', 'S2', 'R5')
+  // - dir is in raw.ocupacio_ri_percent ('A' or 'D')
+  // - origen is in raw.ocupacio_ri_tram
+  // - desti is in raw.ocupacio_m1_tram
+  // - properes_parades is in raw.ocupacio_m1_percent
+  // - estacionat_a is in raw.ocupacio_m2_percent
+  // - en_hora is in raw.ocupacio_m2_tram
+  if (
+    typeof raw.ocupacio_mi_percent === 'string' &&
+    raw.ocupacio_mi_percent.includes('|') &&
+    typeof raw.ocupacio_mi_tram === 'string' &&
+    /^[A-Z0-9]+$/i.test(raw.ocupacio_mi_tram.trim())
+  ) {
+    return {
+      id: raw.ocupacio_mi_percent.trim(),
+      lin: raw.ocupacio_mi_tram.trim(),
+      geo_point_2d: raw.geo_point_2d,
+      dir: typeof raw.ocupacio_ri_percent === 'string' ? raw.ocupacio_ri_percent : '',
+      origen: typeof raw.ocupacio_ri_tram === 'string' ? raw.ocupacio_ri_tram : '',
+      desti: typeof raw.ocupacio_m1_tram === 'string' ? raw.ocupacio_m1_tram : '',
+      en_hora: typeof raw.ocupacio_m2_tram === 'string' ? raw.ocupacio_m2_tram : '',
+      ut: '',
+      properes_parades: typeof raw.ocupacio_m1_percent === 'string' ? raw.ocupacio_m1_percent : null,
+      estacionat_a: typeof raw.ocupacio_m2_percent === 'string' ? raw.ocupacio_m2_percent : null,
+      ocupacio_m1_percent: null,
+      ocupacio_m2_percent: null,
+      ocupacio_mi_percent: null,
+      ocupacio_ri_percent: null,
+    }
+  }
+
+  return null
 }
 
 function parsePct(v: string | null): number | null {
@@ -70,16 +116,35 @@ export async function fetchTrains(): Promise<Train[]> {
   // Page the feed rather than taking one 100-row page: FGC runs well over 100
   // trains at peak, and a capped fetch silently drops them from the map (and
   // skews the per-line delay medians computed from this list).
-  const results = await fgcAllRecords<TrainPositionRecord>('posicionament-dels-trens', undefined, 0)
+  const results = await fgcAllRecords<any>('posicionament-dels-trens', undefined, 0)
   const inCremalleraHours = isCremalleraOperatingHours()
+  const isNight = isNightRestHours()
 
   return results
-    .flatMap(r => {
+    .flatMap(raw => {
+      const r = normalizeTrainRecord(raw)
+      // Drop malformed/ghost records missing a valid id or line code
+      if (!r || !r.id || !r.lin) return []
+
       // A malformed/missing coordinate must not become NaN in the map's
       // animation math — drop the record instead of rendering a broken train.
       const lat = r.geo_point_2d && finiteNum(r.geo_point_2d.lat)
       const lng = r.geo_point_2d && finiteNum(r.geo_point_2d.lon)
       if (lat == null || lng == null) return []
+
+      const isCremallera = r.lin === 'M1' || r.lin === 'M2' || r.lin === 'MM'
+      // Outside commercial operating hours, Cremallera units left with transponders on at
+      // sidings are 100% sleeping/inactive. Drop them completely so they are not shown as online trains.
+      if (isCremallera && !inCremalleraHours) {
+        return []
+      }
+
+      // During night rest hours (01:15 to 04:55), regular commercial passenger service
+      // is suspended. Transponders left active on parked units overnight or stale
+      // completed runs must not be shown as ghost trains.
+      if (isNight && !isCremallera) {
+        return []
+      }
 
       // Feed-field order is the physical composition order of FGC units:
       // M1 (cab motor) — Mi (intermediate motor) — Ri (intermediate trailer) — M2 (cab motor).
@@ -100,13 +165,6 @@ export async function fetchTrains(): Promise<Train[]> {
       // mean still shows) and pass through only distinct, real telemetry.
       // Nulls stay positional so a 3-car unit renders 3 correctly-named cars.
       const perCarReal = valid.length >= 2 && new Set(valid).size > 1
-
-      const isCremallera = r.lin === 'M1' || r.lin === 'M2' || r.lin === 'MM'
-      // Outside commercial operating hours, Cremallera units left with transponders on at
-      // sidings are 100% sleeping/inactive. Drop them completely so they are not shown as online trains.
-      if (isCremallera && !inCremalleraHours) {
-        return []
-      }
 
       let operationalStatus: Train['operationalStatus'] = undefined
       let isDepot = false

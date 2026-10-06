@@ -341,6 +341,7 @@ function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColo
       {/* Live next-departures board */}
       <DeparturesBoard
         stationCode={stationCode}
+        stationName={stop.name}
         lineColors={lineColors}
         weatherAlertActive={Boolean(weatherAlert)}
         passingTrains={passing}
