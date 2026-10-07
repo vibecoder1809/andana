@@ -44,8 +44,23 @@ export function LiveTripHud({
   const { lang, t } = useI18n()
   const [now, setNow] = useState(nowSeconds)
   const [notifsEnabled, setNotifsEnabled] = useState(true)
-  const [isMinimized, setIsMinimized] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+  const [isOffline, setIsOffline] = useState(false)
   const notifiedMilestonesRef = useRef<Set<string>>(new Set())
+
+  // Detect offline mode (e.g. traveling through tunnels)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    setIsOffline(!window.navigator.onLine)
+    const onOnline = () => setIsOffline(false)
+    const onOffline = () => setIsOffline(true)
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+    return () => {
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
+    }
+  }, [])
 
   // Persist active trip for cross-tab synchronization
   useEffect(() => {
@@ -133,29 +148,12 @@ export function LiveTripHud({
 
     const notified = notifiedMilestonesRef.current
 
-    // 1. Incoming train alert for the current leg
+    // 1. Incoming train alert for the current leg (within 3 minutes of departure)
     if (!isWalk && curLeg.line) {
       const curNow = (curLeg.depTime >= 86400 && now < 4 * 3600) ? now + 86400 : now
       const timeToDep = curLeg.depTime - curNow
 
-      // Check if real-time train is approaching or stationed at the departure station
-      let isLiveTrainApproaching = false
-      if (trains && trains.length > 0) {
-        const normFrom = normalizeSearchText(curLeg.fromName)
-        const matchedTrain = trains.find(tr => {
-          if (tr.line.toLowerCase() !== curLeg.line.toLowerCase()) return false
-          const curr = tr.currentStop ? normalizeSearchText(tr.currentStop) : ''
-          const next = tr.nextStop ? normalizeSearchText(tr.nextStop) : ''
-          const upcomingFirst = tr.upcomingStops?.[0] ? normalizeSearchText(tr.upcomingStops[0]) : ''
-          return curr === normFrom || next === normFrom || upcomingFirst === normFrom
-        })
-        if (matchedTrain) {
-          isLiveTrainApproaching = true
-        }
-      }
-
-      // Trigger incoming train alert when train is arriving (within 3 minutes or approaching by live telemetry)
-      if ((timeToDep <= 180 && timeToDep >= -30) || isLiveTrainApproaching) {
+      if (timeToDep <= 180 && timeToDep >= -30) {
         const key = `incoming_leg_${activeLegIndex}_${curLeg.line}_${curLeg.fromName}`
         if (!notified.has(key)) {
           notified.add(key)
@@ -218,116 +216,289 @@ export function LiveTripHud({
     onClose()
   }, [onClose])
 
-  if (isMinimized) {
-    const originLeg = journey.legs[0]
-    const destLeg = journey.legs[journey.legs.length - 1]
-    const fromAbbr = getStationCode(originLeg?.fromCode || '', originLeg?.fromName)
-    const toAbbr = getStationCode(destLeg?.toCode || '', destLeg?.toName)
+  const originLeg = journey.legs[0]
+  const destLeg = journey.legs[journey.legs.length - 1]
+  const fromAbbr = getStationCode(originLeg?.fromCode || '', originLeg?.fromName)
+  const toAbbr = getStationCode(destLeg?.toCode || '', destLeg?.toName)
 
-    const curNow = (journey.depTime >= 86400 && now < 4 * 3600) ? now + 86400 : now
-    const isDeparted = curNow >= journey.depTime
-    const remainingSec = isDeparted ? (journey.arrTime - curNow) : (journey.depTime - curNow)
-    const remainingMin = Math.max(0, Math.ceil(remainingSec / 60))
-    const timeText = isDeparted && remainingMin === 0
-      ? (lang === 'ca' ? 'Arribat' : lang === 'es' ? 'Llegado' : 'Arrived')
-      : `${remainingMin} min`
+  const curNow = (journey.depTime >= 86400 && now < 4 * 3600) ? now + 86400 : now
+  const isDeparted = curNow >= journey.depTime
+  const remainingSec = isDeparted ? (journey.arrTime - curNow) : (journey.depTime - curNow)
+  const remainingMin = Math.max(0, Math.ceil(remainingSec / 60))
+  const totalDuration = Math.max(1, journey.arrTime - journey.depTime)
+  const elapsed = curNow - journey.depTime
+  const rawProgress = curNow < journey.depTime ? 0 : Math.min(100, Math.max(0, (elapsed / totalDuration) * 100))
+  const progressPercent = Math.round(rawProgress)
+  const timeText = isDeparted && remainingMin === 0
+    ? (lang === 'ca' ? 'Arribat' : lang === 'es' ? 'Llegado' : 'Arrived')
+    : `${remainingMin} min`
 
+  const statusSummary = isBefore
+    ? (lang === 'ca' ? `Sortida ${fmtClock(journey.depTime)}` : lang === 'es' ? `Salida ${fmtClock(journey.depTime)}` : `Departs ${fmtClock(journey.depTime)}`)
+    : isAfter
+    ? (lang === 'ca' ? 'Has arribat!' : lang === 'es' ? '¡Has llegado!' : 'Arrived!')
+    : nextStop
+    ? (lang === 'ca' ? `Proper: ${nextStop.name}` : lang === 'es' ? `Próximo: ${nextStop.name}` : `Next: ${nextStop.name}`)
+    : (lang === 'ca' ? `Cap a ${curLeg?.toName}` : lang === 'es' ? `Hacia ${curLeg?.toName}` : `To ${curLeg?.toName}`)
+
+  // ── 1. Default: Sleek, thin rectangle docked directly to the bottom edge ──
+  if (!expanded) {
     return (
       <div
-        onClick={() => setIsMinimized(false)}
-        role="button"
-        tabIndex={0}
+        role="region"
         aria-label={`${t('currentTrip')}: ${fromAbbr} → ${toAbbr}`}
         style={{
           position: 'fixed',
-          bottom: 'calc(env(safe-area-inset-bottom, 0px) + 14px)',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: 'calc(100% - 28px)',
-          maxWidth: 420,
-          background: 'rgba(15, 23, 42, 0.94)',
-          border: '1px solid rgba(59, 130, 246, 0.7)',
-          borderRadius: 22,
-          boxShadow: '0 0 16px rgba(59, 130, 246, 0.45), 0 6px 20px rgba(0, 0, 0, 0.4)',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          width: '100%',
+          background: 'var(--bg2)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          borderTop: '1px solid rgba(59, 130, 246, 0.45)',
+          borderBottom: 'none',
+          borderLeft: 'none',
+          borderRight: 'none',
+          borderRadius: 0,
+          boxShadow: '0 -2px 14px rgba(59, 130, 246, 0.22), 0 -1px 3px rgba(0, 0, 0, 0.35)',
           zIndex: 950,
-          padding: '8px 14px',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
+          padding: '6px 14px',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 6px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: 10,
-          cursor: 'pointer',
-          animation: 'hudGlow 2.5s infinite alternate ease-in-out',
+          gap: 8,
           userSelect: 'none',
+          animation: 'hudGlow 3s infinite alternate ease-in-out',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
-          <span style={{
-            display: 'inline-block',
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            background: isDeparted ? '#22c55e' : '#3b82f6',
-            boxShadow: isDeparted ? '0 0 8px #22c55e' : '0 0 8px #3b82f6',
-            flexShrink: 0,
-            animation: 'pulse 1.5s infinite',
-          }} />
+        {/* Slender visual progress bar flush along the top edge */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 2.5,
+            background: 'rgba(255, 255, 255, 0.08)',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              height: '100%',
+              width: `${isDeparted ? Math.max(2, progressPercent) : 0}%`,
+              background: isDeparted
+                ? `linear-gradient(90deg, ${color}, var(--green))`
+                : color,
+              boxShadow: isDeparted ? `0 0 6px ${color}` : 'none',
+              transition: 'width 1s linear',
+            }}
+          />
+        </div>
+        {/* Left: Indicator, line badge, route abbreviation, current status */}
+        <div
+          onClick={() => setExpanded(true)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 7,
+            minWidth: 0,
+            flex: 1,
+            cursor: 'pointer',
+          }}
+        >
+          {/* Pulsing live dot */}
+          <span
+            style={{
+              display: 'inline-block',
+              width: 7,
+              height: 7,
+              borderRadius: '50%',
+              background: isDeparted ? 'var(--green)' : 'var(--accent)',
+              boxShadow: isDeparted ? '0 0 6px var(--green)' : '0 0 6px var(--accent)',
+              flexShrink: 0,
+              animation: 'pulse 1.5s infinite',
+            }}
+          />
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--muted)' }}>
-              {t('currentTrip')}:
+          {/* Line Pill (or walk icon) */}
+          {isWalk ? (
+            <span style={{ fontSize: 12, flexShrink: 0 }}>🚶</span>
+          ) : curLeg?.line ? (
+            <span
+              style={{
+                background: color,
+                color: '#fff',
+                fontWeight: 800,
+                fontSize: 10.5,
+                padding: '1.5px 5px',
+                borderRadius: 4,
+                fontFamily: 'var(--font-space-grotesk), sans-serif',
+                flexShrink: 0,
+                lineHeight: 1.15,
+              }}
+            >
+              {curLeg.line}
             </span>
-            <span style={{
-              fontSize: 12.5,
+          ) : null}
+
+          {/* Label: Viatge actual */}
+          <span
+            style={{
+              fontSize: 11.5,
+              fontWeight: 600,
+              color: 'var(--muted)',
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {t('currentTrip')}:
+          </span>
+
+          {/* Station Path: PC → VP */}
+          <span
+            style={{
+              fontSize: 12,
               fontWeight: 800,
               fontFamily: 'var(--font-space-grotesk), sans-serif',
               color: 'var(--text)',
-              letterSpacing: '0.4px',
-            }}>
-              {fromAbbr} → {toAbbr}
+              letterSpacing: '0.3px',
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {fromAbbr} → {toAbbr}
+          </span>
+
+          {/* Subtitle / Next stop / status summary (truncated gracefully) */}
+          <span
+            style={{
+              fontSize: 11,
+              color: 'var(--muted)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              minWidth: 0,
+              opacity: 0.85,
+            }}
+          >
+            · {statusSummary}
+          </span>
+
+          {isOffline && (
+            <span
+              title={t('tunnelModeNotice')}
+              style={{
+                fontSize: 9.5,
+                fontWeight: 700,
+                color: 'var(--yellow)',
+                background: 'rgba(245, 158, 11, 0.15)',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                padding: '1px 5px',
+                borderRadius: 4,
+                flexShrink: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 3,
+                fontFamily: 'inherit',
+              }}
+            >
+              <span>🚇</span>
+              <span>{t('tunnelMode')}</span>
             </span>
-          </div>
+          )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <span style={{
-            fontSize: 13,
-            fontWeight: 800,
-            fontFamily: 'var(--font-space-grotesk), sans-serif',
-            color: isDeparted ? 'var(--green)' : 'var(--accent)',
-            fontVariantNumeric: 'tabular-nums',
-          }}>
+        {/* Right: Countdown time, expand chevron, center & close buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          {/* Time Countdown */}
+          <span
+            onClick={() => setExpanded(true)}
+            style={{
+              fontSize: 12.5,
+              fontWeight: 800,
+              fontFamily: 'var(--font-space-grotesk), sans-serif',
+              color: isDeparted ? 'var(--green)' : 'var(--accent)',
+              fontVariantNumeric: 'tabular-nums',
+              cursor: 'pointer',
+              paddingRight: 2,
+            }}
+          >
             {timeText}
           </span>
 
-          <span style={{ color: 'var(--muted)', display: 'flex', alignItems: 'center' }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="18 15 12 9 6 15" />
-            </svg>
-          </span>
+          {/* Center on map button */}
+          {onCenter && (
+            <button
+              type="button"
+              onClick={onCenter}
+              title={lang === 'ca' ? 'Centra al mapa' : lang === 'es' ? 'Centrar en el mapa' : 'Center on map'}
+              aria-label="Centra al mapa"
+              style={{
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+                color: 'var(--text)',
+                width: 24,
+                height: 24,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                fontSize: 11,
+                padding: 0,
+              }}
+            >
+              📍
+            </button>
+          )}
 
+          {/* Expand Details button */}
           <button
-            onClick={(e) => {
-              e.stopPropagation()
-              handleClose()
-            }}
-            title={lang === 'ca' ? 'Finalitzar ruta' : lang === 'es' ? 'Finalizar ruta' : 'End trip'}
-            aria-label="Tancar viatge"
+            type="button"
+            onClick={() => setExpanded(true)}
+            title={t('maximize')}
+            aria-label={t('maximize')}
             style={{
-              background: 'rgba(255,255,255,0.08)',
-              border: 'none',
-              borderRadius: '50%',
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid var(--border)',
+              borderRadius: 6,
               color: 'var(--muted)',
-              width: 20,
-              height: 20,
+              width: 24,
+              height: 24,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              fontSize: 10,
               padding: 0,
-              marginLeft: 2,
+            }}
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="18 15 12 9 6 15" />
+            </svg>
+          </button>
+
+          {/* Close / End Trip button */}
+          <button
+            type="button"
+            onClick={handleClose}
+            title={lang === 'ca' ? 'Finalitzar ruta' : lang === 'es' ? 'Finalizar ruta' : 'End trip'}
+            aria-label="Finalitzar ruta"
+            style={{
+              background: 'rgba(239,68,68,0.12)',
+              border: '1px solid rgba(239,68,68,0.3)',
+              borderRadius: 6,
+              color: 'var(--red)',
+              width: 24,
+              height: 24,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              fontSize: 11,
+              padding: 0,
             }}
           >
             ✕
@@ -337,32 +508,41 @@ export function LiveTripHud({
     )
   }
 
+  // ── 2. Expanded Drawer: Docked to bottom, slides up smoothly ──
   return (
     <div
+      role="dialog"
+      aria-label={t('modeEnMarxa')}
       style={{
         position: 'fixed',
-        bottom: 24,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        width: 'calc(100% - 32px)',
-        maxWidth: 520,
+        bottom: 0,
+        left: 0,
+        right: 0,
+        width: '100%',
+        maxHeight: '65vh',
+        overflowY: 'auto',
         background: 'var(--bg2)',
-        border: '1px solid var(--accent)',
-        borderRadius: 14,
-        boxShadow: '0 12px 35px rgba(0,0,0,0.45)',
-        zIndex: 900,
-        padding: '12px 16px',
-        backdropFilter: 'blur(8px)',
+        borderTop: '1px solid var(--accent)',
+        borderBottom: 'none',
+        borderLeft: 'none',
+        borderRight: 'none',
+        borderRadius: '16px 16px 0 0',
+        boxShadow: '0 -8px 32px rgba(0,0,0,0.5)',
+        zIndex: 960,
+        padding: '12px 16px calc(env(safe-area-inset-bottom, 0px) + 12px)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
         display: 'flex',
         flexDirection: 'column',
-        gap: 8,
+        gap: 10,
+        animation: 'slideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
       }}
     >
       {/* Header bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--green)', animation: 'pulse 1.5s infinite' }} />
-          <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--accent)' }}>
+          <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--accent)' }}>
             {t('modeEnMarxa')}
           </span>
           <span style={{ fontSize: 11, color: 'var(--muted)' }}>
@@ -373,6 +553,7 @@ export function LiveTripHud({
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {/* Incoming train notifications toggle button */}
           <button
+            type="button"
             onClick={handleToggleNotifications}
             title={notifsEnabled ? t('hudNotificationsActive') : t('hudNotificationsEnable')}
             aria-label={notifsEnabled ? t('hudNotificationsActive') : t('hudNotificationsEnable')}
@@ -398,6 +579,7 @@ export function LiveTripHud({
 
           {onCenter && (
             <button
+              type="button"
               onClick={onCenter}
               title={lang === 'ca' ? 'Centra al mapa' : lang === 'es' ? 'Centrar en el mapa' : 'Center on map'}
               style={{
@@ -415,9 +597,10 @@ export function LiveTripHud({
             </button>
           )}
 
-          {/* Minimize button */}
+          {/* Collapse button to return to thin docked bar */}
           <button
-            onClick={() => setIsMinimized(true)}
+            type="button"
+            onClick={() => setExpanded(false)}
             title={t('minimize')}
             aria-label={t('minimize')}
             style={{
@@ -425,8 +608,8 @@ export function LiveTripHud({
               border: '1px solid var(--border)',
               borderRadius: 6,
               color: 'var(--muted)',
-              width: 24,
-              height: 24,
+              width: 26,
+              height: 26,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -439,7 +622,9 @@ export function LiveTripHud({
             </svg>
           </button>
 
+          {/* Close button */}
           <button
+            type="button"
             onClick={handleClose}
             title={lang === 'ca' ? 'Finalitzar ruta' : lang === 'es' ? 'Finalizar ruta' : 'End trip'}
             style={{
@@ -447,8 +632,8 @@ export function LiveTripHud({
               border: '1px solid var(--border)',
               borderRadius: 6,
               color: 'var(--muted)',
-              width: 24,
-              height: 24,
+              width: 26,
+              height: 26,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -458,6 +643,35 @@ export function LiveTripHud({
           >
             ✕
           </button>
+        </div>
+      </div>
+
+      {/* Visual Journey Progress Bar */}
+      <div style={{ background: 'var(--bg3)', borderRadius: 8, padding: '7px 10px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>
+              {t('tripProgress', progressPercent)}
+            </span>
+            {isOffline && (
+              <span style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--yellow)', background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '1px 5px', borderRadius: 4 }}>
+                🚇 {t('tunnelMode')}
+              </span>
+            )}
+          </div>
+          <span style={{ fontSize: 11, fontFamily: 'var(--font-space-grotesk)', fontWeight: 700, color: isDeparted ? 'var(--green)' : 'var(--accent)' }}>
+            {timeText}
+          </span>
+        </div>
+        <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+          <div
+            style={{
+              height: '100%',
+              width: `${isDeparted ? Math.max(2, progressPercent) : 0}%`,
+              background: isDeparted ? `linear-gradient(90deg, ${color}, var(--green))` : color,
+              transition: 'width 1s linear',
+            }}
+          />
         </div>
       </div>
 

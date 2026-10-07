@@ -232,8 +232,6 @@ const DICT = {
   activeFilter:    { ca: (line: string) => `Filtre actiu: ${line}`, es: (line: string) => `Filtro activo: ${line}`, en: (line: string) => `Active filter: ${line}` },
   weatherFrequencyAlertTitle: { ca: 'Freqüència alterada per meteorologia', es: 'Frecuencia alterada por meteorología', en: 'Frequency altered due to weather' },
   weatherFrequencyAlertDesc: { ca: 'A causa de condicions meteorològiques adverses, els trens poden circular fora del seu horari habitual. Consulteu els trens en circulació a dalt.', es: 'Debido a condiciones meteorológicas adversas, los trenes pueden circular fuera de su horario habitual. Consulte los trenes en circulación arriba.', en: 'Due to severe weather conditions, trains may run off their scheduled timetable. Check live circulating trains above.' },
-  liveTrainApproaching: { ca: (dist: number) => `Tren a ${dist} ${dist === 1 ? 'parada' : 'parades'}`, es: (dist: number) => `Tren a ${dist} ${dist === 1 ? 'parada' : 'paradas'}`, en: (dist: number) => `Train ${dist} ${dist === 1 ? 'stop' : 'stops'} away` },
-  liveTrainAtPlatform:  { ca: "Tren a l'estació", es: 'Tren en la estación', en: 'Train at station' },
   theoreticalScheduleNotice: { ca: 'Horaris teòrics: consulteu els trens en circulació a dalt per al pas en temps real.', es: 'Horarios teóricos: consulte los trenes en circulación arriba para el paso en tiempo real.', en: 'Scheduled timetable: check circulating trains above for real-time arrivals.' },
 
   // ── Mobile UX & Settings ──
@@ -565,6 +563,91 @@ const DICT = {
     ca: 'Cap línia seleccionada',
     es: 'Ninguna línea seleccionada',
     en: 'No lines selected',
+  },
+  lineStrip: {
+    ca: 'Termòmetre de línia',
+    es: 'Termómetro de línea',
+    en: 'Line diagram',
+  },
+  viewLineStrip: {
+    ca: 'Veure termòmetre de la línia',
+    es: 'Ver termómetro de la línea',
+    en: 'View line diagram',
+  },
+  tapStationForDepartures: {
+    ca: 'Prem una estació per veure sortides',
+    es: 'Pulsa una estación para ver salidas',
+    en: 'Tap a station to view departures',
+  },
+  stationsCount: {
+    ca: (n: number) => `${n} ${n === 1 ? 'estació' : 'estacions'}`,
+    es: (n: number) => `${n} ${n === 1 ? 'estación' : 'estaciones'}`,
+    en: (n: number) => `${n} ${n === 1 ? 'station' : 'stations'}`,
+  },
+  tunnelMode: {
+    ca: 'Mode túnel',
+    es: 'Modo túnel',
+    en: 'Tunnel mode',
+  },
+  tunnelModeNotice: {
+    ca: 'Connexió no disponible en túnels. Les dades i el viatge continuen en marxa per horari.',
+    es: 'Conexión no disponible en túneles. Los datos y el viaje continúan en marcha por horario.',
+    en: 'Connection unavailable in tunnels. Data and journey estimation continue on schedule.',
+  },
+  tunnelModeHud: {
+    ca: 'Mode túnel · Per horari',
+    es: 'Modo túnel · Por horario',
+    en: 'Tunnel mode · Timetable',
+  },
+  tripProgress: {
+    ca: (n: number) => `${n}% completat`,
+    es: (n: number) => `${n}% completado`,
+    en: (n: number) => `${n}% completed`,
+  },
+  accessibilityStatus: {
+    ca: "Estat d'accessibilitat",
+    es: 'Estado de accesibilidad',
+    en: 'Accessibility status',
+  },
+  accessibleStation: {
+    ca: 'Estació accessible PMR (sense desnivell)',
+    es: 'Estación accesible PMR (sin desnivel)',
+    en: 'Step-free accessible station',
+  },
+  notAccessibleStation: {
+    ca: 'Estació no adaptada (accés amb escales)',
+    es: 'Estación no adaptada (acceso con escaleras)',
+    en: 'Not step-free accessible (stairs only)',
+  },
+  elevatorsOperating: {
+    ca: 'Ascensors i itineraris adaptats en servei',
+    es: 'Ascensores e itinerarios adaptados en servicio',
+    en: 'Elevators and step-free paths in service',
+  },
+  accessibilityAlert: {
+    ca: "Incidència d'accessibilitat reportada",
+    es: 'Incidencia de accesibilidad reportada',
+    en: 'Reported accessibility disruption',
+  },
+  noAccessibilityIncidents: {
+    ca: 'Sense incidències actives en ascensors o escales',
+    es: 'Sin incidencias activas en ascensores o escaleras',
+    en: 'No reported elevator or escalator outages',
+  },
+  trainsOnLine: {
+    ca: 'Trens en circulació a la línia',
+    es: 'Trenes en circulación en la línea',
+    en: 'Trains in service on line',
+  },
+  direction: {
+    ca: 'Sentit',
+    es: 'Sentido',
+    en: 'Direction',
+  },
+  atPlatform: {
+    ca: "A l'andana",
+    es: 'En andén',
+    en: 'At platform',
   },
 } as const
 

@@ -21,6 +21,7 @@ interface StopPanelProps {
   trains?: Train[]
   alerts?: Alert[]
   onSelectTrain?: (train: Train) => void
+  onOpenLineStrip?: (line: string) => void
 }
 
 const SKY_ICONS: Record<string, string> = {
@@ -52,7 +53,7 @@ function Metric({ label, value, unit }: { label: string; value: number | null; u
   )
 }
 
-function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColors, trains, alerts, onSelectTrain }: {
+function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColors, trains, alerts, onSelectTrain, onOpenLineStrip }: {
   stop: Stop
   detail: StopDetail | null
   loading: boolean
@@ -62,6 +63,7 @@ function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColo
   trains?: Train[]
   alerts?: Alert[]
   onSelectTrain?: (train: Train) => void
+  onOpenLineStrip?: (line: string) => void
 }) {
   const { t } = useI18n()
   const { isFavorite, toggleFavorite } = useFavoriteStations()
@@ -95,6 +97,13 @@ function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColo
     (trains ?? [])
       .map(tr => {
         if (matchesStation(tr.currentStop)) return { train: tr, here: true, dist: 0 }
+        if (tr.operator === 'renfe') {
+          // Renfe telemetry only reports nextStop and destination, not intermediate stops.
+          // Only match when this station is the verified next stop.
+          if (matchesStation(tr.nextStop)) return { train: tr, here: false, dist: 1 }
+          return null
+        }
+        // FGC provides full authentic properes_parades sequence from vehicle telemetry
         const idx = tr.upcomingStops.findIndex(s => matchesStation(s))
         return idx !== -1 ? { train: tr, here: false, dist: idx + 1 } : null
       })
@@ -118,6 +127,22 @@ function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColo
     return stationAlerts.find(a => {
       const text = (a.header + ' ' + (a.description ?? '')).toLowerCase()
       return text.includes('meteorol') || text.includes('freqüència') || text.includes('frequencia') || text.includes('inclemències') || text.includes('temporal')
+    })
+  }, [stationAlerts])
+
+  const accessibilityAlert = useMemo(() => {
+    return stationAlerts.find(a => {
+      const text = ((a.header || '') + ' ' + (a.description || '') + ' ' + (a.explanation || '')).toLowerCase()
+      return (
+        text.includes('ascensor') ||
+        text.includes('escala mecànica') ||
+        text.includes('escales mecàniques') ||
+        text.includes('escalas mecánicas') ||
+        text.includes('mobilitat reduïda') ||
+        text.includes('movilidad reducida') ||
+        text.includes('rampa') ||
+        text.includes('pmr')
+      )
     })
   }, [stationAlerts])
 
@@ -280,13 +305,77 @@ function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColo
             {stop.lines.map(l => {
               const c = lineColors[l] || LINE_COLORS[l] || '#7a82a0'
               return (
-                <span key={l} style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: `${c}25`, color: c, fontFamily: 'var(--font-space-grotesk)' }}>
-                  {l}
-                </span>
+                <button
+                  key={l}
+                  type="button"
+                  onClick={onOpenLineStrip ? () => onOpenLineStrip(l) : undefined}
+                  title={onOpenLineStrip ? `${t('viewLineStrip')}: ${l}` : undefined}
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    padding: '2px 6px',
+                    borderRadius: 4,
+                    background: `${c}25`,
+                    color: c,
+                    border: onOpenLineStrip ? `1px solid ${c}40` : 'none',
+                    fontFamily: 'var(--font-space-grotesk)',
+                    cursor: onOpenLineStrip ? 'pointer' : 'default',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 3,
+                  }}
+                >
+                  <span>{l}</span>
+                  {onOpenLineStrip && <span style={{ fontSize: 8.5, opacity: 0.75 }}>📊</span>}
+                </button>
               )
             })}
           </div>
         )}
+      </div>
+
+      {/* Real-time Accessibility Status */}
+      <div
+        style={{
+          background: accessibilityAlert
+            ? 'rgba(239, 68, 68, 0.1)'
+            : stop.wheelchairBoarding
+            ? 'rgba(34, 197, 94, 0.08)'
+            : 'var(--bg3)',
+          border: `1px solid ${
+            accessibilityAlert
+              ? 'rgba(239, 68, 68, 0.3)'
+              : stop.wheelchairBoarding
+              ? 'rgba(34, 197, 94, 0.22)'
+              : 'var(--border)'
+          }`,
+          borderRadius: 8,
+          padding: '8px 10px',
+          marginBottom: 14,
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 8,
+        }}
+      >
+        <span style={{ fontSize: 14, lineHeight: 1.2, marginTop: 1, flexShrink: 0 }}>
+          {accessibilityAlert ? '⚠️' : stop.wheelchairBoarding ? '♿' : '🚷'}
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: accessibilityAlert ? 'var(--red)' : stop.wheelchairBoarding ? 'var(--green)' : 'var(--muted)' }}>
+            {accessibilityAlert
+              ? t('accessibilityAlert')
+              : stop.wheelchairBoarding
+              ? t('accessibleStation')
+              : t('notAccessibleStation')}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, lineHeight: 1.35 }}>
+            {accessibilityAlert
+              ? (accessibilityAlert.description || accessibilityAlert.header)
+              : stop.wheelchairBoarding
+              ? t('elevatorsOperating')
+              : t('notAccessibleStation')}
+          </div>
+        </div>
       </div>
 
       {/* Trains passing now/soon — tap to jump to the train's detail */}
@@ -344,7 +433,6 @@ function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColo
         stationName={stop.name}
         lineColors={lineColors}
         weatherAlertActive={Boolean(weatherAlert)}
-        passingTrains={passing}
       />
 
       {loading && (
@@ -394,7 +482,7 @@ function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColo
   )
 }
 
-export function StopPanel({ stop, onClose, lineColors = {}, mobile = false, trains, alerts, onSelectTrain }: StopPanelProps) {
+export function StopPanel({ stop, onClose, lineColors = {}, mobile = false, trains, alerts, onSelectTrain, onOpenLineStrip }: StopPanelProps) {
   const [detail, setDetail] = useState<StopDetail | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -413,7 +501,7 @@ export function StopPanel({ stop, onClose, lineColors = {}, mobile = false, trai
   if (mobile) {
     return (
       <div style={{ padding: '0 20px 20px' }}>
-        {stop && <StopContent stop={stop} detail={detail} loading={loading} onClose={onClose} showCloseButton={false} lineColors={lineColors} trains={trains} alerts={alerts} onSelectTrain={onSelectTrain} />}
+        {stop && <StopContent stop={stop} detail={detail} loading={loading} onClose={onClose} showCloseButton={false} lineColors={lineColors} trains={trains} alerts={alerts} onSelectTrain={onSelectTrain} onOpenLineStrip={onOpenLineStrip} />}
       </div>
     )
   }
@@ -438,7 +526,7 @@ export function StopPanel({ stop, onClose, lineColors = {}, mobile = false, trai
       boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
       pointerEvents: open ? 'auto' : 'none',
     }}>
-      {stop && <StopContent stop={stop} detail={detail} loading={loading} onClose={onClose} showCloseButton lineColors={lineColors} trains={trains} alerts={alerts} onSelectTrain={onSelectTrain} />}
+      {stop && <StopContent stop={stop} detail={detail} loading={loading} onClose={onClose} showCloseButton lineColors={lineColors} trains={trains} alerts={alerts} onSelectTrain={onSelectTrain} onOpenLineStrip={onOpenLineStrip} />}
     </div>
   )
 }

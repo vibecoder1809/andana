@@ -304,5 +304,59 @@ Centralized in [`src/lib/externalLinks.ts`](src/lib/externalLinks.ts). Update be
 - **Files Modified:** `src/lib/i18n.tsx`, `src/components/TripPlanner.tsx`, `src/components/LiveTripHud.tsx`, `src/components/MobileSettingsModal.tsx`, `src/app/globals.css`, `src/app/layout.tsx`, `project_memory.md`.
 - **Verification:** `npm test` (30 checks passed), `test-new-features.mts` (all passed), `npx tsc --noEmit` (0 errors), `npm run build` (Turbopack, 14/14 compiled cleanly).
 
+### Session: 2026-10-06 (Revert Wagon Consist Overhaul & Preserve Direction Header)
+- **Context:** User requested removing emojis (`☀`, `●`) and cluttered graphics from the wagon occupancy row in `DetailPanel.tsx`, reverting to the clean original car style while retaining the `◀ Sentit de la marxa · cap a Destinació` badge.
+- **Key Changes:**
+  - Reverted `DetailPanel.tsx` wagon visualization back to original clean styling: sleek minimalist cab noses (`<svg width="14" height="48">`), clean car bars with occupancy %, and standard car labels (`M1`, `Mi`, `Ri`, `M2`).
+  - Removed emojis, complex nose headlights/taillights, intermediate gangways, role sublabels, and track bed lines.
+  - Retained the travel direction badge (`◀ Sentit de la marxa · cap a [Destinació]`) in the section header.
+- **Files Modified:** `src/components/DetailPanel.tsx`, `project_memory.md`.
+- **Verification:** `npm test` (30 checks passed), `test-new-features.mts` (passed), `npx tsc --noEmit` (0 errors), `npm run build` (Turbopack, 14/14 compiled cleanly).
 
+### Session: 2026-10-06 (Eliminate Fake Train Approaching Matching in DeparturesBoard)
+- **Context:** Enforced Rule 3 (Zero Fake Dynamics) by removing synthetic "Tren a X parades" badge in `DeparturesBoard.tsx`, which loosely linked scheduled GTFS departures to any passing train on the line.
+- **Key Changes:**
+  - Removed `matchingLive` and fake `liveTrainApproaching` / `liveTrainAtPlatform` badge from `DeparturesBoard.tsx`.
+  - Removed unused `passingTrains` prop from `DeparturesBoardProps` and its call in `StopPanel.tsx`. Real live circulating trains continue to be accurately displayed in their own dedicated `passingNowSoon` section.
+  - Cleaned up unused i18n keys from `src/lib/i18n.tsx`.
+- **Files Modified:** `DeparturesBoard.tsx`, `StopPanel.tsx`, `i18n.tsx`, `project_memory.md`.
+- **Verification:** `npm test` (30 checks passed), `test-new-features.mts` (passed), `npx tsc --noEmit` (0 errors), `npm run build` (Turbopack, 14/14 compiled cleanly).
+
+### Session: 2026-10-07 (Codebase-Wide Zero Fake Dynamics Audit & Purification)
+- **Context:** Comprehensive codebase audit conducted to identify and eliminate all synthetic approximations, loose matching, and fabricated fields across telemetry pipelines.
+- **Key Changes:**
+  - `renfe.ts`: Removed fabricated intermediate upcoming stops slicing from unordered GeoJSON stations. Now strictly exposes authentic Renfe fields (`nextStop` and `destination`).
+  - `StopPanel.tsx`: Guarded passing train stop distance calculation; Renfe trains only match when stationed (`hereNow`) or as the verified `nextStop`, eliminating fake "2 parades away" distance bugs on distant trains.
+  - `LiveTripHud.tsx`: Removed loose train-line matching in incoming train notifications that fired prematurely for unrelated trains; now triggers strictly when scheduled leg departure is imminent ($\le 3$ min).
+  - `DetailPanel.tsx` & `api/trains/route.ts`: Removed artificial GTFS-RT enum-to-percentage mapping and rendered clean `—` fallback for trains without weight sensor telemetry instead of misleading `0%`.
+- **Files Modified:** `src/lib/renfe.ts`, `src/components/StopPanel.tsx`, `src/components/LiveTripHud.tsx`, `src/components/DetailPanel.tsx`, `src/app/api/trains/route.ts`, `project_memory.md`.
+- **Verification:** `npm test` (30 checks passed), `test-new-features.mts` (all passed), `npx tsc --noEmit` (0 errors), `npm run build` (Turbopack, 14/14 compiled cleanly).
+### Session: 2026-10-07 (Docked Rectangular Live HUD Bottom Bar)
+- **Context:** Replaced floating pill Live HUD with a slim, edge-to-edge docked rectangle at the bottom of the screen to eliminate UI interruptions.
+- **Key Changes:**
+  - `LiveTripHud.tsx`: Docked HUD flush to bottom edge (`bottom: 0`, `left: 0`, `right: 0`, `borderRadius: 0`, `background: var(--bg2)`) with subtle top border and safe-area inset support.
+  - Collapsed single-line view renders: `[●] [Línia] Viatge actual: PC → VP · Proper: Estació       5 min`, 📍, expand ▲, and ✕.
+  - Expand mode slides up as a bottom drawer (`borderRadius: 16px 16px 0 0`) with route breakdown and alerts toggle.
+  - `MobileLayout.tsx` & `App.tsx`: Added bottom scroll padding offset and lifted `NearMeButton` on desktop to prevent overlap.
+- **Files Modified:** `src/components/LiveTripHud.tsx`, `src/components/MobileLayout.tsx`, `src/components/App.tsx`, `src/app/globals.css`, `project_memory.md`.
+- **Verification:** `cmd /c npx tsc --noEmit` (0 errors), `cmd /c npm test` (30 checks passed), `cmd /c npm run build` (Turbopack, 14/14 compiled cleanly).
+### Session: 2026-10-07 (HUD Progress Bar, Tunnel Resilience, Line Strip Modal & Station Accessibility)
+- **Context:** Added visual progress bar to Live HUD, tunnel offline resilience, interactive schematic Line Strip view, and real-time station accessibility indicators.
+- **Key Changes:**
+  - `LiveTripHud.tsx`: Added slender top-edge progress bar (0–100%) and drawer progress bar; added offline detection for tunnel mode with `🚇 Mode túnel` indicator.
+  - `App.tsx` & `MobileLayout.tsx`: Graceful tunnel error handling suppresses false red API errors when connectivity drops in tunnels; added tunnel warning bar.
+  - `LineStripModal.tsx`: Created schematic vertical line diagram with true polyline-projected station order, direction flip (⇄), live train locations/ETAs, Metro/Tram/Rodalies transfers, and accessibility badges.
+  - `StopPanel.tsx`: Added real-time accessibility card displaying PMR step-free status and live elevator/escalator breakdown alerts.
+- **Files Modified:** `LiveTripHud.tsx`, `LineStripModal.tsx`, `StopPanel.tsx`, `MobileLayout.tsx`, `App.tsx`, `NetworkStatusModal.tsx`, `i18n.tsx`, `project_memory.md`.
+- **Verification:** `npx tsc --noEmit` (0 errors), `npm test` (30 checks passed), `npm run build` (Turbopack, 14/14 compiled cleanly).
+
+### Session: 2026-10-07 (Line Strip Thermometer Population & Universal Line Mapping Fix)
+- **Context:** Fixed Line Strip ("Termòmetre de línia") modal showing 0 stations due to missing `lines` field on FGC stops and unmatched Renfe formatting.
+- **Key Changes:**
+  - Created `src/lib/lineStops.ts`: Canonical ordered station corridors for all FGC (`S1`, `S2`, `L6`, `L7`, `L8`, `R5`, `R6`...) and Rodalies (`R1`-`R17`, `RG1`, `RL3`, `RL4`, `RT1`, `RT2`) lines, plus polyline geometric projection fallback and station lines index.
+  - `src/app/api/stops/route.ts`: Enriched all FGC & Rodalies stops with their canonical calling lines array (`s.lines`).
+  - `LineStripModal.tsx`: Upgraded to use `getOrderedStopsForLine()`, robust real-time train positioning at/approaching stations, and SVG control icons.
+  - `StopPanel.tsx`: Made line badges interactive with `onOpenLineStrip` shortcut to open the line strip directly from any station card.
+- **Files Modified:** `src/lib/lineStops.ts`, `src/lib/i18n.tsx`, `src/app/api/stops/route.ts`, `src/components/LineStripModal.tsx`, `src/components/StopPanel.tsx`, `src/components/App.tsx`, `src/components/MobileLayout.tsx`, `project_memory.md`.
+- **Verification:** `cmd /c npx tsc --noEmit` (0 errors), `cmd /c npm test` (30 checks passed), `cmd /c npm run build` (Turbopack, 14/14 compiled cleanly).
 

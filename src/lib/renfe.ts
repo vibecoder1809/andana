@@ -193,8 +193,7 @@ export async function fetchRenfeRoutes(): Promise<Route[]> {
 // ── 3. Real-Time Train Positions ─────────────────────────────────────────────
 
 async function loadRenfeTrains(): Promise<Train[]> {
-  const [stations, stationMap, res] = await Promise.all([
-    fetchRenfeStations(),
+  const [stationMap, res] = await Promise.all([
     fetchRenfeStationMap(),
     fetch(`${FLOTA_URL}?v=${Date.now()}`, { cache: 'no-store' }),
   ])
@@ -211,15 +210,6 @@ async function loadRenfeTrains(): Promise<Train[]> {
     t.longitud >= 0.0 && t.longitud <= 4.0
   )
 
-  // Index stations by line to reconstruct full upcoming route stops
-  const lineStations = new Map<string, string[]>()
-  for (const s of stations) {
-    for (const l of s.lines || []) {
-      if (!lineStations.has(l)) lineStations.set(l, [])
-      lineStations.get(l)!.push(s.name)
-    }
-  }
-
   return rawList.map(t => {
     const orig = stationMap.get(t.codEstOrig) || t.codEstOrig
     const dest = stationMap.get(t.codEstDest) || t.codEstDest
@@ -235,23 +225,11 @@ async function loadRenfeTrains(): Promise<Train[]> {
 
     const eta = t.horaLlegadaSigEst ? parseMadridTimeToEpoch(t.horaLlegadaSigEst) : undefined
 
-    // Derive the sequence of upcoming stops along the line from next stop to destination
-    let upcomingStops: string[] = next ? [next] : []
-    const lineStops = lineStations.get(t.codLinea)
-    if (lineStops && next && dest) {
-      const nextIdx = lineStops.indexOf(next)
-      const destIdx = lineStops.indexOf(dest)
-      if (nextIdx !== -1 && destIdx !== -1) {
-        const step = nextIdx <= destIdx ? 1 : -1
-        const stopsArr: string[] = []
-        for (let i = nextIdx; i !== destIdx + step; i += step) {
-          stopsArr.push(lineStops[i])
-        }
-        if (stopsArr.length > 0) {
-          upcomingStops = stopsArr
-        }
-      }
-    }
+    // Renfe live telemetry only provides the next stop and terminal destination;
+    // we never synthesize fake intermediate stops.
+    const upcomingStops: string[] = next
+      ? (dest && dest !== next ? [next, dest] : [next])
+      : (dest ? [dest] : [])
 
     return {
       id: t.tripId || `renfe-${t.codTren}`,

@@ -18,6 +18,7 @@ import { formatAlertDateTime } from '@/lib/alertTime'
 import { MobileSettingsModal } from './MobileSettingsModal'
 import { useFavoriteStations } from '@/lib/savedStations'
 import { NetworkStatusModal } from './NetworkStatusModal'
+import { LineStripModal } from './LineStripModal'
 import { LiveTripHud } from './LiveTripHud'
 import { OnboardingModal } from './OnboardingModal'
 import { DonationModal } from './DonationModal'
@@ -58,6 +59,7 @@ interface MobileLayoutProps {
   refreshing: boolean
   lastUpdate: Date | null
   apiError: string | null
+  isTunnelOffline?: boolean
   outages?: OutageStatus
   theme: Theme
   networkMode: NetworkMode
@@ -444,7 +446,7 @@ function MobileAlertBanner({ alerts, onSelectAlert, top, networkMode }: { alerts
 export function MobileLayout({
   trains, mapTrains, allTrains, stops, routes, alerts, allAlerts, lines, lineColors,
   activeLines, selectedTrain, selectedStop,
-  refreshing, lastUpdate, apiError, outages, theme,
+  refreshing, lastUpdate, apiError, isTunnelOffline, outages, theme,
   networkMode, onNetworkChange,
   onToggleLine, onSelectTrain, onSelectStop,
   onCloseTrain, onCloseStop, onRefresh, onThemeToggle,
@@ -462,6 +464,7 @@ export function MobileLayout({
   const [selectedAlert, setSelectedAlert]     = useState<Alert | null>(null)
   const [settingsOpen, setSettingsOpen]       = useState(false)
   const [focusedLine, setFocusedLine]         = useState<string | null>(null)
+  const [lineStripLine, setLineStripLine]     = useState<string | null>(null)
   const [activeTrip, setActiveTrip]           = useState<Journey | null>(null)
   const [networkStatusOpen, setNetworkStatusOpen] = useState(false)
   const [viewportHeight, setViewportHeight] = useState<number | null>(null)
@@ -885,6 +888,19 @@ export function MobileLayout({
         pointerEvents: sheetRatio > 0.65 ? 'none' : 'auto',
         transition: 'opacity 0.25s',
       }}>
+        {isTunnelOffline && !apiError && (
+          <div style={{
+            position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 56px)', left: 12, right: 12,
+            background: 'rgba(245,158,11,0.96)', borderRadius: 14,
+            color: '#000', fontSize: 11.5, fontWeight: 600, padding: '8px 14px',
+            display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 6px 20px rgba(0,0,0,0.25)',
+          }}>
+            <span style={{ fontWeight: 800, fontSize: 10, background: '#000', color: '#fff', padding: '1px 5px', borderRadius: 4 }}>
+              🚇 {t('tunnelMode').toUpperCase()}
+            </span>
+            <span style={{ flex: 1, lineHeight: 1.3 }}>{t('tunnelModeNotice')}</span>
+          </div>
+        )}
         {apiError && (
           <div style={{
             position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 56px)', left: 12, right: 12,
@@ -1102,16 +1118,16 @@ export function MobileLayout({
           display: activeTab === 'plan' && !isItemSelected ? 'flex' : 'block',
           flexDirection: 'column',
           padding: isItemSelected
-            ? '6px 12px calc(24px + env(safe-area-inset-bottom, 0px))'
+            ? `6px 12px calc(${activeTrip ? '64px' : '24px'} + env(safe-area-inset-bottom, 0px))`
             : activeTab === 'plan'
-            ? '0 0 env(safe-area-inset-bottom, 0px)'
-            : '8px 12px calc(28px + env(safe-area-inset-bottom, 0px))',
+            ? `0 0 calc(${activeTrip ? '52px' : '0px'} + env(safe-area-inset-bottom, 0px))`
+            : `8px 12px calc(${activeTrip ? '68px' : '28px'} + env(safe-area-inset-bottom, 0px))`,
           overscrollBehavior: 'contain',
         }}>
           {selectedTrain ? (
             <DetailPanel train={selectedTrain} lineColors={lineColors} onClose={onCloseTrain} mobile />
           ) : selectedStop ? (
-            <StopPanel stop={selectedStop} onClose={onCloseStop} lineColors={lineColors} mobile trains={filteredTrains} alerts={alerts} onSelectTrain={handleSelectTrain} />
+            <StopPanel stop={selectedStop} onClose={onCloseStop} lineColors={lineColors} mobile trains={filteredTrains} alerts={alerts} onSelectTrain={handleSelectTrain} onOpenLineStrip={setLineStripLine} />
           ) : activeTab === 'plan' ? (
             <TripPlanner
               lineColors={lineColors}
@@ -1139,9 +1155,32 @@ export function MobileLayout({
                     borderRadius: 8,
                     marginBottom: 8,
                   }}>
-                    <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>
-                      {t('activeFilter', focusedLine)}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>
+                        {t('activeFilter', focusedLine)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setLineStripLine(focusedLine)}
+                        style={{
+                          background: 'var(--accent)',
+                          border: 'none',
+                          color: '#fff',
+                          borderRadius: 6,
+                          padding: '2px 7px',
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 3,
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        <span>📊</span>
+                        <span>{t('lineStrip')}</span>
+                      </button>
+                    </div>
                     <button
                       onClick={() => setFocusedLine(null)}
                       style={{
@@ -1521,6 +1560,7 @@ export function MobileLayout({
         lineColors={lineColors}
         focusedLine={focusedLine}
         outages={outages}
+        onOpenLineStrip={setLineStripLine}
         onSelectLine={(line) => {
           if (line) {
             const isFgc = /^(S|L)\d/i.test(line) || ['R5', 'R6', 'R50', 'R60'].includes(line)
@@ -1532,6 +1572,25 @@ export function MobileLayout({
           }
           setFocusedLine(line)
           setNetworkStatusOpen(false)
+        }}
+      />
+
+      {/* ── Line Strip Schematic Modal ── */}
+      <LineStripModal
+        open={lineStripLine !== null}
+        line={lineStripLine}
+        onClose={() => setLineStripLine(null)}
+        stops={stops}
+        routes={routes}
+        trains={allTrains ?? trains}
+        lineColors={lineColors}
+        onSelectStop={(s) => {
+          onSelectStop(s)
+          setLineStripLine(null)
+        }}
+        onSelectTrain={(tr) => {
+          onSelectTrain(tr)
+          setLineStripLine(null)
         }}
       />
 

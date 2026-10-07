@@ -1,7 +1,7 @@
 'use client'
  
 import { useEffect, useState, useMemo } from 'react'
-import type { Departure, Train } from '@/types'
+import type { Departure } from '@/types'
 import { LINE_COLORS } from '@/lib/constants'
 import { useI18n } from '@/lib/i18n'
 
@@ -35,13 +35,12 @@ export interface DeparturesBoardProps {
   stationName?: string
   lineColors: Record<string, string>
   weatherAlertActive?: boolean
-  passingTrains?: Array<{ train: Train; here: boolean; dist: number }>
 }
 
 // Live next-departures board for a station. Scheduled times come from the GTFS
 // timetable (via /api/departures) and are pushed later by each line's current
 // median delay; a per-second countdown ticks client-side.
-export function DeparturesBoard({ stationCode, stationName = '', lineColors, weatherAlertActive = false, passingTrains }: DeparturesBoardProps) {
+export function DeparturesBoard({ stationCode, stationName = '', lineColors, weatherAlertActive = false }: DeparturesBoardProps) {
   const { t } = useI18n()
   const [departures, setDepartures] = useState<Departure[] | null>(null)
   const [now, setNow]               = useState(nowSecondsOfDay())
@@ -208,7 +207,6 @@ export function DeparturesBoard({ stationCode, stationName = '', lineColors, wea
             const remaining = computeRemaining(d.eff, now)
             const imminent  = remaining <= IMMINENT_S
             const isInactive = d.isSuspended || d.isCancelled
-            const matchingLive = passingTrains?.find(p => p.train.line === d.line)
 
             return (
               <div
@@ -256,7 +254,7 @@ export function DeparturesBoard({ stationCode, stationName = '', lineColors, wea
                     {d.headsign}
                   </div>
 
-                  {/* Badges sub-row: track, live train status, last service, delay, accessible */}
+                  {/* Badges sub-row: track, last service, delay, accessible */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
                     {d.track && !isInactive && (
                       <span style={{
@@ -272,42 +270,6 @@ export function DeparturesBoard({ stationCode, stationName = '', lineColors, wea
                       }}>
                         {t('trackLabel')} {d.track}
                       </span>
-                    )}
-
-                    {matchingLive && !isInactive && (
-                      matchingLive.here ? (
-                        <span
-                          style={{
-                            fontSize: 9,
-                            fontWeight: 700,
-                            padding: '1px 5px',
-                            borderRadius: 4,
-                            background: 'rgba(34, 197, 94, 0.2)',
-                            color: 'var(--green)',
-                            border: '1px solid rgba(34, 197, 94, 0.35)',
-                            whiteSpace: 'nowrap',
-                          }}
-                          title={t('liveTrainAtPlatform')}
-                        >
-                          🟢 {t('liveTrainAtPlatform')}
-                        </span>
-                      ) : matchingLive.dist <= 3 ? (
-                        <span
-                          style={{
-                            fontSize: 9,
-                            fontWeight: 700,
-                            padding: '1px 5px',
-                            borderRadius: 4,
-                            background: 'rgba(34, 197, 94, 0.15)',
-                            color: 'var(--green)',
-                            border: '1px solid rgba(34, 197, 94, 0.25)',
-                            whiteSpace: 'nowrap',
-                          }}
-                          title={t('liveTrainApproaching', matchingLive.dist)}
-                        >
-                          🟢 {t('liveTrainApproaching', matchingLive.dist)}
-                        </span>
-                      ) : null
                     )}
 
                     {d.isLastService && !isInactive && (

@@ -18,6 +18,7 @@ import { readParam, updateParams } from '@/lib/urlState'
 import { AlertModal } from './AlertModal'
 import { formatAlertDateTime } from '@/lib/alertTime'
 import { NetworkStatusModal } from './NetworkStatusModal'
+import { LineStripModal } from './LineStripModal'
 import { LiveTripHud } from './LiveTripHud'
 import { OnboardingModal } from './OnboardingModal'
 import { DonationModal } from './DonationModal'
@@ -308,6 +309,8 @@ function AppInner() {
   // Journey whose path is drawn on the map (from the Plan tab). Null = none.
   const [selectedJourney, setSelectedJourney] = useState<Journey | null>(null)
   const [focusedLine, setFocusedLine] = useState<string | null>(null)
+  const [lineStripLine, setLineStripLine] = useState<string | null>(null)
+  const [isTunnelOffline, setIsTunnelOffline] = useState(false)
   const [activeTrip, setActiveTrip] = useState<Journey | null>(null)
   const [networkStatusOpen, setNetworkStatusOpen] = useState(false)
   const [settingsOpen, setSettingsOpen]           = useState(false)
@@ -419,6 +422,7 @@ function AppInner() {
       }
       setOutages(outageInfo)
       setApiError(null)
+      setIsTunnelOffline(false)
       setTrains(data)
       const fingerprint = JSON.stringify(data.map(t => ({ id: t.id, lat: t.lat, lng: t.lng, delay: t.delayMinutes })))
       if (fingerprint !== prevDataRef.current) {
@@ -427,11 +431,35 @@ function AppInner() {
       }
     } catch (e) {
       console.error('Failed to fetch trains:', e)
-      setApiError(t('apiConnectError'))
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        setIsTunnelOffline(true)
+        setApiError(null)
+      } else {
+        setApiError(t('apiConnectError'))
+      }
     } finally {
       if (showLoader) setRefreshing(false)
     }
   }, [t])
+
+  // Tunnel and network connectivity listeners
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const onOnline = () => {
+      setIsTunnelOffline(false)
+      fetchTrains()
+    }
+    const onOffline = () => {
+      setIsTunnelOffline(true)
+      setApiError(null)
+    }
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+    return () => {
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
+    }
+  }, [fetchTrains])
 
   const handleSelectTrain = useCallback((t: Train) => {
     setSelectedTrain(t)
@@ -603,6 +631,7 @@ function AppInner() {
           refreshing={refreshing}
           lastUpdate={lastUpdate}
           apiError={apiError}
+          isTunnelOffline={isTunnelOffline}
           outages={outages}
           theme={theme}
           networkMode={networkMode}
@@ -686,6 +715,38 @@ function AppInner() {
         <AlertBanner alerts={visibleAlerts} onSelectAlert={setSelectedAlert} networkMode={networkMode} />
       )}
 
+      {isTunnelOffline && !apiError && (
+        <div style={{ flexShrink: 0, background: 'rgba(245,158,11,0.12)', borderBottom: '1px solid rgba(245,158,11,0.3)', color: 'var(--yellow)', padding: '6px 20px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}>
+          <span style={{ background: 'var(--yellow)', color: '#000', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 800, flexShrink: 0 }}>
+            🚇 {t('tunnelMode').toUpperCase()}
+          </span>
+          <span>{t('tunnelModeNotice')}</span>
+        </div>
+      )}
+
+      {focusedLine && (
+        <div style={{ flexShrink: 0, background: 'rgba(59,130,246,0.12)', borderBottom: '1px solid rgba(59,130,246,0.25)', color: 'var(--accent)', padding: '6px 20px', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 600 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>{t('activeFilter', focusedLine)}</span>
+            <button
+              type="button"
+              onClick={() => setLineStripLine(focusedLine)}
+              style={{ background: 'var(--accent)', border: 'none', color: '#fff', borderRadius: 5, padding: '2px 8px', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}
+            >
+              <span>📊</span>
+              <span>{t('viewLineStrip')}</span>
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFocusedLine(null)}
+            style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            ✕ {t('clearFilter')}
+          </button>
+        </div>
+      )}
+
       <div
         style={{
           flex: 1,
@@ -732,9 +793,9 @@ function AppInner() {
             onClearFocusedLine={() => setFocusedLine(null)}
           />
           {/* Nearest-station shortcut → opens its live departures. */}
-          <NearMeButton stops={visibleStops} onPick={handleSelectStop} style={{ position: 'absolute', left: 16, bottom: 16, zIndex: 3 }} />
+          <NearMeButton stops={visibleStops} onPick={handleSelectStop} style={{ position: 'absolute', left: 16, bottom: activeTrip ? 54 : 16, zIndex: 3, transition: 'bottom 0.2s ease' }} />
           <DetailPanel train={selectedTrain} lineColors={lineColors} onClose={handleCloseTrain} />
-          <StopPanel stop={selectedStop} onClose={handleCloseStop} lineColors={lineColors} trains={displayTrains} alerts={visibleAlerts} onSelectTrain={handleSelectTrain} />
+          <StopPanel stop={selectedStop} onClose={handleCloseStop} lineColors={lineColors} trains={displayTrains} alerts={visibleAlerts} onSelectTrain={handleSelectTrain} onOpenLineStrip={setLineStripLine} />
         </div>
       </div>
 
@@ -755,6 +816,7 @@ function AppInner() {
         lineColors={lineColors}
         focusedLine={focusedLine}
         outages={outages}
+        onOpenLineStrip={setLineStripLine}
         onSelectLine={(line) => {
           if (line) {
             const isFgc = /^(S|L)\d/i.test(line) || ['R5', 'R6', 'R50', 'R60'].includes(line)
@@ -767,6 +829,21 @@ function AppInner() {
           setFocusedLine(line)
           setNetworkStatusOpen(false)
         }}
+      />
+
+      <LineStripModal
+        open={lineStripLine !== null}
+        line={lineStripLine}
+        onClose={() => setLineStripLine(null)}
+        stops={stops}
+        routes={routes}
+        trains={trains}
+        lineColors={lineColors}
+        onSelectStop={(s) => {
+          setSelectedStop(s)
+          setSelectedTrain(null)
+        }}
+        onSelectTrain={handleSelectTrain}
       />
 
       <AlertModal

@@ -13,6 +13,7 @@ interface NetworkStatusModalProps {
   lineColors: Record<string, string>
   focusedLine?: string | null
   onSelectLine?: (line: string | null) => void
+  onOpenLineStrip?: (line: string) => void
   outages?: { renfe: boolean; fgc: boolean }
 }
 
@@ -53,6 +54,7 @@ export function NetworkStatusModal({
   lineColors,
   focusedLine,
   onSelectLine,
+  onOpenLineStrip,
   outages,
 }: NetworkStatusModalProps) {
   const { lang, t } = useI18n()
@@ -291,16 +293,42 @@ export function NetworkStatusModal({
                             {info?.detail}
                           </span>
                         </div>
-                        <span
-                          style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: '50%',
-                            background: isDisrupted ? 'var(--red)' : isDelay || isOutage ? 'var(--yellow)' : '#22c55e',
-                            flexShrink: 0,
-                            marginLeft: 6,
-                          }}
-                        />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                          {onOpenLineStrip && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onOpenLineStrip(line)
+                                onClose()
+                              }}
+                              title={t('viewLineStrip')}
+                              style={{
+                                background: 'rgba(255, 255, 255, 0.08)',
+                                border: '1px solid var(--border)',
+                                borderRadius: 5,
+                                color: 'var(--text)',
+                                padding: '2px 5px',
+                                fontSize: 10,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 3,
+                              }}
+                            >
+                              <span>📊</span>
+                            </button>
+                          )}
+                          <span
+                            style={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: '50%',
+                              background: isDisrupted ? 'var(--red)' : isDelay || isOutage ? 'var(--yellow)' : '#22c55e',
+                              flexShrink: 0,
+                            }}
+                          />
+                        </div>
                       </div>
                     )
                   })}
