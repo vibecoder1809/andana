@@ -11,6 +11,7 @@ import { useFavoriteStations } from '@/lib/savedStations'
 import { matchesSearch, startsWithSearch } from '@/lib/searchUtils'
 import { NightRestCard } from './NightRestCard'
 import { isNightRestHours } from '@/lib/serviceTime'
+import { useNearbyTrains } from '@/lib/useNearbyTrains'
 
 type Tab = 'trains' | 'stations' | 'plan'
 
@@ -79,6 +80,8 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
       return aDepot - bDepot
     })
   }, [trains])
+
+  const { hasNearTrains, nearTrains, otherTrains, userCoords, locating: locatingNearby, requestLocation: requestNearbyLocation } = useNearbyTrains(sortedTrains)
 
   // Open the Plan tab on load when arriving via a shared planner link. Done in
   // an effect (not the initial state) to avoid an SSR/hydration mismatch.
@@ -234,9 +237,66 @@ export function Sidebar({ trains, stops, lines, lineColors, activeLines, selecte
               ) : (
                 <p style={{ textAlign: 'center', padding: 30, color: 'var(--muted)', fontSize: 12 }}>{t('noActiveTrains')}</p>
               )
-            ) : sortedTrains.map(t => (
-                <TrainCard key={t.id} train={t} selected={selectedTrain?.id === t.id} onClick={() => onSelectTrain(t)} lineColors={lineColors} />
-            ))}
+            ) : (
+              <>
+                {!userCoords && (
+                  <button
+                    type="button"
+                    onClick={requestNearbyLocation}
+                    disabled={locatingNearby}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      width: '100%',
+                      padding: '6px 10px',
+                      marginBottom: 8,
+                      borderRadius: 8,
+                      background: 'var(--bg3)',
+                      border: '1px dashed var(--border2)',
+                      color: 'var(--muted)',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <span>📍</span>
+                    <span>{locatingNearby ? '...' : t('enableLocationForNearby')}</span>
+                  </button>
+                )}
+                {hasNearTrains ? (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 6px 8px', fontSize: 10.5, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                      <span>📍</span>
+                      <span>{t('trainsNearYou')}</span>
+                      <span style={{ fontSize: 9.5, background: 'rgba(59,130,246,0.18)', padding: '1px 6px', borderRadius: 4 }}>
+                        {nearTrains.length}
+                      </span>
+                    </div>
+                    {nearTrains.map(t => (
+                      <TrainCard key={t.id} train={t} selected={selectedTrain?.id === t.id} onClick={() => onSelectTrain(t)} lineColors={lineColors} />
+                    ))}
+                    {otherTrains.length > 0 && (
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '14px 6px 8px', fontSize: 10.5, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                          <span>{t('allTrains')}</span>
+                        </div>
+                        {otherTrains.map(t => (
+                          <TrainCard key={t.id} train={t} selected={selectedTrain?.id === t.id} onClick={() => onSelectTrain(t)} lineColors={lineColors} />
+                        ))}
+                      </>
+                    )}
+                  </>
+                ) : (
+                  sortedTrains.map(t => (
+                    <TrainCard key={t.id} train={t} selected={selectedTrain?.id === t.id} onClick={() => onSelectTrain(t)} lineColors={lineColors} />
+                  ))
+                )}
+              </>
+            )}
           </div>
         </div>
       )}

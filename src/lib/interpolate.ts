@@ -45,7 +45,7 @@ const DECEL_DIST_M = 150
 const ACCEL_MS2 = 1.1
 const DECEL_MS2 = 1.0
 // Distance (m) threshold to snap into station platform
-const STOP_SNAP_M = 8
+const STOP_SNAP_M = 22
 
 // Only teleport when the real position is absurdly far from our animation (e.g. trip re-routed)
 const SNAP_THRESHOLD_M = 2000
@@ -317,7 +317,11 @@ export function useInterpolatedTrains(
             existing.stationedAt = null
           } else if (isNewTelemetry && existing.stationedAt) {
             const distFromStation = haversine(realPt, [existing.lng, existing.lat])
-            if (distFromStation > 80) {
+            // Only release early if the natural 20s dwell has concluded OR genuine fresh
+            // telemetry confirms the train has physically departed the station area (> 350m).
+            // A tight 80m threshold gets triggered by routine cellular/GPS noise (60-150m)
+            // and cuts the 20s dwell prematurely on the very next 10s poll!
+            if (now >= existing.dwellUntil || distFromStation > 350) {
               existing.dwellUntil = 0
               existing.stationedAt = null
             }
@@ -396,20 +400,28 @@ export function useInterpolatedTrains(
           continue
         }
 
-        // 4. Approach Deceleration: smoothly slow down pulling into station
+        // 4. Base Cruising Speed & Soft Drift Rectification (Sensor Fusion)
+        // Primary driver: our 60fps physics & track geometry engine.
+        // Secondary anchor: upstream GPS telemetry gently trims speed to converge over the ~10s poll cycle.
         let desiredSpeed = state.baseSpeed
+        const error = (state.targetDist - state.distAlong) * state.direction
 
+        // Ignore minor GPS jitter (< 20m, within a single train carriage length)
+        if (Math.abs(error) > 20 && Math.abs(error) < SNAP_THRESHOLD_M) {
+          // Distribute excess position gap smoothly over the 10s poll cycle,
+          // clamped to a gentle ±25% trim so speed transitions remain realistic and imperceptible.
+          const excessError = error > 0 ? error - 20 : error + 20
+          const correctionRate = excessError / 10 // m/s needed to close gap in 10s
+          const maxTrim = 0.25 * state.baseSpeed
+          const speedMod = Math.max(-maxTrim, Math.min(maxTrim, correctionRate))
+          desiredSpeed = Math.max(2.5, desiredSpeed + speedMod)
+        }
+
+        // 5. Approach Deceleration: smoothly slow down pulling into station
+        // Applied AFTER drift rectification so drift never overrides platform braking!
         if (nextStop && distToStop > 0 && distToStop < DECEL_DIST_M) {
           const brakeSpeed = Math.max(2.5, Math.sqrt(2 * DECEL_MS2 * distToStop))
           desiredSpeed = Math.min(desiredSpeed, brakeSpeed)
-        }
-
-        // 5. Soft Drift Rectification: gently adjust speed to close gaps with real API telemetry
-        // Never jump! Just run up to ±25% faster or slower along the rails until synchronized.
-        const error = (state.targetDist - state.distAlong) * state.direction
-        if (Math.abs(error) > 15 && Math.abs(error) < SNAP_THRESHOLD_M) {
-          const speedMod = Math.max(-0.25, Math.min(0.25, error / 200)) * state.baseSpeed
-          desiredSpeed = Math.max(2.5, desiredSpeed + speedMod)
         }
 
         // 6. Acceleration / Deceleration smoothing

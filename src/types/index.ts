@@ -169,3 +169,8 @@ export interface OutageStatus {
   fgc: boolean
 }
 
+export interface FeedTimestamps {
+  fgc?: number
+  renfe?: number
+}
+

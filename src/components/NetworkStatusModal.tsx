@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import type { Alert, Train } from '@/types'
+import type { Alert, Train, FeedTimestamps } from '@/types'
 import { LINE_COLORS } from '@/lib/constants'
 import { useI18n } from '@/lib/i18n'
 
@@ -15,6 +15,7 @@ interface NetworkStatusModalProps {
   onSelectLine?: (line: string | null) => void
   onOpenLineStrip?: (line: string) => void
   outages?: { renfe: boolean; fgc: boolean }
+  feedTimestamps?: FeedTimestamps
 }
 
 interface LineGroup {
@@ -56,8 +57,18 @@ export function NetworkStatusModal({
   onSelectLine,
   onOpenLineStrip,
   outages,
+  feedTimestamps,
 }: NetworkStatusModalProps) {
   const { lang, t } = useI18n()
+
+  const formatFeedTime = (ts?: number) => {
+    if (!ts) return '—'
+    const secs = Math.max(0, Math.round((Date.now() - ts) / 1000))
+    if (secs < 5) return t('justNow')
+    if (secs < 60) return t('secsAgo', secs)
+    const mins = Math.floor(secs / 60)
+    return t('minsAgo', mins)
+  }
 
   const lineStatuses = useMemo(() => {
     const map = new Map<string, {
@@ -206,6 +217,47 @@ export function NetworkStatusModal({
 
         {/* Content list */}
         <div style={{ padding: '16px 20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Telemetry freshness cards per operator */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 10,
+            padding: '10px 12px',
+            background: 'var(--bg3)',
+            borderRadius: 12,
+            border: '1px solid var(--border)',
+          }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: outages?.fgc ? 'var(--yellow)' : 'var(--green)' }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)' }}>FGC</span>
+                {feedTimestamps?.fgc && (
+                  <span style={{ fontSize: 10.5, color: 'var(--muted)', marginLeft: 'auto' }}>
+                    {formatFeedTime(feedTimestamps.fgc)}
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 9.5, color: 'var(--muted)' }}>
+                {t('feedCadenceFgc')}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: outages?.renfe ? 'var(--yellow)' : 'var(--green)' }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)' }}>Rodalies</span>
+                {feedTimestamps?.renfe && (
+                  <span style={{ fontSize: 10.5, color: 'var(--muted)', marginLeft: 'auto' }}>
+                    {formatFeedTime(feedTimestamps.renfe)}
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 9.5, color: 'var(--muted)' }}>
+                {t('feedCadenceRenfe')}
+              </div>
+            </div>
+          </div>
+
           {LINE_GROUPS.map(group => {
             const isGroupOutage = group.operator === 'renfe' ? outages?.renfe : outages?.fgc
 

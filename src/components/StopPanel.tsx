@@ -334,73 +334,29 @@ function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColo
         )}
       </div>
 
-      {/* Real-time Accessibility Status */}
-      <div
-        style={{
-          background: accessibilityAlert
-            ? 'rgba(239, 68, 68, 0.1)'
-            : stop.wheelchairBoarding
-            ? 'rgba(34, 197, 94, 0.08)'
-            : 'var(--bg3)',
-          border: `1px solid ${
-            accessibilityAlert
-              ? 'rgba(239, 68, 68, 0.3)'
-              : stop.wheelchairBoarding
-              ? 'rgba(34, 197, 94, 0.22)'
-              : 'var(--border)'
-          }`,
-          borderRadius: 8,
-          padding: '8px 10px',
-          marginBottom: 14,
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: 8,
-        }}
-      >
-        <span style={{ fontSize: 14, lineHeight: 1.2, marginTop: 1, flexShrink: 0 }}>
-          {accessibilityAlert ? '⚠️' : stop.wheelchairBoarding ? '♿' : '🚷'}
-        </span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 11.5, fontWeight: 700, color: accessibilityAlert ? 'var(--red)' : stop.wheelchairBoarding ? 'var(--green)' : 'var(--muted)' }}>
-            {accessibilityAlert
-              ? t('accessibilityAlert')
-              : stop.wheelchairBoarding
-              ? t('accessibleStation')
-              : t('notAccessibleStation')}
+      {/* Real-time Accessibility Alert (Only render if there is an active incident / broken elevator) */}
+      {accessibilityAlert && (
+        <div
+          style={{
+            background: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            borderRadius: 8,
+            padding: '8px 10px',
+            marginBottom: 12,
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 8,
+          }}
+        >
+          <span style={{ fontSize: 14, lineHeight: 1.2, marginTop: 1, flexShrink: 0 }}>⚠️</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--red)' }}>
+              {t('accessibilityAlert')}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, lineHeight: 1.35 }}>
+              {accessibilityAlert.description || accessibilityAlert.header}
+            </div>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, lineHeight: 1.35 }}>
-            {accessibilityAlert
-              ? (accessibilityAlert.description || accessibilityAlert.header)
-              : stop.wheelchairBoarding
-              ? t('elevatorsOperating')
-              : t('notAccessibleStation')}
-          </div>
-        </div>
-      </div>
-
-      {/* Trains passing now/soon — tap to jump to the train's detail */}
-      {trains && passing.length > 0 && (
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8 }}>
-            {t('passingNowSoon')}
-          </div>
-          {passing.map(({ train, here, dist }) => {
-            const color = lineColors[train.line] || LINE_COLORS[train.line] || '#7a82a0'
-            return (
-              <div
-                key={train.id}
-                onClick={onSelectTrain ? () => onSelectTrain(train) : undefined}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: 'var(--bg3)', borderRadius: 8, marginBottom: 5, cursor: onSelectTrain ? 'pointer' : 'default' }}
-              >
-                <span style={{ fontWeight: 700, fontSize: 12, color, minWidth: 24, fontFamily: 'var(--font-space-grotesk)' }}>{train.line}</span>
-                <span style={{ fontSize: 12, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>→ {train.destination}</span>
-                {train.delayMinutes > 0 && <span style={{ fontSize: 10, color: 'var(--red)', fontWeight: 600 }}>+{train.delayMinutes}m</span>}
-                {here
-                  ? <span style={{ background: color, color: '#fff', fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4 }}>{t('hereNow')}</span>
-                  : <span style={{ color: 'var(--muted)', fontSize: 10 }}>{t('stopsAway', dist)}</span>}
-              </div>
-            )
-          })}
         </div>
       )}
 
@@ -427,13 +383,39 @@ function StopContent({ stop, detail, loading, onClose, showCloseButton, lineColo
         </div>
       )}
 
-      {/* Live next-departures board */}
+      {/* Live next-departures board — placed front and center */}
       <DeparturesBoard
         stationCode={stationCode}
         stationName={stop.name}
         lineColors={lineColors}
         weatherAlertActive={Boolean(weatherAlert)}
       />
+
+      {/* Trains passing now/soon — tap to jump to the train's detail */}
+      {trains && passing.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 9.5, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8, fontWeight: 700 }}>
+            {t('passingNowSoon')}
+          </div>
+          {passing.map(({ train, here, dist }) => {
+            const color = lineColors[train.line] || LINE_COLORS[train.line] || '#7a82a0'
+            return (
+              <div
+                key={train.id}
+                onClick={onSelectTrain ? () => onSelectTrain(train) : undefined}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: 'var(--bg3)', borderRadius: 8, marginBottom: 5, cursor: onSelectTrain ? 'pointer' : 'default' }}
+              >
+                <span style={{ fontWeight: 700, fontSize: 12, color, minWidth: 24, fontFamily: 'var(--font-space-grotesk)' }}>{train.line}</span>
+                <span style={{ fontSize: 12, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>→ {train.destination}</span>
+                {train.delayMinutes > 0 && <span style={{ fontSize: 10, color: 'var(--red)', fontWeight: 600 }}>+{train.delayMinutes}m</span>}
+                {here
+                  ? <span style={{ background: color, color: '#fff', fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4 }}>{t('hereNow')}</span>
+                  : <span style={{ color: 'var(--muted)', fontSize: 10 }}>{t('stopsAway', dist)}</span>}
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {loading && (
         <div style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 0' }}>{t('loadingData')}</div>

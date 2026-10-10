@@ -228,9 +228,11 @@ input[type="time"], input[type="date"] { color-scheme: dark; }
 }
 
 /* ── Interactive tactile micro-interactions ── */
+button {
+  transition: transform 0.1s ease-out, opacity 0.15s ease, background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
 button:active:not(:disabled) {
   transform: scale(0.97);
-  transition: transform 0.05s ease-out;
 }
 
 /* ── Accessibility: Reduced motion ── */

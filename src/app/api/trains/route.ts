@@ -3,15 +3,19 @@ import { fetchTripInfo } from '@/lib/gtfs'
 import { fetchRenfeTrains } from '@/lib/renfe'
 import { cached } from '@/lib/cache'
 import { isNightRestHours } from '@/lib/serviceTime'
-import type { Train, OutageStatus } from '@/types'
+import type { Train, OutageStatus, FeedTimestamps } from '@/types'
 
-// Upstream feeds refresh every ~10-20s; TTL collapses client polling.
+// Upstream feeds refresh every ~20s (Renfe) to 120s (FGC); TTL collapses client polling.
 const TTL_MS = 8_000
 
 export interface TrainsFeedPayload {
   trains: Train[]
   outages: OutageStatus
+  timestamps?: FeedTimestamps
 }
+
+let lastFgcSuccessTime = 0
+let lastRenfeSuccessTime = 0
 
 async function loadTrains(): Promise<TrainsFeedPayload> {
   const [fgcResult, renfeResult] = await Promise.allSettled([
@@ -41,6 +45,13 @@ async function loadTrains(): Promise<TrainsFeedPayload> {
   const fgcTrains = fgcResult.status === 'fulfilled' ? fgcResult.value : []
   const renfeTrains = renfeResult.status === 'fulfilled' ? renfeResult.value : []
 
+  if (fgcTrains.length > 0) {
+    lastFgcSuccessTime = Date.now()
+  }
+  if (renfeTrains.length > 0) {
+    lastRenfeSuccessTime = Date.now()
+  }
+
   const isNight = isNightRestHours()
   // An outage is only detected when service should normally be running,
   // preventing false positives during overnight commercial rest (01:15 - 04:55).
@@ -56,6 +67,10 @@ async function loadTrains(): Promise<TrainsFeedPayload> {
     outages: {
       renfe: renfeOutage,
       fgc: fgcOutage,
+    },
+    timestamps: {
+      fgc: lastFgcSuccessTime || Date.now(),
+      renfe: lastRenfeSuccessTime || Date.now(),
     },
   }
 }

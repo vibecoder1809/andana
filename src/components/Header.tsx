@@ -226,7 +226,6 @@ export function Header({
   theme,
 }: HeaderProps) {
   const { t } = useI18n()
-  const relativeTime = useRelativeTime(lastUpdate)
 
   return (
     <header style={{
@@ -246,127 +245,118 @@ export function Header({
         Andana
       </div>
 
-      {/* Live badge */}
-      <div style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.25)', color: 'var(--green)', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 5 }}>
-        <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', display: 'inline-block', animation: 'pulse-dot 1.5s infinite' }} />
-        {t('live')}
-      </div>
-
-      {/* Network Status button */}
-      {onOpenNetworkStatus && (
-        <button
-          data-tour="network-status"
-          onClick={onOpenNetworkStatus}
-          style={{
-            background: alertCount && alertCount > 0 ? 'rgba(234,179,8,0.15)' : 'rgba(34,197,94,0.12)',
-            border: alertCount && alertCount > 0 ? '1px solid rgba(234,179,8,0.3)' : '1px solid rgba(34,197,94,0.25)',
-            color: alertCount && alertCount > 0 ? 'var(--yellow)' : 'var(--green)',
-            fontSize: 11.5,
-            fontWeight: 600,
-            padding: '4px 10px',
-            borderRadius: 20,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-          }}
-        >
-          <span style={{
-            width: 6,
-            height: 6,
-            borderRadius: '50%',
-            background: alertCount && alertCount > 0 ? 'var(--yellow)' : 'var(--green)',
-            display: 'inline-block',
-          }} />
-          <span>{t('networkStatus')}</span>
-          {alertCount && alertCount > 0 ? (
-            <span style={{
-              background: 'var(--yellow)',
-              color: '#000',
-              padding: '0 5px',
-              borderRadius: 10,
-              fontSize: 10,
-              fontWeight: 800,
-              marginLeft: 2,
-            }}>
-              {alertCount}
-            </span>
-          ) : null}
-        </button>
-      )}
-
-      {/* Network Switch: FGC | Rodalies | Ambas */}
+      {/* Network Switch: FGC | Rodalies | Ambdós — situated on the left */}
       <NetworkSwitch mode={networkMode} onChange={onNetworkChange} />
 
-      {/* Stats & Actions */}
-      <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginRight: 6 }}>
-          <span style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
-            <b style={{ color: 'var(--text)', fontSize: 13 }}>{trainCount}</b> {t('trains')}
-          </span>
-          <span style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
-            <b style={{ color: 'var(--text)', fontSize: 13 }}>{lineCount}</b> {t('lines')}
-          </span>
-          <span style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
-            {t('updatedShort')} <b style={{ color: 'var(--text)', fontSize: 13 }}>{relativeTime}</b>
-          </span>
-        </div>
+      {/* Live status badge + refresh button */}
+      <button
+        onClick={onRefresh}
+        disabled={refreshing}
+        title={t('refresh')}
+        style={{
+          background: 'rgba(34,197,94,0.12)',
+          border: '1px solid rgba(34,197,94,0.25)',
+          color: 'var(--green)',
+          fontSize: 11.5,
+          fontWeight: 600,
+          padding: '4px 11px',
+          borderRadius: 20,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          cursor: refreshing ? 'default' : 'pointer',
+          fontFamily: 'inherit',
+          transition: 'all 0.15s ease',
+        }}
+      >
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', display: 'inline-block', animation: 'pulse-dot 1.5s infinite' }} />
+        <span>{refreshing ? t('updatingData') : t('live')}</span>
+        <svg
+          width="11"
+          height="11"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{
+            animation: refreshing ? 'spin 0.8s linear infinite' : 'none',
+            opacity: refreshing ? 1 : 0.7,
+            marginLeft: 2,
+            flexShrink: 0,
+          }}
+        >
+          <polyline points="23 4 23 10 17 10" />
+          <polyline points="1 20 1 14 7 14" />
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+        </svg>
+      </button>
 
-        {onOpenDonation && (
+      {/* Right Controls: Service Status, Theme, Settings */}
+      <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+        {/* Network Status button */}
+        {onOpenNetworkStatus && (
           <button
-            onClick={onOpenDonation}
-            title={t('supportAndana')}
+            data-tour="network-status"
+            onClick={onOpenNetworkStatus}
             style={{
-              background: 'rgba(234,179,8,0.12)',
-              border: '1px solid rgba(234,179,8,0.3)',
-              color: 'var(--yellow)',
-              height: 34,
-              padding: '0 11px',
-              borderRadius: 10,
-              cursor: 'pointer',
+              background: alertCount && alertCount > 0 ? 'rgba(234,179,8,0.15)' : 'rgba(34,197,94,0.12)',
+              border: alertCount && alertCount > 0 ? '1px solid rgba(234,179,8,0.35)' : '1px solid rgba(34,197,94,0.25)',
+              color: alertCount && alertCount > 0 ? 'var(--yellow)' : 'var(--green)',
               fontSize: 12,
               fontWeight: 600,
-              fontFamily: 'inherit',
+              padding: '6px 12px',
+              borderRadius: 10,
               display: 'flex',
               alignItems: 'center',
-              gap: 5,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
-              transition: 'background 0.15s, border-color 0.15s',
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(234,179,8,0.2)'
-              e.currentTarget.style.borderColor = 'rgba(234,179,8,0.45)'
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = 'rgba(234,179,8,0.12)'
-              e.currentTarget.style.borderColor = 'rgba(234,179,8,0.3)'
+              gap: 7,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              transition: 'background 0.15s',
             }}
           >
-            <span>☕</span>
+            <span style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: alertCount && alertCount > 0 ? 'var(--yellow)' : 'var(--green)',
+              display: 'inline-block',
+            }} />
+            <span>{t('networkStatus')}</span>
+            {alertCount && alertCount > 0 ? (
+              <span style={{
+                background: 'var(--yellow)',
+                color: '#000',
+                padding: '0 6px',
+                borderRadius: 10,
+                fontSize: 10,
+                fontWeight: 800,
+                marginLeft: 2,
+              }}>
+                {alertCount}
+              </span>
+            ) : null}
           </button>
         )}
 
-        <LanguagePicker />
-
+        {/* Theme toggle */}
         <button
           onClick={onThemeToggle}
           title={theme === 'light' ? t('themeDark') : t('themeLight')}
+          aria-label={theme === 'light' ? t('themeDark') : t('themeLight')}
           style={{
             background: 'var(--bg3)',
             border: '1px solid var(--border2)',
             color: 'var(--text)',
-            height: 34,
-            padding: '0 12px',
+            width: 36,
+            height: 36,
             borderRadius: 10,
             cursor: 'pointer',
-            fontSize: 12,
-            fontWeight: 500,
-            fontFamily: 'inherit',
+            fontSize: 13,
             display: 'flex',
             alignItems: 'center',
-            gap: 6,
-            whiteSpace: 'nowrap',
+            justifyContent: 'center',
             boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
             transition: 'background 0.15s, border-color 0.15s',
           }}
@@ -380,7 +370,7 @@ export function Header({
           }}
         >
           {theme === 'light' ? (
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--yellow)', opacity: 0.95 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--yellow)', opacity: 0.95 }}>
               <circle cx="12" cy="12" r="5" />
               <line x1="12" y1="1" x2="12" y2="3" />
               <line x1="12" y1="21" x2="12" y2="23" />
@@ -392,71 +382,13 @@ export function Header({
               <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
             </svg>
           ) : (
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.85 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.85 }}>
               <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
             </svg>
           )}
-          <span>{t('theme')}</span>
         </button>
 
-        <button
-          onClick={onRefresh}
-          disabled={refreshing}
-          title={t('refresh')}
-          style={{
-            background: 'var(--bg3)',
-            border: '1px solid var(--border2)',
-            color: refreshing ? 'var(--accent)' : 'var(--text)',
-            height: 34,
-            padding: '0 12px',
-            borderRadius: 10,
-            cursor: refreshing ? 'default' : 'pointer',
-            fontSize: 12,
-            fontWeight: 500,
-            fontFamily: 'inherit',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            whiteSpace: 'nowrap',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
-            transition: 'background 0.15s, border-color 0.15s',
-            opacity: refreshing ? 0.75 : 1,
-          }}
-          onMouseEnter={e => {
-            if (!refreshing) {
-              e.currentTarget.style.background = 'var(--bg2)'
-              e.currentTarget.style.borderColor = 'var(--border)'
-            }
-          }}
-          onMouseLeave={e => {
-            if (!refreshing) {
-              e.currentTarget.style.background = 'var(--bg3)'
-              e.currentTarget.style.borderColor = 'var(--border2)'
-            }
-          }}
-        >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{
-              animation: refreshing ? 'spin 0.8s linear infinite' : 'none',
-              opacity: refreshing ? 1 : 0.85,
-              flexShrink: 0,
-            }}
-          >
-            <polyline points="23 4 23 10 17 10" />
-            <polyline points="1 20 1 14 7 14" />
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-          </svg>
-          <span>{refreshing ? t('loading') : t('refresh')}</span>
-        </button>
-
+        {/* Settings button */}
         {onOpenSettings && (
           <button
             data-tour="settings"
@@ -467,15 +399,16 @@ export function Header({
               background: 'var(--bg3)',
               border: '1px solid var(--border2)',
               color: 'var(--text)',
-              height: 34,
-              padding: '0 11px',
+              height: 36,
+              padding: '0 12px',
               borderRadius: 10,
               cursor: 'pointer',
-              fontSize: 13,
+              fontSize: 12,
+              fontWeight: 600,
               fontFamily: 'inherit',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
+              gap: 6,
               boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
               transition: 'background 0.15s, border-color 0.15s',
             }}
@@ -488,7 +421,8 @@ export function Header({
               e.currentTarget.style.borderColor = 'var(--border2)'
             }}
           >
-            <span>⚙️</span>
+            <span style={{ fontSize: 13 }}>⚙️</span>
+            <span>{t('settings')}</span>
           </button>
         )}
       </div>

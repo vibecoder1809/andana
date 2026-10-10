@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react'
 import dynamic from 'next/dynamic'
-import type { Train, Stop, Alert, Route, Theme, Journey, NetworkMode, OutageStatus } from '@/types'
+import type { Train, Stop, Alert, Route, Theme, Journey, NetworkMode, OutageStatus, FeedTimestamps } from '@/types'
 import { LINE_COLORS } from '@/lib/constants'
 import { buildJourneyPath } from '@/lib/journeyPath'
 import { Header } from './Header'
@@ -302,6 +302,7 @@ function AppInner() {
   const [theme, setTheme]                 = useState<Theme>('dark')
   const [refreshing, setRefreshing]       = useState(false)
   const [lastUpdate, setLastUpdate]       = useState<Date | null>(null)
+  const [feedTimestamps, setFeedTimestamps] = useState<FeedTimestamps>({})
   const [apiError, setApiError]           = useState<string | null>(null)
   const [outages, setOutages]             = useState<OutageStatus>({ renfe: false, fgc: false })
   const [isMobile, setIsMobile]           = useState(false)
@@ -421,6 +422,9 @@ function AppInner() {
         fgc: res.headers.get('x-andana-fgc-outage') === '1',
       }
       setOutages(outageInfo)
+      if (raw && typeof raw === 'object' && 'timestamps' in raw && raw.timestamps) {
+        setFeedTimestamps(raw.timestamps)
+      }
       setApiError(null)
       setIsTunnelOffline(false)
       setTrains(data)
@@ -630,6 +634,7 @@ function AppInner() {
           selectedStop={selectedStop}
           refreshing={refreshing}
           lastUpdate={lastUpdate}
+          feedTimestamps={feedTimestamps}
           apiError={apiError}
           isTunnelOffline={isTunnelOffline}
           outages={outages}
@@ -816,6 +821,7 @@ function AppInner() {
         lineColors={lineColors}
         focusedLine={focusedLine}
         outages={outages}
+        feedTimestamps={feedTimestamps}
         onOpenLineStrip={setLineStripLine}
         onSelectLine={(line) => {
           if (line) {
@@ -860,6 +866,7 @@ function AppInner() {
         trainCount={displayTrains.length}
         lineCount={lines.length}
         lastUpdate={lastUpdate}
+        feedTimestamps={feedTimestamps}
         refreshing={refreshing}
         onRefresh={handleRefresh}
         networkMode={networkMode}

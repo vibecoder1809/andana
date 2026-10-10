@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import type { Train, Stop, Alert, Route, Theme, Journey, NetworkMode, OutageStatus } from '@/types'
+import type { Train, Stop, Alert, Route, Theme, Journey, NetworkMode, OutageStatus, FeedTimestamps } from '@/types'
 import { LINE_COLORS } from '@/lib/constants'
 import { buildJourneyPath } from '@/lib/journeyPath'
 import { TrainCard } from './TrainCard'
@@ -30,6 +30,7 @@ import { NotificationToast } from './NotificationToast'
 import { NightRestCard } from './NightRestCard'
 import { isNightRestHours } from '@/lib/serviceTime'
 import { useFontSize } from '@/lib/fontSize'
+import { useNearbyTrains } from '@/lib/useNearbyTrains'
 
 const LINE_GROUPS: { key: string; labelKey: TransKey; prefix: RegExp }[] = [
   { key: 'L',          labelKey: 'groupUrbanShort',     prefix: /^L\d/ },
@@ -58,6 +59,7 @@ interface MobileLayoutProps {
   selectedStop: Stop | null
   refreshing: boolean
   lastUpdate: Date | null
+  feedTimestamps?: FeedTimestamps
   apiError: string | null
   isTunnelOffline?: boolean
   outages?: OutageStatus
@@ -74,17 +76,17 @@ interface MobileLayoutProps {
 }
 
 // ── Bottom-sheet drag physics ─────────────────────────────────────────────
-const SNAP_PEEK = 0.16  // handle + tabs
-const SNAP_HALF = 0.48  // half screen: map visible in top half, content in bottom
-const SNAP_FULL = 0.90  // almost full screen
+const SNAP_PEEK = 0.095  // exact handle + tabs cleanly cut off at bottom edge
+const SNAP_HALF = 0.48   // half screen: map visible in top half, content in bottom
+const SNAP_FULL = 0.90   // almost full screen
 const SNAPS = [SNAP_PEEK, SNAP_HALF, SNAP_FULL]
 
 // Velocity-aware snap: a fast flick jumps a step in its direction, otherwise we
 // settle to the nearest snap point. `velocity` is in ratio-units per second
 // (positive = expanding upward); `ceiling` is the ceiling from `useSheetCeiling`.
-function resolveSnap(ratio: number, velocity: number, ceiling = SNAP_FULL): number {
-  const FLICK = 0.6
-  const snaps = [SNAP_PEEK, SNAP_HALF, ceiling]
+function resolveSnap(ratio: number, velocity: number, ceiling = SNAP_FULL, peek = SNAP_PEEK): number {
+  const FLICK = 0.35
+  const snaps = [peek, SNAP_HALF, ceiling]
   const nearestIdx = snaps.reduce(
     (best, _, i) => (Math.abs(snaps[i] - ratio) < Math.abs(snaps[best] - ratio) ? i : best),
     0,
@@ -446,7 +448,7 @@ function MobileAlertBanner({ alerts, onSelectAlert, top, networkMode }: { alerts
 export function MobileLayout({
   trains, mapTrains, allTrains, stops, routes, alerts, allAlerts, lines, lineColors,
   activeLines, selectedTrain, selectedStop,
-  refreshing, lastUpdate, apiError, isTunnelOffline, outages, theme,
+  refreshing, lastUpdate, feedTimestamps, apiError, isTunnelOffline, outages, theme,
   networkMode, onNetworkChange,
   onToggleLine, onSelectTrain, onSelectStop,
   onCloseTrain, onCloseStop, onRefresh, onThemeToggle,
@@ -455,8 +457,10 @@ export function MobileLayout({
   useFontSize()
   const rootRef = useRef<HTMLDivElement>(null)
   const topBarRef = useRef<HTMLDivElement>(null)
+  const sheetHeaderRef = useRef<HTMLDivElement>(null)
   // Tallest the sheet may grow without hiding its handle under the top bar.
   const sheetCeiling = useSheetCeiling(rootRef, topBarRef)
+  const [peekRatio, setPeekRatio]         = useState(SNAP_PEEK)
   const [sheetRatio, setSheetRatio]       = useState(SNAP_PEEK)
   const [sheetDragging, setSheetDragging] = useState(false)
   const [activeTab, setActiveTab]         = useState<'trains' | 'stations' | 'plan'>('trains')
@@ -468,6 +472,31 @@ export function MobileLayout({
   const [activeTrip, setActiveTrip]           = useState<Journey | null>(null)
   const [networkStatusOpen, setNetworkStatusOpen] = useState(false)
   const [viewportHeight, setViewportHeight] = useState<number | null>(null)
+
+  // Dynamically measure exact grab-zone height so sheet collapses flush under the tabs
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    const header = sheetHeaderRef.current
+    if (!root || !header) return
+
+    const measure = () => {
+      const vh = root.clientHeight || window.innerHeight
+      if (!vh) return
+      const h = header.offsetHeight
+      if (h > 0) {
+        const ratio = Math.max(0.075, Math.min(0.13, (h + 2) / vh))
+        setPeekRatio(ratio)
+        // If sheet is at or near peek, sync it cleanly
+        setSheetRatio(curr => (curr < SNAP_HALF ? ratio : curr))
+      }
+    }
+
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(header)
+    ro.observe(root)
+    return () => ro.disconnect()
+  }, [])
 
   // Keep window.scrollY locked to 0 and adapt layout height to visualViewport when virtual keyboard opens
   useEffect(() => {
@@ -609,6 +638,8 @@ export function MobileLayout({
     })
   }, [filteredTrains])
 
+  const { hasNearTrains, nearTrains, otherTrains, locating: locatingNearby, requestLocation: requestNearbyLocation, userCoords } = useNearbyTrains(sortedTrains)
+
   const filteredStops = stationQuery.trim()
     ? Array.from(
         new Map(
@@ -671,9 +702,9 @@ export function MobileLayout({
     const vh = viewH()
     // Dragging up (negative deltaY) raises the sheet, but never past the
     // ceiling — the handle has to stay below the top bar to stay grabbable.
-    const next = Math.max(SNAP_PEEK - 0.03, Math.min(sheetCeiling, dragBase.current - deltaY / vh))
+    const next = Math.max(peekRatio - 0.02, Math.min(sheetCeiling, dragBase.current - deltaY / vh))
     setSheetRatio(next)
-  }, [sheetCeiling])
+  }, [sheetCeiling, peekRatio])
 
   const onSheetEnd = useCallback((deltaY: number, velocityPxPerS: number) => {
     const vh = viewH()
@@ -683,14 +714,14 @@ export function MobileLayout({
     const landed = dragBase.current - deltaY / vh
 
     // Downward swipe when an item is open at peek dismisses it
-    if (landed < SNAP_PEEK * 0.7 && (selectedTrain || selectedStop)) {
+    if (landed < peekRatio * 0.8 && (selectedTrain || selectedStop)) {
       handleDismissDetail()
-      setSheetRatio(SNAP_PEEK)
+      setSheetRatio(peekRatio)
       return
     }
 
-    setSheetRatio(resolveSnap(landed, ratioVel, sheetCeiling))
-  }, [selectedTrain, selectedStop, handleDismissDetail, sheetCeiling])
+    setSheetRatio(resolveSnap(landed, ratioVel, sheetCeiling, peekRatio))
+  }, [selectedTrain, selectedStop, handleDismissDetail, sheetCeiling, peekRatio])
 
   const beginSheetDrag = useVerticalDrag(onSheetMove, onSheetEnd)
   const startSheetDrag = useCallback((clientY: number) => {
@@ -702,8 +733,8 @@ export function MobileLayout({
 
   const toggleSheet = useCallback(() => {
     if (sheetMoved.current) return
-    setSheetRatio(r => (r < SNAP_HALF ? SNAP_HALF : SNAP_PEEK))
-  }, [])
+    setSheetRatio(r => (r < SNAP_HALF ? SNAP_HALF : peekRatio))
+  }, [peekRatio])
 
   const expandSheet = useCallback(() => {
     setSheetRatio(r => (r < SNAP_HALF ? SNAP_HALF : r))
@@ -992,13 +1023,14 @@ export function MobileLayout({
       >
         {/* Grab zone: handle + navigation or tabs */}
         <div
+          ref={sheetHeaderRef}
           style={{ flexShrink: 0, touchAction: 'none', cursor: 'grab' }}
           onMouseDown={e => startSheetDrag(e.clientY)}
           onTouchStart={e => startSheetDrag(e.touches[0].clientY)}
         >
           {/* Grabbable handle */}
-          <div onClick={toggleSheet} style={{ padding: '7px 0 5px' }}>
-            <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--border2)', margin: '0 auto' }} />
+          <div onClick={toggleSheet} style={{ padding: '8px 0 6px', cursor: 'pointer' }}>
+            <div style={{ width: 44, height: 5, borderRadius: 3, background: 'var(--border2)', margin: '0 auto', opacity: 0.9 }} />
           </div>
 
           {/* Conditional Navigation Header */}
@@ -1085,9 +1117,16 @@ export function MobileLayout({
                   <button
                     key={tab.key}
                     data-tour={`tab-${tab.key}`}
-                    onMouseDown={e => e.stopPropagation()}
-                    onTouchStart={e => e.stopPropagation()}
-                    onClick={() => { setActiveTab(tab.key); expandSheet(); if (tab.key === 'trains') setStationQuery('') }}
+                    onClick={() => {
+                      if (sheetMoved.current) return
+                      if (activeTab === tab.key) {
+                        toggleSheet()
+                      } else {
+                        setActiveTab(tab.key)
+                        expandSheet()
+                        if (tab.key === 'trains') setStationQuery('')
+                      }
+                    }}
                     style={{
                       flex: 1, padding: '6px 0', border: 'none', borderRadius: 9, cursor: 'pointer',
                       background: active ? 'var(--accent)' : 'transparent',
@@ -1265,15 +1304,84 @@ export function MobileLayout({
                 ) : (
                   <p style={{ textAlign: 'center', padding: 30, color: 'var(--muted)', fontSize: 12 }}>{t('noActiveTrains')}</p>
                 )
-              ) : sortedTrains.map(t => (
-                    <TrainCard
-                      key={t.id}
-                      train={t}
-                      selected={false}
-                      onClick={() => { handleSelectTrain(t); setStationQuery('') }}
-                      lineColors={lineColors}
-                    />
-                  ))}
+              ) : (
+                <>
+                  {!userCoords && (
+                    <button
+                      type="button"
+                      onClick={requestNearbyLocation}
+                      disabled={locatingNearby}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        width: '100%',
+                        padding: '7px 12px',
+                        marginBottom: 10,
+                        borderRadius: 10,
+                        background: 'var(--bg3)',
+                        border: '1px dashed var(--border2)',
+                        color: 'var(--muted)',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <span>📍</span>
+                      <span>{locatingNearby ? '...' : t('enableLocationForNearby')}</span>
+                    </button>
+                  )}
+                  {hasNearTrains ? (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '2px 4px 8px', fontSize: 10.5, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                        <span>📍</span>
+                        <span>{t('trainsNearYou')}</span>
+                        <span style={{ fontSize: 9.5, background: 'rgba(59,130,246,0.18)', padding: '1px 6px', borderRadius: 4 }}>
+                          {nearTrains.length}
+                        </span>
+                      </div>
+                      {nearTrains.map(t => (
+                        <TrainCard
+                          key={t.id}
+                          train={t}
+                          selected={false}
+                          onClick={() => { handleSelectTrain(t); setStationQuery('') }}
+                          lineColors={lineColors}
+                        />
+                      ))}
+                      {otherTrains.length > 0 && (
+                        <>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '14px 4px 8px', fontSize: 10.5, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                            <span>{t('allTrains')}</span>
+                          </div>
+                          {otherTrains.map(t => (
+                            <TrainCard
+                              key={t.id}
+                              train={t}
+                              selected={false}
+                              onClick={() => { handleSelectTrain(t); setStationQuery('') }}
+                              lineColors={lineColors}
+                            />
+                          ))}
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    sortedTrains.map(t => (
+                      <TrainCard
+                        key={t.id}
+                        train={t}
+                        selected={false}
+                        onClick={() => { handleSelectTrain(t); setStationQuery('') }}
+                        lineColors={lineColors}
+                      />
+                    ))
+                  )}
+                </>
+              )}
             </div>
           ) : (
             /* Estacions Tab with instant major hubs */
@@ -1533,6 +1641,7 @@ export function MobileLayout({
         trainCount={filteredTrains.length}
         lineCount={lines.length}
         lastUpdate={lastUpdate}
+        feedTimestamps={feedTimestamps}
         refreshing={refreshing}
         onRefresh={onRefresh}
         networkMode={networkMode}
@@ -1560,6 +1669,7 @@ export function MobileLayout({
         lineColors={lineColors}
         focusedLine={focusedLine}
         outages={outages}
+        feedTimestamps={feedTimestamps}
         onOpenLineStrip={setLineStripLine}
         onSelectLine={(line) => {
           if (line) {

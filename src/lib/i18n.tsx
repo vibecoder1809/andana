@@ -61,6 +61,9 @@ const DICT = {
   groupRegionalShort:{ ca: 'R — Reg.', es: 'R — Reg.',    en: 'R — Reg.' },
   groupCremalleraShort: { ca: 'Cremallera', es: 'Cremallera', en: 'Rack Railway' },
   noActiveTrains:  { ca: 'Cap tren actiu.', es: 'Ningún tren activo.', en: 'No active trains.' },
+  trainsNearYou:   { ca: 'Trens a prop teu', es: 'Trenes cerca de ti', en: 'Trains near you' },
+  allTrains:       { ca: 'Tots els trens', es: 'Todos los trenes', en: 'All trains' },
+  enableLocationForNearby: { ca: '📍 Trens a prop meu', es: '📍 Trenes cerca de mí', en: '📍 Trains near me' },
 
   // ── Sidebar: stations ──
   searchStation:   { ca: 'Cerca Estació', es: 'Buscar Estación', en: 'Search Station' },
@@ -648,6 +651,31 @@ const DICT = {
     ca: "A l'andana",
     es: 'En andén',
     en: 'At platform',
+  },
+  updatingData: {
+    ca: 'Actualitzant…',
+    es: 'Actualizando…',
+    en: 'Updating…',
+  },
+  telemetryFreshness: {
+    ca: 'Actualització de la telemetria',
+    es: 'Actualización de la telemetría',
+    en: 'Telemetry freshness',
+  },
+  lastUpdateLabel: {
+    ca: 'Darrera posició:',
+    es: 'Última posición:',
+    en: 'Last position:',
+  },
+  feedCadenceFgc: {
+    ca: 'Cadència oficial FGC: cada 2 min',
+    es: 'Cadencia oficial FGC: cada 2 min',
+    en: 'Official FGC cadence: every 2 min',
+  },
+  feedCadenceRenfe: {
+    ca: 'Cadència oficial Rodalies: cada ~20 s',
+    es: 'Cadencia oficial Rodalies: cada ~20 s',
+    en: 'Official Rodalies cadence: every ~20 s',
   },
 } as const
 

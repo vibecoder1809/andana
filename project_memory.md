@@ -111,6 +111,20 @@ Centralized in [`src/lib/externalLinks.ts`](src/lib/externalLinks.ts). Update be
 
 📁 **Historical Archive:** Sessions from October 3–4, 2026 are archived in [`docs/project_memory_archive.md`](docs/project_memory_archive.md).
 
+### Session: 2026-10-10 (Pre-Release UI/UX Polish, Sheet Interaction, Nearby Trains & Dwell Fix)
+- **Context:** Station hierarchy needed DeparturesBoard prioritized; desktop header cluttered; mobile sheet had drag dead-zones and peeked cards; trains glided past stations without dwelling. Also verified actual feed cadences: FGC publishes batches strictly every 120s (2 min), while Renfe updates every ~20s. Monolithic relative timer in header button was desynchronized and misleading.
+- **Key Changes:**
+  - `Header.tsx`: Moved Network Switch back to left next to logo; cleaned `● En viu` pill to show active status / `Actualitzant...` without misleading monolithic counter.
+  - `NetworkStatusModal.tsx` & `MobileSettingsModal.tsx`: Added per-operator telemetry freshness cards showing independent ages and cadences (FGC ~2 min, Rodalies ~20 s).
+  - `/api/trains/route.ts` & `src/types/index.ts`: Returned separate `timestamps` for FGC and Renfe feeds; wired through desktop and mobile roots.
+  - `StopPanel.tsx`: Placed departures board immediately at top below station meta; moved environmental and passing trains underneath.
+  - `MobileLayout.tsx`: Connected `sheetHeaderRef` with dynamic peek ratio; removed `stopPropagation` on tabs and enabled full drag-vs-click gestures and tap-to-toggle.
+  - `useNearbyTrains.ts`, `Sidebar.tsx`, `MobileLayout.tsx`: Proximity hook prioritizing trains $\le 6.5$ km with subtle location request prompt and trilingual strings.
+  - `renfe.ts`: Expanded Renfe trains' `upcomingStops` using authoritative `LINE_STATION_CODES` between `next` and `dest`.
+  - `interpolate.ts`: Fixed station dwell mechanics: widened platform snap threshold to 22m, guarded 20s dwells from premature cancellation (>350m threshold), and refined drift rectification deadband.
+- **Files Modified/Added:** `StopPanel.tsx`, `Header.tsx`, `MobileLayout.tsx`, `Sidebar.tsx`, `useNearbyTrains.ts`, `renfe.ts`, `interpolate.ts`, `i18n.tsx`, `globals.css`, `NetworkStatusModal.tsx`, `MobileSettingsModal.tsx`, `types/index.ts`, `src/app/api/trains/route.ts`, `project_memory.md`.
+- **Verification:** `npm test` (30/30 passed), `node scripts/test-new-features.mts` (passed), `npx tsc --noEmit` (0 errors), `npm run build` (Turbopack production build succeeded).
+
 ### Session: 2026-10-05 (Light Theme Contrast, Bug Reports & Mobile De-Cluttering)
 - **Context:** Light theme status badges had low contrast; mobile alert banner truncated text.
 - **Key Changes:** Redefined light theme `--status-*` tokens in `globals.css` (WCAG AA compliant slate/emerald/amber/crimson); dark mode tokens kept 100% intact. Added `FeedbackModal.tsx` in Settings. Centralized external hooks in `src/lib/externalLinks.ts`. Refactored mobile alert banner into a 2-row card with expandable drawer. Positioned floating `NearMeButton` above sheet. Modernized desktop header pills in `Header.tsx`. Added 3-circle header buttons (Share, Favorite, Close) in `StopPanel.tsx`, `DetailPanel.tsx`, and `TripPlanner.tsx`.

@@ -1,5 +1,6 @@
 import { cached } from './cache.ts'
 import { getStationCode } from './constants.ts'
+import { LINE_STATION_CODES, normalizeLineCode } from './lineStops.ts'
 import type { Train, Stop, Route, Departure, Alert } from '@/types'
 
 const FLOTA_URL = 'https://tiempo-real.renfe.com/renfe-visor/flota.json'
@@ -225,11 +226,33 @@ async function loadRenfeTrains(): Promise<Train[]> {
 
     const eta = t.horaLlegadaSigEst ? parseMadridTimeToEpoch(t.horaLlegadaSigEst) : undefined
 
-    // Renfe live telemetry only provides the next stop and terminal destination;
-    // we never synthesize fake intermediate stops.
-    const upcomingStops: string[] = next
-      ? (dest && dest !== next ? [next, dest] : [next])
-      : (dest ? [dest] : [])
+    // Renfe live telemetry only transmits codEstSig and codEstDest.
+    // Expand to the authoritative line station sequence so the train
+    // knows all intermediate stations along its route to stop and dwell at.
+    let upcomingStops: string[] = []
+    const normLine = normalizeLineCode(t.codLinea)
+    const lineStops = LINE_STATION_CODES[normLine]
+    const sigCode = String(t.codEstSig || '')
+    const destCode = String(t.codEstDest || '')
+
+    if (lineStops && sigCode && destCode) {
+      const nextIdx = lineStops.indexOf(sigCode)
+      const destIdx = lineStops.indexOf(destCode)
+      if (nextIdx !== -1 && destIdx !== -1) {
+        const step = destIdx >= nextIdx ? 1 : -1
+        for (let i = nextIdx; i !== destIdx + step; i += step) {
+          const code = lineStops[i]
+          const name = stationMap.get(code)
+          if (name) upcomingStops.push(name)
+        }
+      }
+    }
+
+    if (upcomingStops.length === 0) {
+      upcomingStops = next
+        ? (dest && dest !== next ? [next, dest] : [next])
+        : (dest ? [dest] : [])
+    }
 
     return {
       id: t.tripId || `renfe-${t.codTren}`,

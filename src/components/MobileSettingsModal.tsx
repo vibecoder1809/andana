@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import type { Theme, NetworkMode } from '@/types'
+import type { Theme, NetworkMode, FeedTimestamps } from '@/types'
 import { useI18n, LANGS, type Lang } from '@/lib/i18n'
 import { FeedbackModal } from './FeedbackModal'
 import { useFavoriteLines } from '@/lib/savedLines'
@@ -32,6 +32,7 @@ interface MobileSettingsModalProps {
   trainCount: number
   lineCount: number
   lastUpdate: Date | null
+  feedTimestamps?: FeedTimestamps
   refreshing: boolean
   onRefresh: () => void
   networkMode: NetworkMode
@@ -48,6 +49,7 @@ export function MobileSettingsModal({
   trainCount,
   lineCount,
   lastUpdate,
+  feedTimestamps,
   refreshing,
   onRefresh,
   networkMode,
@@ -65,6 +67,15 @@ export function MobileSettingsModal({
   const [notifSettings, setNotifSettings] = useState<NotificationSettings>(getNotificationSettings)
   const [testSent, setTestSent] = useState(false)
   const [linesExpanded, setLinesExpanded] = useState(false)
+
+  const formatFeedTime = (ts?: number) => {
+    if (!ts) return '—'
+    const secs = Math.max(0, Math.round((Date.now() - ts) / 1000))
+    if (secs < 5) return t('justNow')
+    if (secs < 60) return t('secsAgo', secs)
+    const mins = Math.floor(secs / 60)
+    return t('minsAgo', mins)
+  }
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -381,35 +392,66 @@ export function MobileSettingsModal({
             <div style={{
               background: 'var(--bg3)',
               borderRadius: 10,
-              padding: '10px 12px',
+              padding: '12px',
               border: '1px solid var(--border)',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
+              flexDirection: 'column',
+              gap: 10,
             }}>
-              <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                {t('updatedShort')} <strong style={{ color: 'var(--text)' }}>{relativeText}</strong>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)' }} />
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)' }}>FGC</span>
+                    {feedTimestamps?.fgc && (
+                      <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 'auto' }}>
+                        {formatFeedTime(feedTimestamps.fgc)}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 9.5, color: 'var(--muted)' }}>
+                    {t('feedCadenceFgc')}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)' }} />
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)' }}>Rodalies</span>
+                    {feedTimestamps?.renfe && (
+                      <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 'auto' }}>
+                        {formatFeedTime(feedTimestamps.renfe)}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 9.5, color: 'var(--muted)' }}>
+                    {t('feedCadenceRenfe')}
+                  </div>
+                </div>
               </div>
-              <button
-                onClick={onRefresh}
-                disabled={refreshing}
-                style={{
-                  background: 'var(--bg2)',
-                  border: '1px solid var(--border2)',
-                  borderRadius: 8,
-                  padding: '5px 12px',
-                  color: refreshing ? 'var(--accent)' : 'var(--text)',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 5,
-                }}
-              >
-                <span style={{ animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }}>↻</span>
-                <span>{refreshing ? t('loading') : t('refresh')}</span>
-              </button>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border2)', paddingTop: 8 }}>
+                <button
+                  onClick={onRefresh}
+                  disabled={refreshing}
+                  style={{
+                    background: 'var(--bg2)',
+                    border: '1px solid var(--border2)',
+                    borderRadius: 8,
+                    padding: '5px 12px',
+                    color: refreshing ? 'var(--accent)' : 'var(--text)',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                  }}
+                >
+                  <span style={{ animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }}>↻</span>
+                  <span>{refreshing ? t('loading') : t('refresh')}</span>
+                </button>
+              </div>
             </div>
           </div>
 
