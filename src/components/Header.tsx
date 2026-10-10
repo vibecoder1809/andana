@@ -245,9 +245,6 @@ export function Header({
         Andana
       </div>
 
-      {/* Network Switch: FGC | Rodalies | Ambdós — situated on the left */}
-      <NetworkSwitch mode={networkMode} onChange={onNetworkChange} />
-
       {/* Live status badge + refresh button */}
       <button
         onClick={onRefresh}
@@ -292,6 +289,9 @@ export function Header({
           <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
         </svg>
       </button>
+
+      {/* Network Switch: FGC | Rodalies | Ambdós */}
+      <NetworkSwitch mode={networkMode} onChange={onNetworkChange} />
 
       {/* Right Controls: Service Status, Theme, Settings */}
       <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
